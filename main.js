@@ -2773,6 +2773,7 @@ async function performSaveAs(options) {
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
                 { name: 'BibTeX Files', extensions: ['bib'] },
                 { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'PowerPoint Files', extensions: ['pptx'] },
                 { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
@@ -3140,7 +3141,9 @@ async function openFile() {
 
         const filePath = filePaths[0];
         debugMain(`[main.js] User selected file: ${filePath}`);
-        const content = await fs.readFile(filePath, 'utf8');
+        const content = path.extname(filePath).toLowerCase() === '.pptx'
+            ? ''
+            : await fs.readFile(filePath, 'utf8');
         currentFilePath = filePath;
         // Title remains consistent - don't change app title based on file name
          if (mainWindow) {

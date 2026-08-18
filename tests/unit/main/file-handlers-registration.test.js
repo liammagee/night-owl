@@ -55,6 +55,34 @@ describe('fileHandlers registration', () => {
     expect(handler()).toBe('/workspace/updated');
   });
 
+  test('opens PPTX files without decoding binary ZIP data as editor text', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-pptx-open-'));
+    const deckPath = path.join(workspace, 'deck.pptx');
+    fsSync.writeFileSync(deckPath, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0x00]));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      await expect(getRegisteredHandler('open-file-path')({}, deckPath)).resolves.toMatchObject({
+        success: true,
+        filePath: deckPath,
+        content: ''
+      });
+    } finally {
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   test('extract-text-with-replacement writes the new file and updates the source inside the workspace', async () => {
     const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-extract-text-'));
     const originalFilePath = path.join(workspace, 'source.md');

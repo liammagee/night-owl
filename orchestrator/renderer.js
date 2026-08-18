@@ -6306,6 +6306,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     const fileClassification = previewRouter.classifyFilePath(filePath);
     const {
         isPDF,
+        isPPTX,
         isImage: isImageFile,
         isHTML,
         isBibTeX,
@@ -6314,12 +6315,12 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
         isMarkdown
     } = fileClassification;
     const isLargeMarkdown = isMarkdown && content && content.length >= LARGE_MARKDOWN_CHAR_THRESHOLD;
-    const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile;
+    const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isPPTX && !isImageFile;
 
     // --- Tab Manager routing ---
     if (window.tabManager && !options.isInternalLinkPreview) {
         // Only manage non-binary files as tabs
-        if (!isPDF && !isImageFile) {
+        if (!isPDF && !isPPTX && !isImageFile) {
             // If tab already exists, just activate it (preserves cursor, scroll, undo)
             if (window.tabManager.hasTab(filePath)) {
                 if (options.refreshExistingTabContent && typeof content === 'string') {
@@ -6384,7 +6385,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     }
 
     // Exit PDF-only mode if we're opening a non-PDF file
-    if (!isPDF && !options.isInternalLinkPreview) {
+    if (!isPDF && !isPPTX && !options.isInternalLinkPreview) {
         exitPDFOnlyMode();
     }
     
@@ -6425,6 +6426,11 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     if (isPDF) {
         await handlePDFFile(filePath, transition);
         // Note: PDF files don't trigger AI chat context updates since they're not editable
+        return;
+    }
+
+    if (isPPTX) {
+        await handlePPTXFile(filePath, transition);
         return;
     }
     
@@ -6472,6 +6478,92 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     
     // Update AI chat context when file changes
     updateAIChatContext(filePath);
+}
+
+async function handlePPTXFile(filePath, transition = null) {
+    if (!isTransitionCurrent(transition)) return;
+    enterPDFOnlyMode();
+    await displayPPTXInPreview(filePath, transition);
+}
+
+async function displayPPTXInPreview(filePath, transition = null) {
+    if (!isTransitionCurrent(transition)) return;
+    const previewContent = document.getElementById('preview-content');
+    if (!previewContent) return;
+
+    const displayFileName = escapeHTMLAttribute(filePath.split(/[\\/]/).pop());
+    previewContent.innerHTML = `
+        <div class="pptx-preview-container" data-preview-kind="pptx">
+            <header class="pptx-preview-header">
+                <div class="pptx-preview-title">📊 ${displayFileName}</div>
+                <div id="pptx-preview-status" class="pptx-preview-status" role="status" aria-live="polite">
+                    Rendering slides…
+                </div>
+                <button id="pptx-open-powerpoint" type="button" class="btn btn-primary">Open in PowerPoint</button>
+            </header>
+            <div id="pptx-preview-stage" class="pptx-preview-stage">
+                <div class="pptx-preview-loading">Preparing the PowerPoint preview…</div>
+            </div>
+        </div>
+    `;
+
+    const status = document.getElementById('pptx-preview-status');
+    const stage = document.getElementById('pptx-preview-stage');
+    document.getElementById('pptx-open-powerpoint')?.addEventListener('click', async () => {
+        try {
+            const result = await window.electronAPI.presentation.openPptxInPowerpoint({ filePath });
+            if (!result?.success) throw new Error(result?.error || 'PowerPoint could not open this deck.');
+        } catch (error) {
+            showNotification(error.message || 'PowerPoint could not open this deck.', 'error');
+        }
+    });
+
+    try {
+        const result = await window.electronAPI.presentation.renderPptxPreview({ filePath });
+        if (!isTransitionCurrent(transition)) return;
+        if (!result?.success || result.renderer !== 'html') {
+            if (status) {
+                status.textContent = 'Preview unavailable';
+                status.dataset.state = 'warning';
+            }
+            if (stage) {
+                stage.innerHTML = '';
+                const fallback = document.createElement('div');
+                fallback.className = 'pptx-preview-fallback';
+                const heading = document.createElement('strong');
+                heading.textContent = 'This deck cannot be rendered inside NightOwl.';
+                const detail = document.createElement('p');
+                detail.textContent = result?.error || 'Open it in PowerPoint to continue.';
+                fallback.append(heading, detail);
+                stage.appendChild(fallback);
+            }
+            return;
+        }
+
+        const frame = document.createElement('iframe');
+        frame.className = 'pptx-preview-frame';
+        frame.title = `PowerPoint preview: ${filePath.split(/[\\/]/).pop()}`;
+        frame.setAttribute('sandbox', '');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.srcdoc = injectHTMLPreviewBase(result.html, result.previewPath);
+        if (stage) {
+            stage.innerHTML = '';
+            stage.appendChild(frame);
+        }
+        if (status) {
+            status.textContent = result.cacheHit ? 'Quick Look preview · cached' : 'Quick Look preview';
+            status.dataset.state = 'ready';
+        }
+    } catch (error) {
+        if (!isTransitionCurrent(transition)) return;
+        if (status) {
+            status.textContent = 'Preview failed';
+            status.dataset.state = 'error';
+        }
+        if (stage) {
+            stage.textContent = error.message || 'The PowerPoint preview failed.';
+        }
+    }
 }
 
 // Layout management for PDF-only mode
@@ -6889,13 +6981,23 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
 
 // Clear the editor
 function clearEditor() {
-    
-    if (editor && typeof editor.setValue === 'function') {
-        editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
-    } else if (fallbackEditor) {
-        fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
+    if (previewUpdateTimeout) {
+        clearTimeout(previewUpdateTimeout);
+        previewUpdateTimeout = null;
     }
-    
+
+    const previousSuppressAutoSave = suppressAutoSave;
+    suppressAutoSave = true;
+    try {
+        if (editor && typeof editor.setValue === 'function') {
+            editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
+        } else if (fallbackEditor) {
+            fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
+        }
+    } finally {
+        suppressAutoSave = previousSuppressAutoSave;
+    }
+
     lastSavedContent = '';
     window.hasUnsavedChanges = false;
     updateUnsavedIndicator(false);
@@ -9715,6 +9817,9 @@ function getFileTreeIconClass(node, isFolder) {
     }
     if (name.endsWith('.pdf')) {
         return 'file-icon-file file-icon-pdf';
+    }
+    if (name.endsWith('.pptx')) {
+        return 'file-icon-file file-icon-pptx';
     }
     return 'file-icon-file';
 }

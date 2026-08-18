@@ -33,6 +33,7 @@ const performanceHandlers = require('./performanceHandlers');
 const feedHandlers = require('./feedHandlers');
 const pdfResearchHandlers = require('./pdfResearchHandlers');
 const capabilityHealthHandlers = require('./capabilityHealthHandlers');
+const presentationFileHandlers = require('./presentationFileHandlers');
 
 /**
  * Register handler groups independently so an optional subsystem cannot leave
@@ -76,6 +77,7 @@ function registerAllHandlers(dependencies) {
     { label: 'Video recording', register: () => videoHandlers.register(dependencies) },
     { label: 'Citation', register: () => citationHandlers.registerCitationHandlers(dependencies.userDataPath) },
     { label: 'PDF research', register: () => pdfResearchHandlers.register(dependencies) },
+    { label: 'PowerPoint files', register: () => presentationFileHandlers.register(dependencies) },
     { label: 'Image', register: () => imageHandlers.register(dependencies) },
     { label: 'Git', register: () => gitHandlers.register(dependencies) },
     { label: 'Terminal', register: () => terminalHandlers.register(dependencies) },

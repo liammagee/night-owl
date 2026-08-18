@@ -742,7 +742,8 @@
         .file-icon-code::before,
         .file-icon-style::before,
         .file-icon-data::before,
-        .file-icon-pdf::before {
+        .file-icon-pdf::before,
+        .file-icon-pptx::before {
             position: absolute;
             inset: 0;
             display: flex;
@@ -777,6 +778,11 @@
         .file-icon-pdf::before {
             content: 'P';
             color: #cf222e;
+        }
+
+        .file-icon-pptx::before {
+            content: 'S';
+            color: #c43e1c;
         }
 
         body.dark-mode .file-tree-item {

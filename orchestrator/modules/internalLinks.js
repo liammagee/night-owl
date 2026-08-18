@@ -183,6 +183,12 @@ function handleInternalLinkClick(event) {
 async function openInternalLink(filePath, originalLink) {
     try {
         const fullPath = await resolveInternalLinkPathWithIndex(filePath);
+        const fileExtension = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
+
+        if (fileExtension === '.pptx' && typeof window.openFilePathInEditor === 'function') {
+            await window.openFilePathInEditor(fullPath, { source: 'internal-link-pptx' });
+            return;
+        }
 
         // Check if this is a binary file type that shouldn't be loaded in the editor
         const binaryExtensions = [
@@ -194,7 +200,6 @@ async function openInternalLink(filePath, originalLink) {
             '.db', '.sqlite', '.sqlite3'
         ];
 
-        const fileExtension = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
         const isBinaryFile = binaryExtensions.includes(fileExtension);
 
         if (isBinaryFile) {

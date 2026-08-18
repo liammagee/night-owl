@@ -15,6 +15,7 @@
         const path = String(filePath || '');
         const lower = path.toLowerCase();
         const isPDF = lower.endsWith('.pdf');
+        const isPPTX = lower.endsWith('.pptx');
         const isImage = IMAGE_RE.test(lower);
         const isHTML = /\.html?$/.test(lower);
         const isJSONL = lower.endsWith('.jsonl');
@@ -22,10 +23,11 @@
         const isBibTeX = lower.endsWith('.bib');
         const isMarkdown = lower.endsWith('.md') || lower.endsWith('.markdown');
         const isStructuredRecord = isJSONL || isCSV;
-        const isBinaryPreview = isPDF || isImage;
+        const isBinaryPreview = isPDF || isPPTX || isImage;
 
         let kind = 'text';
         if (isPDF) kind = 'pdf';
+        else if (isPPTX) kind = 'pptx';
         else if (isImage) kind = 'image';
         else if (isHTML) kind = 'html';
         else if (isJSONL) kind = 'jsonl';
@@ -37,6 +39,7 @@
             path,
             kind,
             isPDF,
+            isPPTX,
             isImage,
             isHTML,
             isJSONL,
@@ -45,7 +48,7 @@
             isMarkdown,
             isStructuredRecord,
             isBinaryPreview,
-            isEditable: !isPDF && !isImage
+            isEditable: !isPDF && !isPPTX && !isImage
         };
     }
 
