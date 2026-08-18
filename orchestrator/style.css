@@ -4316,6 +4316,7 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 #preview-content.microfiche-active {
     overflow-x: hidden !important;
     padding: 0 !important;
+    scroll-padding-top: 64px;
     background: var(--surface-variant, #f4f3f0);
 }
 
@@ -4346,6 +4347,7 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     border-bottom: 1px solid var(--border-color, var(--border, #d1cfc8));
     background: color-mix(in srgb, var(--surface-variant, #f4f3f0) 94%, transparent);
     backdrop-filter: blur(12px);
+    pointer-events: none;
 }
 
 .microfiche-summary {
@@ -4383,6 +4385,7 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     outline: none;
     background: transparent;
     cursor: zoom-in;
+    scroll-margin-top: 64px;
     transition: transform var(--transition-fast, 150ms ease), filter var(--transition-fast, 150ms ease);
 }
 

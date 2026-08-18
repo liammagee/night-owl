@@ -757,7 +757,7 @@ test('@required @preview preview readiness exposes committed content rather than
   await expect(appPage.locator('.preview-transition-error')).toHaveCount(0);
 });
 
-test('@required @microfiche long documents scan as a grid and return to focused reading', async ({ appPage }) => {
+test('@required @microfiche long documents scan as a grid and return to focused reading', async ({ appPage, electronApp }) => {
   const filePath = '/virtual-workspace/microfiche-long.md';
   const markdown = Array.from({ length: 12 }, (_, index) => (
     `## Section ${index + 1}\n\n${`Long-form paragraph ${index + 1} with evidence and interpretation. `.repeat(20)}`
@@ -776,7 +776,10 @@ test('@required @microfiche long documents scan as a grid and return to focused 
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(12);
   await expect(appPage.locator('#preview-scroll-sync-btn')).toBeDisabled();
 
+  const initialBounds = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 700));
   await appPage.locator('.microfiche-frame').nth(6).click();
+  await electronApp.evaluate(({ BrowserWindow }, bounds) => BrowserWindow.getAllWindows()[0].setBounds(bounds), initialBounds);
   await expect(appPage.locator('#preview-content')).not.toHaveClass(/microfiche-active/);
   await expect(appPage.locator('#preview-content')).toContainText('Section 7');
 
