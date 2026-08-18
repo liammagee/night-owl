@@ -20,6 +20,8 @@
     const MIN_SCALE = 0.18;
     const MAX_SCALE = 2.5;
     const ZOOM_STEP = 1.2;
+    const MAX_FRAME_CONTENT_SCALE = 0.45;
+    const FRAME_CONTENT_BOTTOM_GUTTER = 16;
 
     function clamp(value, minimum, maximum) {
         return Math.min(maximum, Math.max(minimum, value));
@@ -143,6 +145,7 @@
                 this._resizeFrame = schedule?.(() => {
                     this._resizeFrame = null;
                     if (!this.active) return;
+                    this._fitAllFrameContents();
                     if (this.fitMode) this.fitToViewport({ announce: false });
                     else this._applyTransform();
                 });
@@ -284,9 +287,15 @@
             this.translateY = 0;
             this.fitMode = true;
             this.window?.addEventListener?.('resize', this._boundResize);
+            this._fitAllFrameContents();
             const schedule = this.window?.requestAnimationFrame || (callback => this.window?.setTimeout?.(callback, 0));
             schedule?.(() => {
-                if (this.active) this.fitToViewport({ announce: false });
+                if (!this.active) return;
+                this._fitAllFrameContents();
+                this.fitToViewport({ announce: false });
+            });
+            this.document?.fonts?.ready?.then?.(() => {
+                if (this.active) this._fitAllFrameContents();
             });
             this._setButtonState();
             this._setScrollSyncDisabled(true);
@@ -347,6 +356,12 @@
             content.setAttribute('inert', '');
             content.setAttribute('aria-hidden', 'true');
             page.forEach(item => content.appendChild(stripCloneIdentity(item.node.cloneNode(true))));
+            content.querySelectorAll('img').forEach(image => {
+                if (image.complete) return;
+                image.addEventListener('load', () => {
+                    if (this.active && frame.isConnected) this._fitFrameContent(frame);
+                }, { once: true });
+            });
             const number = this.document.createElement('span');
             number.className = 'microfiche-frame-number';
             number.textContent = String(pageIndex + 1).padStart(2, '0');
@@ -368,6 +383,45 @@
                 focus();
             });
             return frame;
+        }
+
+        _fitAllFrameContents() {
+            if (!this.grid) return false;
+            let fitted = false;
+            this.grid.querySelectorAll('.microfiche-frame').forEach(frame => {
+                fitted = this._fitFrameContent(frame) || fitted;
+            });
+            return fitted;
+        }
+
+        _fitFrameContent(frame) {
+            const paper = frame?.querySelector?.('.microfiche-paper');
+            const content = frame?.querySelector?.('.microfiche-frame-content');
+            if (!paper || !content) return false;
+            paper.style.height = '';
+            const paperRect = paper.getBoundingClientRect?.() || {};
+            const paperWidth = paper.clientWidth || paperRect.width || 0;
+            const paperHeight = paper.clientHeight || paperRect.height || 0;
+            if (!paperWidth || !paperHeight) return false;
+
+            content.style.setProperty('--microfiche-content-scale', String(MAX_FRAME_CONTENT_SCALE));
+            content.style.width = `${paperWidth / MAX_FRAME_CONTENT_SCALE}px`;
+            const naturalHeight = content.scrollHeight || content.offsetHeight || 0;
+            if (!naturalHeight) return false;
+
+            const renderedHeight = naturalHeight * MAX_FRAME_CONTENT_SCALE;
+            const pageRatioHeight = paperWidth * 11 / 8.5;
+            const requiredHeight = Math.max(
+                paperHeight,
+                pageRatioHeight,
+                renderedHeight + FRAME_CONTENT_BOTTOM_GUTTER
+            );
+            paper.style.height = `${Math.ceil(requiredHeight)}px`;
+            frame.dataset.contentFitScale = MAX_FRAME_CONTENT_SCALE.toFixed(4);
+            frame.dataset.contentComplete = 'true';
+            frame.dataset.contentHeight = String(Math.ceil(renderedHeight));
+            frame.title = 'Open this complete frame at full size';
+            return true;
         }
 
         _createControlButton(text, label, action) {
@@ -683,6 +737,7 @@
         MIN_BLOCK_COUNT,
         MIN_TEXT_LENGTH,
         MAX_SCALE,
+        MAX_FRAME_CONTENT_SCALE,
         MIN_SCALE,
         PreviewMicrofiche,
         TARGET_PAGE_WEIGHT,

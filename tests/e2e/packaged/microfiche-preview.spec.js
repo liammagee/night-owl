@@ -23,6 +23,11 @@ test('@packaged @microfiche packaged long-document preview scans and restores co
   await appPage.getByRole('button', { name: 'Show microfiche overview' }).click();
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(9);
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
+  await expect.poll(() => appPage.evaluate(() => (
+    Array.from(document.querySelectorAll('.microfiche-frame')).every(frame => (
+      frame.dataset.contentComplete === 'true'
+    ))
+  ))).toBe(true);
   const initialScale = await appPage.evaluate(() => window.previewMicrofiche.getViewState().scale);
   const initialView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
   const viewport = appPage.getByRole('region', { name: 'Pannable and zoomable microfiche canvas' });

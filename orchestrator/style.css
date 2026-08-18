@@ -4501,6 +4501,8 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 
 .microfiche-paper {
     position: relative;
+    width: 100%;
+    box-sizing: border-box;
     overflow: hidden;
     aspect-ratio: 8.5 / 11;
     border: 1px solid var(--border-color, var(--border, #d1cfc8));
@@ -4511,15 +4513,16 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 }
 
 .microfiche-frame-content {
+    --microfiche-content-scale: 0.45;
     width: 222.222%;
-    min-height: 222.222%;
+    min-height: 0;
     box-sizing: border-box;
     padding: 32px 38px 54px;
-    overflow: hidden;
+    overflow: visible;
     font-size: 14px;
     line-height: 1.45;
     pointer-events: none;
-    transform: scale(0.45);
+    transform: scale(var(--microfiche-content-scale));
     transform-origin: top left;
 }
 

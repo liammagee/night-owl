@@ -79,6 +79,34 @@ describe('preview microfiche mode', () => {
     expect(preview.querySelector('.microfiche-frame-content a[href]')).toBeNull();
   });
 
+  test('scales dense frames so their complete assigned contents remain visible', () => {
+    addLongDocument(preview);
+    const tail = document.createElement('p');
+    tail.textContent = 'Distinct final evidence that must remain on the miniature page.';
+    preview.appendChild(tail);
+    const controller = createController();
+    controller.handlePreviewCommit({ filePath: '/workspace/long.md', renderer: 'markdown' });
+    controller.activate();
+
+    const frame = preview.querySelector('.microfiche-frame:last-child');
+    const paper = frame.querySelector('.microfiche-paper');
+    const content = frame.querySelector('.microfiche-frame-content');
+    Object.defineProperties(paper, {
+      clientWidth: { configurable: true, value: 220 },
+      clientHeight: { configurable: true, value: 285 }
+    });
+    Object.defineProperties(content, {
+      scrollHeight: { configurable: true, value: 1200 }
+    });
+
+    expect(controller._fitFrameContent(frame)).toBe(true);
+    const scale = Number(frame.dataset.contentFitScale);
+    expect(scale).toBe(0.45);
+    expect(Number.parseFloat(paper.style.height)).toBeGreaterThanOrEqual(556);
+    expect(frame.dataset.contentComplete).toBe('true');
+    expect(content.textContent).toContain('Distinct final evidence');
+  });
+
   test('selecting a frame restores the live preview at its source section', () => {
     addLongDocument(preview);
     const controller = createController();
