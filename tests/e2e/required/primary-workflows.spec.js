@@ -757,6 +757,28 @@ test('@required @preview preview readiness exposes committed content rather than
   await expect(appPage.locator('.preview-transition-error')).toHaveCount(0);
 });
 
+test('@required @pptx PowerPoint decks render all slides and expose the native open action', async ({ appPage }) => {
+  const activeWorkspace = await appPage.evaluate(() => window.electronAPI.workspace.getWorkingDirectory());
+  const workspacePath = fs.mkdtempSync(path.join(activeWorkspace, '.nightowl-pptx-e2e-'));
+  const deckPath = path.join(workspacePath, 'reference.pptx');
+  fs.copyFileSync(path.resolve(__dirname, '../../../templates/reference.pptx'), deckPath);
+
+  try {
+    const outcome = await appPage.evaluate(
+      deck => window.openFilePathInEditor(deck, { source: 'pptx-e2e' }),
+      deckPath
+    );
+
+    expect(outcome).toMatchObject({ status: 'committed', filePath: deckPath });
+    await expect(appPage.locator('.pptx-preview-frame')).toBeVisible();
+    await expect(appPage.getByRole('button', { name: 'Open in PowerPoint' })).toBeVisible();
+    await expect(appPage.frameLocator('.pptx-preview-frame').locator('.slide')).toHaveCount(3);
+    await expect(appPage.locator('#pptx-preview-status')).toContainText('Quick Look preview');
+  } finally {
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
+});
+
 test('@required @error-recovery file and preview failures are correlated, redacted, and resettable', async ({ appPage }) => {
   const privatePath = '/Users/nightowl/Research/private-preview.md';
   const secret = 'PRIVATE_DIAGNOSTIC_SECRET';

@@ -33,6 +33,14 @@ const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
 let activeRegistrationCleanup = null;
 let activeRegistrationDiagnostics = null;
 
+function isPptxPath(filePath) {
+  return path.extname(String(filePath || '')).toLowerCase() === '.pptx';
+}
+
+function readFileForEditor(filePath) {
+  return isPptxPath(filePath) ? Promise.resolve('') : fs.readFile(filePath, 'utf8');
+}
+
 function cleanup() {
   if (!activeRegistrationCleanup) return false;
   const dispose = activeRegistrationCleanup;
@@ -1104,7 +1112,7 @@ function register(deps) {
   ipcMain.handle('read-file-content', async (event, filePath) => {
     try {
       debug(`[FileHandlers] Reading file content: ${filePath}`);
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       
       return {
         success: true,
@@ -1185,7 +1193,7 @@ function register(deps) {
   ipcMain.handle('read-file', async (event, filePath) => {
     try {
       debug(`[FileHandlers] Reading file: ${filePath}`);
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1287,7 +1295,7 @@ function register(deps) {
       debug(`[FileHandlers] Opening file: ${filePath}`);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1320,7 +1328,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1354,7 +1362,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       
       // DO NOT update current file path - this is just for reading
       
@@ -1536,7 +1544,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       

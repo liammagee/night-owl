@@ -169,6 +169,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'open-file',
   'open-file-path',
   'open-folder-in-finder',
+  'open-pptx-in-powerpoint',
   'open-speaker-notes-window',
   'paste-image-from-clipboard',
   'perform-export-docx',
@@ -194,6 +195,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'read-file-content',
   'read-file-content-only',
   'read-frontmatter-only',
+  'render-pptx-preview',
   'recovery-clear',
   'recovery-load',
   'recovery-persist',
@@ -400,8 +402,8 @@ const CAPABILITY_CHANNELS = Object.freeze({
   ]),
   presentation: new Set([
     'choose-recording-location', 'close-speaker-notes-window', 'focus-main-window',
-    'get-screen-sources', 'open-speaker-notes-window', 'save-video-recording',
-    'update-speaker-notes'
+    'get-screen-sources', 'open-pptx-in-powerpoint', 'open-speaker-notes-window',
+    'render-pptx-preview', 'save-video-recording', 'update-speaker-notes'
   ]),
   recovery: new Set(['recovery-clear', 'recovery-load', 'recovery-persist']),
   search: new Set([
@@ -537,6 +539,10 @@ const ARGUMENT_VALIDATORS = Object.freeze({
     }
   },
   'open-external': (args) => requireString(args[0], 'target', { nonEmpty: true, maxLength: 16384 }),
+  'open-pptx-in-powerpoint': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
+  },
   'pdf-research-create-note': (args) => {
     const input = requireObject(args[0], 'request');
     requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
@@ -570,6 +576,10 @@ const ARGUMENT_VALIDATORS = Object.freeze({
     const input = requireObject(args[0], 'file');
     requireString(input.filePath, 'file.filePath', { nonEmpty: true });
     requireString(input.content, 'file.content');
+  },
+  'render-pptx-preview': (args) => {
+    const input = requireObject(args[0], 'request');
+    requireString(input.filePath, 'request.filePath', { nonEmpty: true, maxLength: 32768 });
   },
   'static-site-generate': validateStaticPublicationRequest,
   'static-site-preview': validateStaticPublicationRequest,

@@ -81,6 +81,9 @@ describe('renderer workflow controllers', () => {
     const { createCoordinator } = require(transitionsPath);
     const { classifyFilePath, createPreviewRouter } = require(previewRouterPath);
     expect(classifyFilePath('/workspace/a.pdf')).toMatchObject({ kind: 'pdf', isBinaryPreview: true });
+    expect(classifyFilePath('/workspace/slides.pptx')).toMatchObject({
+      kind: 'pptx', isPPTX: true, isBinaryPreview: true, isEditable: false
+    });
     expect(classifyFilePath('/workspace/a.JSONL')).toMatchObject({ kind: 'jsonl', isStructuredRecord: true });
     expect(classifyFilePath('/workspace/a.markdown')).toMatchObject({ kind: 'markdown', isEditable: true });
 

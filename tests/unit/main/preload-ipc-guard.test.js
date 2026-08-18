@@ -85,6 +85,16 @@ describe('preload IPC guard', () => {
       capability: 'files',
       method: 'duplicateFolder'
     });
+    expect(getInvokeContract('render-pptx-preview')).toEqual({
+      channel: 'render-pptx-preview',
+      capability: 'presentation',
+      method: 'renderPptxPreview'
+    });
+    expect(getInvokeContract('open-pptx-in-powerpoint')).toEqual({
+      channel: 'open-pptx-in-powerpoint',
+      capability: 'presentation',
+      method: 'openPptxInPowerpoint'
+    });
     expect(ALLOWED_INVOKE_CHANNELS.has('get-tutor-core-status')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('performance:get-resource-diagnostics')).toBe(true);

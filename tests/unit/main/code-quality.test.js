@@ -482,7 +482,7 @@ describe('Code quality guardrails', () => {
     const deferredSyncIndex = rendererSource.indexOf("await setCurrentFilePathState(filePath, { syncMain: true });", modelFallbackIndex);
     const previewIndex = rendererSource.indexOf("const previewResult = await updatePreviewAndStructure(content, {", deferredSyncIndex);
 
-    expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile');
+    expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isPPTX && !isImageFile');
     expect(rendererSource).toContain('syncCurrentFileAfterModel: shouldDeferCurrentFileSync');
     expect(modelFallbackIndex).toBeGreaterThan(-1);
     expect(deferredSyncIndex).toBeGreaterThan(modelFallbackIndex);
