@@ -775,6 +775,42 @@ test('@required @microfiche long documents scan as a grid and return to focused 
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(12);
   await expect(appPage.locator('#preview-scroll-sync-btn')).toBeDisabled();
+  const viewport = appPage.getByRole('region', { name: 'Pannable and zoomable microfiche canvas' });
+  const zoomIn = appPage.getByRole('button', { name: 'Zoom in' });
+  const fitAll = appPage.getByRole('button', { name: 'Fit all frames', exact: true });
+  await expect(viewport).toBeVisible();
+  await expect(zoomIn).toBeVisible();
+
+  const fittedView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
+  await zoomIn.click();
+  await zoomIn.click();
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
+    .toBeGreaterThan(fittedView.scale);
+
+  const viewportBox = await viewport.boundingBox();
+  expect(viewportBox).not.toBeNull();
+  await appPage.mouse.move(viewportBox.x + viewportBox.width / 2, viewportBox.y + viewportBox.height / 2);
+  await appPage.mouse.down();
+  await appPage.mouse.move(
+    viewportBox.x + viewportBox.width / 2 - 90,
+    viewportBox.y + viewportBox.height / 2 - 70,
+    { steps: 5 }
+  );
+  await appPage.mouse.up();
+  await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
+  const pannedView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
+  expect(pannedView.fitMode).toBe(false);
+
+  await viewport.dispatchEvent('wheel', {
+    deltaY: -120,
+    ctrlKey: true,
+    clientX: viewportBox.width / 2,
+    clientY: viewportBox.height / 2
+  });
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
+    .toBeGreaterThan(pannedView.scale);
+  await fitAll.click();
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().fitMode)).toBe(true);
 
   const initialBounds = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 700));

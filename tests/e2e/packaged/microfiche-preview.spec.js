@@ -23,6 +23,12 @@ test('@packaged @microfiche packaged long-document preview scans and restores co
   await appPage.getByRole('button', { name: 'Show microfiche overview' }).click();
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(9);
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
+  const initialScale = await appPage.evaluate(() => window.previewMicrofiche.getViewState().scale);
+  await appPage.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
+    .toBeGreaterThan(initialScale);
+  await appPage.getByRole('button', { name: 'Fit all frames', exact: true }).click();
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().fitMode)).toBe(true);
 
   await appPage.locator('.microfiche-frame').nth(4).click();
   await expect(appPage.locator('#preview-content')).not.toHaveClass(/microfiche-active/);
