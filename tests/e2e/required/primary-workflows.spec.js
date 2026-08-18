@@ -774,6 +774,25 @@ test('@required @microfiche long documents scan as a grid and return to focused 
   await toggle.click();
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(12);
+  await expect.poll(() => appPage.evaluate(() => (
+    Array.from(document.querySelectorAll('.microfiche-frame')).every(frame => (
+      frame.dataset.contentComplete === 'true'
+    ))
+  ))).toBe(true);
+  const frameFit = await appPage.evaluate(() => Array.from(document.querySelectorAll('.microfiche-frame')).map(frame => {
+    const paper = frame.querySelector('.microfiche-paper');
+    const content = frame.querySelector('.microfiche-frame-content');
+    const scale = Number(frame.dataset.contentFitScale);
+    return {
+      complete: content.scrollHeight * scale <= paper.clientHeight - 11,
+      scale
+    };
+  }));
+  expect(frameFit.every(frame => frame.complete)).toBe(true);
+  expect(frameFit.every(frame => frame.scale === 0.45)).toBe(true);
+  expect(await appPage.locator('.microfiche-paper').evaluateAll(papers => (
+    papers.some(paper => paper.clientHeight > paper.clientWidth * 11 / 8.5 + 20)
+  ))).toBe(true);
   await expect(appPage.locator('#preview-scroll-sync-btn')).toBeDisabled();
   const viewport = appPage.getByRole('region', { name: 'Pannable and zoomable microfiche canvas' });
   const zoomIn = appPage.getByRole('button', { name: 'Zoom in' });
