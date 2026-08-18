@@ -17,6 +17,13 @@
     const MIN_TEXT_LENGTH = 1200;
     const MIN_BLOCK_COUNT = 6;
     const SOURCE_INDEX_ATTRIBUTE = 'data-microfiche-source-index';
+    const MIN_SCALE = 0.18;
+    const MAX_SCALE = 2.5;
+    const ZOOM_STEP = 1.2;
+
+    function clamp(value, minimum, maximum) {
+        return Math.min(maximum, Math.max(minimum, value));
+    }
 
     function contentWeight(node) {
         if (!node) return 0;
@@ -104,9 +111,32 @@
             this.currentFilePath = '';
             this.button = null;
             this.previewContent = null;
+            this.viewport = null;
+            this.canvas = null;
+            this.grid = null;
+            this.zoomLabel = null;
+            this.zoomOutButton = null;
+            this.zoomInButton = null;
+            this.scale = 1;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.fitMode = true;
+            this._panSession = null;
+            this._suppressFrameClick = false;
+            this._resizeFrame = null;
             this._boundToggle = () => this.toggle();
             this._boundKeydown = event => {
                 if (event.key === 'Escape' && this.active) this.deactivate();
+            };
+            this._boundResize = () => {
+                if (!this.active || this._resizeFrame) return;
+                const schedule = this.window?.requestAnimationFrame || (callback => this.window?.setTimeout?.(callback, 0));
+                this._resizeFrame = schedule?.(() => {
+                    this._resizeFrame = null;
+                    if (!this.active) return;
+                    if (this.fitMode) this.fitToViewport({ announce: false });
+                    else this._applyTransform();
+                });
             };
         }
 
@@ -199,18 +229,54 @@
             summary.textContent = `${pages.length} frame${pages.length === 1 ? '' : 's'}`;
             const hint = this.document.createElement('span');
             hint.className = 'microfiche-hint';
-            hint.textContent = 'Select a frame to return to full-size reading';
-            header.append(summary, hint);
+            hint.textContent = 'Drag to pan · pinch or Ctrl-wheel to zoom · select a frame to read';
+
+            const controls = this.document.createElement('div');
+            controls.className = 'microfiche-controls';
+            controls.setAttribute('role', 'group');
+            controls.setAttribute('aria-label', 'Microfiche zoom controls');
+            this.zoomOutButton = this._createControlButton('−', 'Zoom out', () => this.zoomOut());
+            this.zoomLabel = this._createControlButton('100%', 'Reset zoom to fit all frames', () => this.fitToViewport());
+            this.zoomLabel.classList.add('microfiche-zoom-label');
+            this.zoomLabel.setAttribute('aria-live', 'polite');
+            this.zoomInButton = this._createControlButton('+', 'Zoom in', () => this.zoomIn());
+            const fitButton = this._createControlButton('Fit', 'Fit all frames', () => this.fitToViewport());
+            fitButton.classList.add('microfiche-fit-button');
+            controls.append(this.zoomOutButton, this.zoomLabel, this.zoomInButton, fitButton);
+            header.append(summary, hint, controls);
 
             const grid = this.document.createElement('div');
             grid.className = 'microfiche-grid';
+            grid.style.setProperty('--microfiche-columns', String(Math.max(1, Math.ceil(Math.sqrt(pages.length * 1.3)))));
             pages.forEach((page, pageIndex) => grid.appendChild(this._createFrame(page, pageIndex)));
-            this.shell.append(header, grid);
+
+            this.viewport = this.document.createElement('div');
+            this.viewport.className = 'microfiche-viewport';
+            this.viewport.tabIndex = 0;
+            this.viewport.setAttribute('role', 'region');
+            this.viewport.setAttribute('aria-label', 'Pannable and zoomable microfiche canvas');
+            this.viewport.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown ArrowLeft ArrowRight + - 0');
+            this.canvas = this.document.createElement('div');
+            this.canvas.className = 'microfiche-canvas';
+            this.canvas.appendChild(grid);
+            this.grid = grid;
+            this.viewport.appendChild(this.canvas);
+            this._bindViewportInteractions();
+            this.shell.append(header, this.viewport);
             this.previewContent.replaceChildren(this.source, this.shell);
             this.previewContent.classList.add('microfiche-active');
             this.previewContent.scrollTop = 0;
             this.active = true;
             this.preferredEnabled = true;
+            this.scale = 1;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.fitMode = true;
+            this.window?.addEventListener?.('resize', this._boundResize);
+            const schedule = this.window?.requestAnimationFrame || (callback => this.window?.setTimeout?.(callback, 0));
+            schedule?.(() => {
+                if (this.active) this.fitToViewport({ announce: false });
+            });
             this._setButtonState();
             this._setScrollSyncDisabled(true);
             this._setCompanionControlsHidden(true);
@@ -277,13 +343,216 @@
             frame.appendChild(paper);
 
             const focus = () => this.focusFrame(Number(frame.dataset.sourceIndex));
-            frame.addEventListener('click', focus);
+            frame.addEventListener('click', event => {
+                if (this._suppressFrameClick) {
+                    event.preventDefault();
+                    this._suppressFrameClick = false;
+                    return;
+                }
+                focus();
+            });
             frame.addEventListener('keydown', event => {
                 if (event.key !== 'Enter' && event.key !== ' ') return;
                 event.preventDefault();
                 focus();
             });
             return frame;
+        }
+
+        _createControlButton(text, label, action) {
+            const button = this.document.createElement('button');
+            button.type = 'button';
+            button.className = 'microfiche-control';
+            button.textContent = text;
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                action();
+                this.viewport?.focus?.({ preventScroll: true });
+            });
+            return button;
+        }
+
+        _bindViewportInteractions() {
+            if (!this.viewport) return;
+            this.viewport.addEventListener('pointerdown', event => {
+                if (event.button !== undefined && event.button !== 0) return;
+                this._panSession = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    lastX: event.clientX,
+                    lastY: event.clientY,
+                    moved: false
+                };
+            });
+            this.viewport.addEventListener('pointermove', event => {
+                const session = this._panSession;
+                if (!session || session.pointerId !== event.pointerId) return;
+                const deltaX = event.clientX - session.lastX;
+                const deltaY = event.clientY - session.lastY;
+                session.lastX = event.clientX;
+                session.lastY = event.clientY;
+                if (!session.moved && Math.hypot(event.clientX - session.startX, event.clientY - session.startY) >= 5) {
+                    session.moved = true;
+                    this.viewport.classList.add('is-panning');
+                    this.viewport.setPointerCapture?.(event.pointerId);
+                }
+                if (session.moved) {
+                    event.preventDefault();
+                    this.panBy(deltaX, deltaY);
+                }
+            });
+            const finishPan = event => {
+                const session = this._panSession;
+                if (!session || session.pointerId !== event.pointerId) return;
+                if (session.moved) this.viewport.releasePointerCapture?.(event.pointerId);
+                this.viewport.classList.remove('is-panning');
+                this._panSession = null;
+                if (session.moved) {
+                    this._suppressFrameClick = true;
+                    this.window?.setTimeout?.(() => { this._suppressFrameClick = false; }, 0);
+                }
+            };
+            this.viewport.addEventListener('pointerup', finishPan);
+            this.viewport.addEventListener('pointercancel', finishPan);
+            this.viewport.addEventListener('wheel', event => {
+                event.preventDefault();
+                if (event.ctrlKey || event.metaKey || event.altKey) {
+                    const rect = this.viewport.getBoundingClientRect();
+                    const factor = Math.exp(-event.deltaY * 0.0025);
+                    this.setScale(this.scale * factor, event.clientX - rect.left, event.clientY - rect.top);
+                    return;
+                }
+                this.panBy(-event.deltaX, -event.deltaY);
+            }, { passive: false });
+            this.viewport.addEventListener('keydown', event => {
+                const panStep = event.shiftKey ? 140 : 48;
+                const actions = {
+                    ArrowLeft: () => this.panBy(panStep, 0),
+                    ArrowRight: () => this.panBy(-panStep, 0),
+                    ArrowUp: () => this.panBy(0, panStep),
+                    ArrowDown: () => this.panBy(0, -panStep),
+                    '+': () => this.zoomIn(),
+                    '=': () => this.zoomIn(),
+                    '-': () => this.zoomOut(),
+                    '_': () => this.zoomOut(),
+                    '0': () => this.fitToViewport(),
+                    Home: () => this.fitToViewport()
+                };
+                const action = actions[event.key];
+                if (!action) return;
+                event.preventDefault();
+                action();
+            });
+        }
+
+        getViewState() {
+            return {
+                scale: this.scale,
+                translateX: this.translateX,
+                translateY: this.translateY,
+                fitMode: this.fitMode
+            };
+        }
+
+        zoomIn() {
+            return this.setScale(this.scale * ZOOM_STEP);
+        }
+
+        zoomOut() {
+            return this.setScale(this.scale / ZOOM_STEP);
+        }
+
+        setScale(nextScale, anchorX = null, anchorY = null, options = {}) {
+            if (!this.active || !this.viewport || !this.canvas) return false;
+            const oldScale = this.scale || 1;
+            const scale = clamp(Number(nextScale) || oldScale, MIN_SCALE, MAX_SCALE);
+            const viewportWidth = this.viewport.clientWidth || 0;
+            const viewportHeight = this.viewport.clientHeight || 0;
+            const resolvedAnchorX = Number.isFinite(anchorX) ? anchorX : viewportWidth / 2;
+            const resolvedAnchorY = Number.isFinite(anchorY) ? anchorY : viewportHeight / 2;
+            const worldX = (resolvedAnchorX - this.translateX) / oldScale;
+            const worldY = (resolvedAnchorY - this.translateY) / oldScale;
+            this.scale = scale;
+            this.translateX = resolvedAnchorX - worldX * scale;
+            this.translateY = resolvedAnchorY - worldY * scale;
+            this.fitMode = options.fitMode === true;
+            this._applyTransform();
+            return true;
+        }
+
+        panBy(deltaX, deltaY) {
+            if (!this.active || !this.canvas) return false;
+            this.translateX += Number(deltaX) || 0;
+            this.translateY += Number(deltaY) || 0;
+            this.fitMode = false;
+            this._applyTransform();
+            return true;
+        }
+
+        fitToViewport(options = {}) {
+            if (!this.active || !this.viewport || !this.grid) return false;
+            const viewportWidth = this.viewport.clientWidth || 0;
+            const viewportHeight = this.viewport.clientHeight || 0;
+            const canvasWidth = this.grid.scrollWidth || this.grid.offsetWidth || 0;
+            const canvasHeight = this.grid.scrollHeight || this.grid.offsetHeight || 0;
+            if (!viewportWidth || !viewportHeight || !canvasWidth || !canvasHeight) {
+                this.scale = 1;
+                this.translateX = 0;
+                this.translateY = 0;
+                this.fitMode = true;
+                this._applyTransform();
+                return true;
+            }
+            const padding = 28;
+            this.scale = clamp(Math.min(
+                (viewportWidth - padding * 2) / canvasWidth,
+                (viewportHeight - padding * 2) / canvasHeight,
+                1
+            ), MIN_SCALE, MAX_SCALE);
+            this.translateX = (viewportWidth - canvasWidth * this.scale) / 2;
+            this.translateY = (viewportHeight - canvasHeight * this.scale) / 2;
+            this.fitMode = true;
+            this._applyTransform();
+            if (options.announce !== false) this.viewport.focus?.({ preventScroll: true });
+            return true;
+        }
+
+        _canvasDimensions() {
+            return {
+                width: (this.grid?.scrollWidth || this.grid?.offsetWidth || 0) * this.scale,
+                height: (this.grid?.scrollHeight || this.grid?.offsetHeight || 0) * this.scale
+            };
+        }
+
+        _clampTranslation() {
+            if (!this.viewport) return;
+            const viewportWidth = this.viewport.clientWidth || 0;
+            const viewportHeight = this.viewport.clientHeight || 0;
+            const canvas = this._canvasDimensions();
+            if (!viewportWidth || !viewportHeight || !canvas.width || !canvas.height) return;
+            const visibleEdge = 72;
+            if (canvas.width <= viewportWidth) {
+                this.translateX = (viewportWidth - canvas.width) / 2;
+            } else {
+                this.translateX = clamp(this.translateX, viewportWidth - canvas.width - visibleEdge, visibleEdge);
+            }
+            if (canvas.height <= viewportHeight) {
+                this.translateY = (viewportHeight - canvas.height) / 2;
+            } else {
+                this.translateY = clamp(this.translateY, viewportHeight - canvas.height - visibleEdge, visibleEdge);
+            }
+        }
+
+        _applyTransform() {
+            if (!this.canvas) return;
+            this._clampTranslation();
+            this.canvas.style.transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
+            if (this.zoomLabel) this.zoomLabel.textContent = `${Math.round(this.scale * 100)}%`;
+            if (this.zoomOutButton) this.zoomOutButton.disabled = this.scale <= MIN_SCALE + 0.001;
+            if (this.zoomInButton) this.zoomInButton.disabled = this.scale >= MAX_SCALE - 0.001;
         }
 
         focusFrame(sourceIndex) {
@@ -300,9 +569,22 @@
         }
 
         _discardActiveState() {
+            this.window?.removeEventListener?.('resize', this._boundResize);
+            if (this._resizeFrame && this.window?.cancelAnimationFrame) {
+                this.window.cancelAnimationFrame(this._resizeFrame);
+            }
+            this._resizeFrame = null;
             this.active = false;
             this.source = null;
             this.shell = null;
+            this.viewport = null;
+            this.canvas = null;
+            this.grid = null;
+            this.zoomLabel = null;
+            this.zoomOutButton = null;
+            this.zoomInButton = null;
+            this._panSession = null;
+            this._suppressFrameClick = false;
             this.previewContent?.classList.remove('microfiche-active');
             this._setScrollSyncDisabled(false);
             this._setCompanionControlsHidden(false);
@@ -346,8 +628,12 @@
     const api = {
         MIN_BLOCK_COUNT,
         MIN_TEXT_LENGTH,
+        MAX_SCALE,
+        MIN_SCALE,
         PreviewMicrofiche,
         TARGET_PAGE_WEIGHT,
+        ZOOM_STEP,
+        clamp,
         contentWeight,
         paginateNodes,
         stripCloneIdentity

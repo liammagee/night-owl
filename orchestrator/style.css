@@ -4326,8 +4326,8 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 /* Microfiche overview for scanning long rendered documents. */
 #preview-content.microfiche-active {
     overflow-x: hidden !important;
+    overflow-y: hidden !important;
     padding: 0 !important;
-    scroll-padding-top: 64px;
     background: var(--surface-variant, #f4f3f0);
 }
 
@@ -4336,40 +4336,44 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 }
 
 .microfiche-shell {
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
-    min-height: 100%;
-    padding: 0 18px 28px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     color: var(--text-color, var(--text, #24292f));
-    background:
-        radial-gradient(circle at 12px 12px, color-mix(in srgb, var(--text-muted, #64748b) 10%, transparent) 1px, transparent 1.5px) 0 0 / 24px 24px,
-        var(--surface-variant, #f4f3f0);
+    background: var(--surface-variant, #f4f3f0);
 }
 
 .microfiche-header {
-    position: sticky;
-    top: 0;
-    z-index: 20;
+    z-index: 2;
     display: flex;
     min-height: 52px;
     box-sizing: border-box;
     align-items: center;
     gap: 10px;
-    padding: 10px 176px 10px 2px;
+    overflow: hidden;
+    padding: 9px 176px 9px 18px;
     border-bottom: 1px solid var(--border-color, var(--border, #d1cfc8));
     background: color-mix(in srgb, var(--surface-variant, #f4f3f0) 94%, transparent);
     backdrop-filter: blur(12px);
-    pointer-events: none;
+    flex: 0 0 auto;
 }
 
 .microfiche-summary {
+    flex: 0 0 auto;
     color: var(--text-color, var(--text, #24292f));
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.07em;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .microfiche-hint {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     color: var(--text-muted, #64748b);
     font-size: 11px;
@@ -4377,14 +4381,98 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     white-space: nowrap;
 }
 
+.microfiche-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.microfiche-control {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--button-border, var(--border-color, #cbd5e0));
+    border-radius: var(--radius-md, 6px);
+    background: var(--button-bg, var(--surface, #fefdfb));
+    color: var(--button-text, var(--text-color, #24292f));
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.microfiche-control:hover:not(:disabled) {
+    border-color: var(--primary, #16a34a);
+    background: var(--button-hover-bg, var(--surface-elevated, #ffffff));
+}
+
+.microfiche-control:focus-visible {
+    outline: 2px solid var(--focus-ring, var(--primary, #16a34a));
+    outline-offset: 2px;
+}
+
+.microfiche-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.microfiche-zoom-label {
+    min-width: 54px;
+    font-family: var(--font-family-mono, monospace);
+    font-size: 10px;
+}
+
+.microfiche-fit-button {
+    min-width: 40px;
+}
+
+.microfiche-viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    outline: none;
+    background:
+        radial-gradient(circle at 12px 12px, color-mix(in srgb, var(--text-muted, #64748b) 13%, transparent) 1px, transparent 1.5px) 0 0 / 24px 24px,
+        var(--surface-variant, #f4f3f0);
+    cursor: grab;
+    touch-action: none;
+}
+
+.microfiche-viewport.is-panning {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.microfiche-viewport:focus-visible {
+    box-shadow: inset 0 0 0 3px var(--focus-ring, var(--primary, #16a34a));
+}
+
+.microfiche-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: max-content;
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: top left;
+    will-change: transform;
+}
+
 .microfiche-grid {
+    --microfiche-frame-width: 220px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(var(--microfiche-columns, 4), var(--microfiche-frame-width));
     align-items: start;
     gap: 20px;
-    max-width: 1440px;
-    margin: 0 auto;
-    padding: 20px 0;
+    width: max-content;
+    max-width: none;
+    margin: 0;
+    padding: 28px;
 }
 
 .microfiche-frame {
@@ -4396,7 +4484,6 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     outline: none;
     background: transparent;
     cursor: zoom-in;
-    scroll-margin-top: 64px;
     transition: transform var(--transition-fast, 150ms ease), filter var(--transition-fast, 150ms ease);
 }
 
@@ -4475,19 +4562,30 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
 }
 
 #preview-pane.preview-fullscreen .microfiche-grid {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    --microfiche-frame-width: 250px;
 }
 
 @media (max-width: 700px) {
     .microfiche-header {
-        align-items: flex-start;
-        flex-direction: column;
-        padding-right: 176px;
+        min-height: 88px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding-right: 140px;
+    }
+
+    .microfiche-hint {
+        order: 3;
+        width: 100%;
+    }
+
+    .microfiche-controls {
+        margin-left: auto;
     }
 
     .microfiche-grid {
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 12px;
+        --microfiche-frame-width: 180px;
+        gap: 14px;
+        padding: 20px;
     }
 }
 

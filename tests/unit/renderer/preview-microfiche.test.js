@@ -95,6 +95,44 @@ describe('preview microfiche mode', () => {
     expect(document.getElementById('preview-zoom-controls').classList.contains('nightowl-ui-hidden')).toBe(false);
   });
 
+  test('fits, zooms, and pans the microfiche canvas without leaving overview mode', () => {
+    addLongDocument(preview);
+    const controller = createController();
+    controller.handlePreviewCommit({ filePath: '/workspace/long.md', renderer: 'markdown' });
+    controller.activate();
+
+    Object.defineProperties(controller.viewport, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    Object.defineProperties(controller.grid, {
+      scrollWidth: { configurable: true, value: 960 },
+      scrollHeight: { configurable: true, value: 1200 }
+    });
+
+    expect(controller.fitToViewport()).toBe(true);
+    const fitted = controller.getViewState();
+    expect(fitted.scale).toBeCloseTo(544 / 1200, 3);
+    expect(fitted.fitMode).toBe(true);
+    expect(preview.querySelector('.microfiche-zoom-label').textContent).toBe('45%');
+
+    controller.zoomIn();
+    expect(controller.getViewState().scale).toBeGreaterThan(fitted.scale);
+    expect(controller.getViewState().fitMode).toBe(false);
+
+    controller.setScale(1);
+    const beforePan = controller.getViewState();
+    controller.panBy(-48, -64);
+    const afterPan = controller.getViewState();
+    expect(afterPan.translateX).toBeLessThan(beforePan.translateX);
+    expect(afterPan.translateY).toBeLessThan(beforePan.translateY);
+    expect(afterPan.fitMode).toBe(false);
+    expect(controller.active).toBe(true);
+
+    controller.viewport.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true }));
+    expect(controller.getViewState().fitMode).toBe(true);
+  });
+
   test('keeps the selected mode while a long document is re-rendered', () => {
     addLongDocument(preview, 'First');
     const controller = createController();
