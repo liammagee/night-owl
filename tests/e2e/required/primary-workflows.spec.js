@@ -1119,6 +1119,58 @@ test('@required @content-security preview and presentation enforce the same HTML
   await openMarkdown(appPage, '/virtual-workspace/deck.md', DECK);
 });
 
+test('@required @pane-recovery opening a document after an image restores the editor split', async ({ appPage }) => {
+  await appPage.evaluate(() => {
+    window.switchToMode('editor');
+    const store = window.NightOwlUIState;
+    store.dispatch({ type: 'SET_STRUCTURED_RECORD', active: false });
+    store.dispatch({ type: 'SET_ZEN_MODE', active: false });
+    store.dispatch({ type: 'SET_SOURCE_VIEW', enabled: false });
+    store.dispatch({ type: 'SET_PREVIEW_FULLSCREEN', fullscreen: false });
+    store.dispatch({ type: 'HYDRATE_PANES', panes: { sidebar: true, editor: true, right: true } });
+    store.dispatch({ type: 'SHOW_RIGHT_PANE', pane: 'preview' });
+    window.showImageViewer('/virtual-workspace/fixture-image.png');
+  });
+  await expect(appPage.locator('#image-viewer-container')).toBeVisible();
+  await expect(appPage.locator('#panes-container')).toBeHidden();
+
+  await openMarkdown(
+    appPage,
+    '/virtual-workspace/after-image.html',
+    '<!doctype html><html><body><h1>Visible after image</h1><p>Pane recovery content.</p></body></html>'
+  );
+
+  await expect(appPage.locator('#image-viewer-container')).toHaveCount(0);
+  await expect(appPage.locator('#editor-container')).toBeVisible();
+  const htmlPreviewFrame = appPage.locator('.html-preview-container iframe');
+  await expect(htmlPreviewFrame).toBeVisible();
+  await expect(htmlPreviewFrame).toHaveAttribute('data-tooltip', 'Preview of after-image.html');
+
+  const layout = await appPage.locator('#panes-container').evaluate(container => {
+    const editorPane = document.getElementById('editor-pane').getBoundingClientRect();
+    const rightPane = document.getElementById('right-pane').getBoundingClientRect();
+    return {
+      display: getComputedStyle(container).display,
+      editorHeight: editorPane.height,
+      editorWidth: editorPane.width,
+      rightHeight: rightPane.height,
+      rightWidth: rightPane.width
+    };
+  });
+  expect(layout).toEqual(expect.objectContaining({ display: 'flex' }));
+  expect(layout.editorHeight).toBeGreaterThan(200);
+  expect(layout.editorWidth).toBeGreaterThan(200);
+  expect(layout.rightHeight).toBeGreaterThan(200);
+  expect(layout.rightWidth).toBeGreaterThan(200);
+
+  await openMarkdown(
+    appPage,
+    '/virtual-workspace/pane-recovery-complete.md',
+    '# Pane recovery complete\n\nThe next workflow starts from a normal Markdown surface.'
+  );
+  await expect(appPage.locator('#preview-content')).toContainText('Pane recovery complete');
+});
+
 test('@required @accessibility editor and presentation expose named keyboard-operable controls', async ({ appPage }) => {
   await appPage.evaluate(() => window.switchToMode('editor'));
   await openMarkdown(appPage, '/virtual-workspace/accessibility-tab-one.md', '# Accessible tab one');

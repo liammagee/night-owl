@@ -24,6 +24,8 @@ describe('image viewer state restore', () => {
     const documentRef = {
       getElementById: (id) => document.querySelector(`#${id}`)
     };
+    const disposeViewer = jest.fn();
+    document.querySelector('#image-viewer-container')._nightOwlDispose = disposeViewer;
 
     restoreEditorAfterImageViewer({
       documentRef,
@@ -35,9 +37,10 @@ describe('image viewer state restore', () => {
     });
 
     expect(document.querySelector('#image-viewer-container')).toBeNull();
+    expect(disposeViewer).toHaveBeenCalledTimes(1);
     expect(switchToMode).toHaveBeenCalledWith('editor');
     expect(exitPreviewOnlyMode).toHaveBeenCalled();
-    expect(document.querySelector('#panes-container').style.display).toBe('');
+    expect(document.querySelector('#panes-container').style.display).toBe('flex');
     expect(document.querySelector('#mode-switcher').style.display).toBe('');
     expect(document.querySelector('#editor-pane').style.display).toBe('');
     expect(document.querySelector('#editor-container').style.display).toBe('');
@@ -76,7 +79,7 @@ describe('image viewer state restore', () => {
     }).not.toThrow();
 
     expect(document.querySelector('#image-viewer-container')).toBeNull();
-    expect(document.querySelector('#panes-container').style.display).toBe('');
+    expect(document.querySelector('#panes-container').style.display).toBe('flex');
     expect(document.querySelector('#mode-switcher').style.display).toBe('');
     expect(document.querySelector('#editor-pane').style.display).toBe('');
     expect(document.querySelector('#editor-container').style.display).toBe('');
