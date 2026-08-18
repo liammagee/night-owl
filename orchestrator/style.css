@@ -4442,6 +4442,8 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
         var(--surface-variant, #f4f3f0);
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .microfiche-viewport.is-panning {

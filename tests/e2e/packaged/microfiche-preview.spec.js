@@ -24,6 +24,23 @@ test('@packaged @microfiche packaged long-document preview scans and restores co
   await expect(appPage.locator('.microfiche-frame')).toHaveCount(9);
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
   const initialScale = await appPage.evaluate(() => window.previewMicrofiche.getViewState().scale);
+  const initialView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
+  const viewport = appPage.getByRole('region', { name: 'Pannable and zoomable microfiche canvas' });
+  const viewportBox = await viewport.boundingBox();
+  expect(viewportBox).not.toBeNull();
+  await appPage.mouse.move(viewportBox.x + viewportBox.width / 2, viewportBox.y + viewportBox.height / 2);
+  await appPage.mouse.down();
+  await appPage.mouse.move(
+    viewportBox.x + viewportBox.width / 2 - 70,
+    viewportBox.y + viewportBox.height / 2 - 55,
+    { steps: 5 }
+  );
+  await appPage.mouse.up();
+  const draggedView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
+  expect(draggedView.fitMode).toBe(false);
+  expect(draggedView.translateX).not.toBeCloseTo(initialView.translateX, 1);
+  expect(draggedView.translateY).not.toBeCloseTo(initialView.translateY, 1);
+  await appPage.getByRole('button', { name: 'Fit all frames', exact: true }).click();
   await appPage.getByRole('button', { name: 'Zoom in' }).click();
   await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
     .toBeGreaterThan(initialScale);
