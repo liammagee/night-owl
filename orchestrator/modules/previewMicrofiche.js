@@ -25,6 +25,14 @@
         return Math.min(maximum, Math.max(minimum, value));
     }
 
+    function wheelShouldZoom(event = {}) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return true;
+        const deltaX = Math.abs(Number(event.deltaX) || 0);
+        const deltaY = Math.abs(Number(event.deltaY) || 0);
+        if ((Number(event.deltaMode) || 0) !== 0 && deltaY > 0) return true;
+        return deltaY >= 48 && deltaX <= deltaY * 0.25;
+    }
+
     function contentWeight(node) {
         if (!node) return 0;
         const textLength = String(node.textContent || '').trim().length;
@@ -122,6 +130,7 @@
             this.translateY = 0;
             this.fitMode = true;
             this._panSession = null;
+            this._gestureSession = null;
             this._suppressFrameClick = false;
             this._resizeFrame = null;
             this._boundToggle = () => this.toggle();
@@ -138,6 +147,8 @@
                     else this._applyTransform();
                 });
             };
+            this._boundMouseMove = event => this._movePan(event, 'mouse');
+            this._boundMouseUp = event => this._finishPan(event, 'mouse');
         }
 
         initialize() {
@@ -229,7 +240,7 @@
             summary.textContent = `${pages.length} frame${pages.length === 1 ? '' : 's'}`;
             const hint = this.document.createElement('span');
             hint.className = 'microfiche-hint';
-            hint.textContent = 'Drag to pan · pinch or Ctrl-wheel to zoom · select a frame to read';
+            hint.textContent = 'Drag or two-finger scroll to pan · pinch or mouse wheel to zoom · select a frame to read';
 
             const controls = this.document.createElement('div');
             controls.className = 'microfiche-controls';
@@ -377,49 +388,26 @@
         _bindViewportInteractions() {
             if (!this.viewport) return;
             this.viewport.addEventListener('pointerdown', event => {
+                if (event.pointerType === 'mouse') return;
                 if (event.button !== undefined && event.button !== 0) return;
-                this._panSession = {
-                    pointerId: event.pointerId,
-                    startX: event.clientX,
-                    startY: event.clientY,
-                    lastX: event.clientX,
-                    lastY: event.clientY,
-                    moved: false
-                };
+                this._startPan(event, event.pointerId);
             });
             this.viewport.addEventListener('pointermove', event => {
-                const session = this._panSession;
-                if (!session || session.pointerId !== event.pointerId) return;
-                const deltaX = event.clientX - session.lastX;
-                const deltaY = event.clientY - session.lastY;
-                session.lastX = event.clientX;
-                session.lastY = event.clientY;
-                if (!session.moved && Math.hypot(event.clientX - session.startX, event.clientY - session.startY) >= 5) {
-                    session.moved = true;
-                    this.viewport.classList.add('is-panning');
-                    this.viewport.setPointerCapture?.(event.pointerId);
-                }
-                if (session.moved) {
-                    event.preventDefault();
-                    this.panBy(deltaX, deltaY);
-                }
+                if (event.pointerType === 'mouse') return;
+                this._movePan(event, event.pointerId);
             });
-            const finishPan = event => {
-                const session = this._panSession;
-                if (!session || session.pointerId !== event.pointerId) return;
-                if (session.moved) this.viewport.releasePointerCapture?.(event.pointerId);
-                this.viewport.classList.remove('is-panning');
-                this._panSession = null;
-                if (session.moved) {
-                    this._suppressFrameClick = true;
-                    this.window?.setTimeout?.(() => { this._suppressFrameClick = false; }, 0);
-                }
-            };
-            this.viewport.addEventListener('pointerup', finishPan);
-            this.viewport.addEventListener('pointercancel', finishPan);
+            this.viewport.addEventListener('pointerup', event => this._finishPan(event, event.pointerId));
+            this.viewport.addEventListener('pointercancel', event => this._finishPan(event, event.pointerId));
+            this.viewport.addEventListener('mousedown', event => {
+                if (event.button !== 0) return;
+                this._startPan(event, 'mouse');
+            });
+            this.window?.addEventListener?.('mousemove', this._boundMouseMove);
+            this.window?.addEventListener?.('mouseup', this._boundMouseUp);
             this.viewport.addEventListener('wheel', event => {
                 event.preventDefault();
-                if (event.ctrlKey || event.metaKey || event.altKey) {
+                event.stopPropagation();
+                if (wheelShouldZoom(event)) {
                     const rect = this.viewport.getBoundingClientRect();
                     const factor = Math.exp(-event.deltaY * 0.0025);
                     this.setScale(this.scale * factor, event.clientX - rect.left, event.clientY - rect.top);
@@ -427,6 +415,32 @@
                 }
                 this.panBy(-event.deltaX, -event.deltaY);
             }, { passive: false });
+            this.viewport.addEventListener('gesturestart', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                this._gestureSession = { scale: this.scale };
+            }, { passive: false });
+            this.viewport.addEventListener('gesturechange', event => {
+                if (!this._gestureSession) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const rect = this.viewport.getBoundingClientRect();
+                this.setScale(
+                    this._gestureSession.scale * (Number(event.scale) || 1),
+                    event.clientX - rect.left,
+                    event.clientY - rect.top
+                );
+            }, { passive: false });
+            this.viewport.addEventListener('gestureend', event => {
+                event.preventDefault();
+                this._gestureSession = null;
+            }, { passive: false });
+            this.viewport.addEventListener('dblclick', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const rect = this.viewport.getBoundingClientRect();
+                this.setScale(this.scale * 1.5, event.clientX - rect.left, event.clientY - rect.top);
+            });
             this.viewport.addEventListener('keydown', event => {
                 const panStep = event.shiftKey ? 140 : 48;
                 const actions = {
@@ -446,6 +460,46 @@
                 event.preventDefault();
                 action();
             });
+        }
+
+        _startPan(event, pointerId) {
+            this._panSession = {
+                pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                lastX: event.clientX,
+                lastY: event.clientY,
+                moved: false
+            };
+        }
+
+        _movePan(event, pointerId) {
+            const session = this._panSession;
+            if (!session || session.pointerId !== pointerId) return;
+            const deltaX = event.clientX - session.lastX;
+            const deltaY = event.clientY - session.lastY;
+            session.lastX = event.clientX;
+            session.lastY = event.clientY;
+            if (!session.moved && Math.hypot(event.clientX - session.startX, event.clientY - session.startY) >= 5) {
+                session.moved = true;
+                this.viewport?.classList.add('is-panning');
+                if (pointerId !== 'mouse') this.viewport?.setPointerCapture?.(pointerId);
+            }
+            if (!session.moved) return;
+            event.preventDefault();
+            this.panBy(deltaX, deltaY);
+        }
+
+        _finishPan(event, pointerId) {
+            const session = this._panSession;
+            if (!session || session.pointerId !== pointerId) return;
+            if (session.moved && pointerId !== 'mouse') this.viewport?.releasePointerCapture?.(pointerId);
+            this.viewport?.classList.remove('is-panning');
+            this._panSession = null;
+            if (!session.moved) return;
+            event.preventDefault?.();
+            this._suppressFrameClick = true;
+            this.window?.setTimeout?.(() => { this._suppressFrameClick = false; }, 0);
         }
 
         getViewState() {
@@ -533,17 +587,14 @@
             const viewportHeight = this.viewport.clientHeight || 0;
             const canvas = this._canvasDimensions();
             if (!viewportWidth || !viewportHeight || !canvas.width || !canvas.height) return;
-            const visibleEdge = 72;
-            if (canvas.width <= viewportWidth) {
-                this.translateX = (viewportWidth - canvas.width) / 2;
-            } else {
-                this.translateX = clamp(this.translateX, viewportWidth - canvas.width - visibleEdge, visibleEdge);
-            }
-            if (canvas.height <= viewportHeight) {
-                this.translateY = (viewportHeight - canvas.height) / 2;
-            } else {
-                this.translateY = clamp(this.translateY, viewportHeight - canvas.height - visibleEdge, visibleEdge);
-            }
+            const visibleX = Math.min(72, canvas.width, viewportWidth);
+            const visibleY = Math.min(72, canvas.height, viewportHeight);
+            const minimumX = visibleX - canvas.width;
+            const maximumX = viewportWidth - visibleX;
+            const minimumY = visibleY - canvas.height;
+            const maximumY = viewportHeight - visibleY;
+            this.translateX = clamp(this.translateX, minimumX, maximumX);
+            this.translateY = clamp(this.translateY, minimumY, maximumY);
         }
 
         _applyTransform() {
@@ -570,6 +621,8 @@
 
         _discardActiveState() {
             this.window?.removeEventListener?.('resize', this._boundResize);
+            this.window?.removeEventListener?.('mousemove', this._boundMouseMove);
+            this.window?.removeEventListener?.('mouseup', this._boundMouseUp);
             if (this._resizeFrame && this.window?.cancelAnimationFrame) {
                 this.window.cancelAnimationFrame(this._resizeFrame);
             }
@@ -584,6 +637,7 @@
             this.zoomOutButton = null;
             this.zoomInButton = null;
             this._panSession = null;
+            this._gestureSession = null;
             this._suppressFrameClick = false;
             this.previewContent?.classList.remove('microfiche-active');
             this._setScrollSyncDisabled(false);
@@ -636,7 +690,8 @@
         clamp,
         contentWeight,
         paginateNodes,
-        stripCloneIdentity
+        stripCloneIdentity,
+        wheelShouldZoom
     };
 
     if (moduleOptions.autoInitialize && root?.document) {

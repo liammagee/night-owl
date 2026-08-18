@@ -16,6 +16,7 @@ function addLongDocument(container, prefix = 'Section') {
 
 describe('preview microfiche mode', () => {
   let PreviewMicrofiche;
+  let wheelShouldZoom;
   let preview;
   let button;
   let scrollSync;
@@ -32,7 +33,7 @@ describe('preview microfiche mode', () => {
       </div>
     `;
     delete window.previewMicrofiche;
-    ({ PreviewMicrofiche } = require(modulePath));
+    ({ PreviewMicrofiche, wheelShouldZoom } = require(modulePath));
     preview = document.getElementById('preview-content');
     button = document.getElementById('preview-microfiche-btn');
     scrollSync = document.getElementById('preview-scroll-sync-btn');
@@ -116,6 +117,31 @@ describe('preview microfiche mode', () => {
     expect(fitted.fitMode).toBe(true);
     expect(preview.querySelector('.microfiche-zoom-label').textContent).toBe('45%');
 
+    controller.viewport.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 400,
+      clientY: 300
+    }));
+    window.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      buttons: 1,
+      clientX: 330,
+      clientY: 240
+    }));
+    window.dispatchEvent(new MouseEvent('mouseup', {
+      bubbles: true,
+      button: 0,
+      clientX: 330,
+      clientY: 240
+    }));
+    const draggedFit = controller.getViewState();
+    expect(draggedFit.translateX).toBeLessThan(fitted.translateX);
+    expect(draggedFit.translateY).toBeLessThan(fitted.translateY);
+    expect(draggedFit.fitMode).toBe(false);
+
+    controller.fitToViewport();
+
     controller.zoomIn();
     expect(controller.getViewState().scale).toBeGreaterThan(fitted.scale);
     expect(controller.getViewState().fitMode).toBe(false);
@@ -131,6 +157,55 @@ describe('preview microfiche mode', () => {
 
     controller.viewport.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true }));
     expect(controller.getViewState().fitMode).toBe(true);
+  });
+
+  test('recognizes native pinch and mouse-wheel zoom input', () => {
+    addLongDocument(preview);
+    const controller = createController();
+    controller.handlePreviewCommit({ filePath: '/workspace/long.md', renderer: 'markdown' });
+    controller.activate();
+
+    Object.defineProperties(controller.viewport, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    Object.defineProperties(controller.grid, {
+      scrollWidth: { configurable: true, value: 960 },
+      scrollHeight: { configurable: true, value: 1200 }
+    });
+    controller.fitToViewport();
+
+    expect(wheelShouldZoom({ deltaY: -120, deltaX: 0, deltaMode: 0 })).toBe(true);
+    expect(wheelShouldZoom({ deltaY: -8, deltaX: 2, deltaMode: 0 })).toBe(false);
+    expect(wheelShouldZoom({ deltaY: -8 })).toBe(false);
+    expect(wheelShouldZoom({ deltaY: -8, ctrlKey: true })).toBe(true);
+
+    const beforeWheel = controller.getViewState().scale;
+    controller.viewport.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -120,
+      clientX: 400,
+      clientY: 300
+    }));
+    expect(controller.getViewState().scale).toBeGreaterThan(beforeWheel);
+
+    const gestureStart = new Event('gesturestart', { bubbles: true, cancelable: true });
+    Object.defineProperties(gestureStart, {
+      clientX: { value: 400 },
+      clientY: { value: 300 },
+      scale: { value: 1 }
+    });
+    controller.viewport.dispatchEvent(gestureStart);
+    const beforePinch = controller.getViewState().scale;
+    const gestureChange = new Event('gesturechange', { bubbles: true, cancelable: true });
+    Object.defineProperties(gestureChange, {
+      clientX: { value: 400 },
+      clientY: { value: 300 },
+      scale: { value: 1.25 }
+    });
+    controller.viewport.dispatchEvent(gestureChange);
+    expect(controller.getViewState().scale).toBeGreaterThan(beforePinch);
   });
 
   test('keeps the selected mode while a long document is re-rendered', () => {

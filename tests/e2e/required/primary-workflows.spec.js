@@ -782,11 +782,6 @@ test('@required @microfiche long documents scan as a grid and return to focused 
   await expect(zoomIn).toBeVisible();
 
   const fittedView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
-  await zoomIn.click();
-  await zoomIn.click();
-  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
-    .toBeGreaterThan(fittedView.scale);
-
   const viewportBox = await viewport.boundingBox();
   expect(viewportBox).not.toBeNull();
   await appPage.mouse.move(viewportBox.x + viewportBox.width / 2, viewportBox.y + viewportBox.height / 2);
@@ -800,15 +795,22 @@ test('@required @microfiche long documents scan as a grid and return to focused 
   await expect(appPage.locator('#preview-content')).toHaveClass(/microfiche-active/);
   const pannedView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
   expect(pannedView.fitMode).toBe(false);
+  expect(pannedView.translateX).not.toBeCloseTo(fittedView.translateX, 1);
+  expect(pannedView.translateY).not.toBeCloseTo(fittedView.translateY, 1);
+
+  await fitAll.click();
+  await zoomIn.click();
+  await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
+    .toBeGreaterThan(fittedView.scale);
+  const buttonZoomView = await appPage.evaluate(() => window.previewMicrofiche.getViewState());
 
   await viewport.dispatchEvent('wheel', {
     deltaY: -120,
-    ctrlKey: true,
     clientX: viewportBox.width / 2,
     clientY: viewportBox.height / 2
   });
   await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().scale))
-    .toBeGreaterThan(pannedView.scale);
+    .toBeGreaterThan(buttonZoomView.scale);
   await fitAll.click();
   await expect.poll(() => appPage.evaluate(() => window.previewMicrofiche.getViewState().fitMode)).toBe(true);
 
