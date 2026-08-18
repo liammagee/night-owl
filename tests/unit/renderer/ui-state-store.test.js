@@ -29,6 +29,7 @@ function installDOM() {
     <button id="preview-source-sync-toggle"></button>
     <button id="preview-fullscreen-btn"></button>
     <button id="preview-scroll-sync-btn"></button>
+    <button id="preview-microfiche-btn"></button>
     <button id="show-preview-btn"></button>
     <button id="show-chat-btn"></button>
     <button id="show-speaker-notes-btn"></button>
@@ -120,6 +121,7 @@ describe('NightOwl UI state store', () => {
     store.dispatch({ type: 'SET_STRUCTURED_RECORD', active: true, sourceVisible: false });
     expect(document.body.classList.contains('jsonl-record-mode-active')).toBe(true);
     expect(document.getElementById('jsonl-record-mode').classList.contains('nightowl-ui-hidden')).toBe(false);
+    expect(document.getElementById('preview-microfiche-btn').classList.contains('nightowl-ui-hidden')).toBe(true);
     expect(document.getElementById('right-pane').classList.contains('ui-record-focus')).toBe(true);
   });
 

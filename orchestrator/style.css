@@ -4306,6 +4306,188 @@ body.dark-theme .command-palette-results::-webkit-scrollbar-thumb {
     opacity: 1;
 }
 
+.preview-toolbar-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.32;
+    transform: none;
+}
+
+/* Microfiche overview for scanning long rendered documents. */
+#preview-content.microfiche-active {
+    overflow-x: hidden !important;
+    padding: 0 !important;
+    scroll-padding-top: 64px;
+    background: var(--surface-variant, #f4f3f0);
+}
+
+.microfiche-source[hidden] {
+    display: none !important;
+}
+
+.microfiche-shell {
+    box-sizing: border-box;
+    min-height: 100%;
+    padding: 0 18px 28px;
+    color: var(--text-color, var(--text, #24292f));
+    background:
+        radial-gradient(circle at 12px 12px, color-mix(in srgb, var(--text-muted, #64748b) 10%, transparent) 1px, transparent 1.5px) 0 0 / 24px 24px,
+        var(--surface-variant, #f4f3f0);
+}
+
+.microfiche-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    min-height: 52px;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 176px 10px 2px;
+    border-bottom: 1px solid var(--border-color, var(--border, #d1cfc8));
+    background: color-mix(in srgb, var(--surface-variant, #f4f3f0) 94%, transparent);
+    backdrop-filter: blur(12px);
+    pointer-events: none;
+}
+
+.microfiche-summary {
+    color: var(--text-color, var(--text, #24292f));
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.microfiche-hint {
+    overflow: hidden;
+    color: var(--text-muted, #64748b);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.microfiche-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    align-items: start;
+    gap: 20px;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 20px 0;
+}
+
+.microfiche-frame {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-lg, 8px);
+    outline: none;
+    background: transparent;
+    cursor: zoom-in;
+    scroll-margin-top: 64px;
+    transition: transform var(--transition-fast, 150ms ease), filter var(--transition-fast, 150ms ease);
+}
+
+.microfiche-frame:hover {
+    z-index: 2;
+    transform: translateY(-3px) scale(1.015);
+    filter: brightness(1.02);
+}
+
+.microfiche-frame:focus-visible {
+    box-shadow: 0 0 0 3px var(--primary-subtle, #dcfce7), 0 0 0 5px var(--primary, #16a34a);
+}
+
+.microfiche-paper {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 8.5 / 11;
+    border: 1px solid var(--border-color, var(--border, #d1cfc8));
+    border-radius: var(--radius-md, 6px);
+    background: var(--surface, #fefdfb);
+    color: var(--text-color, var(--text, #24292f));
+    box-shadow: var(--shadow-md, 0 4px 12px rgb(0 0 0 / 0.12));
+}
+
+.microfiche-frame-content {
+    width: 222.222%;
+    min-height: 222.222%;
+    box-sizing: border-box;
+    padding: 32px 38px 54px;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.45;
+    pointer-events: none;
+    transform: scale(0.45);
+    transform-origin: top left;
+}
+
+.microfiche-frame-content > :first-child {
+    margin-top: 0 !important;
+}
+
+.microfiche-frame-content img,
+.microfiche-frame-content svg,
+.microfiche-frame-content canvas,
+.microfiche-frame-content table,
+.microfiche-frame-content pre {
+    max-width: 100%;
+}
+
+.microfiche-frame-number {
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    padding: 2px 5px;
+    border-radius: var(--radius-sm, 2px);
+    background: color-mix(in srgb, var(--surface, #fefdfb) 88%, transparent);
+    color: var(--text-muted, #64748b);
+    font-family: var(--font-family-mono, monospace);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.microfiche-focus-target {
+    animation: microfiche-focus-pulse 1.4s ease-out;
+}
+
+@keyframes microfiche-focus-pulse {
+    0%, 45% {
+        border-radius: var(--radius-md, 6px);
+        box-shadow: 0 0 0 5px var(--primary-subtle, #dcfce7);
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+#preview-pane.preview-fullscreen .microfiche-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+@media (max-width: 700px) {
+    .microfiche-header {
+        align-items: flex-start;
+        flex-direction: column;
+        padding-right: 176px;
+    }
+
+    .microfiche-grid {
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .microfiche-frame,
+    .microfiche-focus-target {
+        animation: none;
+        transition: none;
+    }
+}
+
 /* Source view <pre> element */
 .preview-source-view {
     flex: 1;

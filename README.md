@@ -25,6 +25,7 @@ Download the latest release for your platform:
 
 - **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting and split preview
 - **Visual Markdown** - Inline image previews, collapsible code blocks, wiki-style `[[links]]`
+- **Microfiche Preview** - Scan long rendered documents as a paginated miniature grid, then select a frame to resume full-size reading at that section
 - **Presentation Mode** - Create and present slides directly from Markdown
 - **PowerPoint Files** - Preview complete PPTX decks through macOS Quick Look and open them directly in Microsoft PowerPoint (with system-open fallback elsewhere)
 - **Babel Maze** - MUD-style exploration of interconnected Markdown documents
