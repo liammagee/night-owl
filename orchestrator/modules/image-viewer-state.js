@@ -15,6 +15,9 @@
 
         const viewer = documentRef.getElementById('image-viewer-container');
         if (viewer) {
+            if (typeof viewer._nightOwlDispose === 'function') {
+                viewer._nightOwlDispose();
+            }
             if (typeof viewer.remove === 'function') {
                 viewer.remove();
             } else if (viewer.parentNode) {
@@ -30,8 +33,12 @@
             exitPreviewOnlyMode();
         }
 
+        const paneContainer = documentRef.getElementById('panes-container');
+        if (paneContainer) {
+            paneContainer.style.display = 'flex';
+        }
+
         const elementIdsToShow = [
-            'panes-container',
             'mode-switcher',
             'editor-pane',
             'editor-container',

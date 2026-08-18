@@ -134,10 +134,12 @@ function scheduleFileTransitionStatus(transition) {
 }
 
 function restoreUsableEditorShell() {
-    document.getElementById('image-viewer-container')?.remove();
+    const imageViewer = document.getElementById('image-viewer-container');
+    imageViewer?._nightOwlDispose?.();
+    imageViewer?.remove();
     const panesContainer = document.getElementById('panes-container');
     const modeSwitcher = document.getElementById('mode-switcher');
-    if (panesContainer) panesContainer.style.display = '';
+    if (panesContainer) panesContainer.style.display = 'flex';
     if (modeSwitcher) modeSwitcher.style.display = '';
     exitPDFOnlyMode();
     window.editor?.layout?.();
@@ -6295,10 +6297,11 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     const imageViewer = document.getElementById('image-viewer-container');
     const wasImageViewerOpen = !!imageViewer;
     if (imageViewer) {
+        imageViewer._nightOwlDispose?.();
         imageViewer.remove();
         const panesContainer = document.getElementById('panes-container');
         const modeSwitcher = document.getElementById('mode-switcher');
-        if (panesContainer) panesContainer.style.display = '';
+        if (panesContainer) panesContainer.style.display = 'flex';
         if (modeSwitcher) modeSwitcher.style.display = '';
     }
 
@@ -16285,7 +16288,7 @@ function showImageViewer(imagePath) {
     
     // Event handlers
     const closeViewer = () => {
-        document.removeEventListener('keydown', keyHandler);
+        viewerContainer._nightOwlDispose?.();
 
         if (typeof window.restoreEditorAfterImageViewer === 'function') {
             window.restoreEditorAfterImageViewer({
@@ -16311,6 +16314,10 @@ function showImageViewer(imagePath) {
         if (e.key === 'Escape') {
             closeViewer();
         }
+    };
+    viewerContainer._nightOwlDispose = () => {
+        document.removeEventListener('keydown', keyHandler);
+        delete viewerContainer._nightOwlDispose;
     };
     document.addEventListener('keydown', keyHandler);
 

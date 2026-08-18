@@ -209,6 +209,17 @@ body, html {
     overflow: hidden;
 }
 
+/* Keep the editor and preview in a horizontal split even after a temporary
+ * viewer clears its inline display override. This is the authoritative base
+ * layout; JavaScript should only hide or reveal the container. */
+#panes-container {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
 /* Resizers */
 .resizer {
     width: 4px;
