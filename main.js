@@ -567,6 +567,8 @@ Content to analyze:
     // === Notifications ===
     notifications: {
         enabled: true,
+        aiEnabled: true,
+        quietRoutine: true, // routine confirmations go to the status bar instead of toasts
         position: 'bottom-right', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
         duration: 3000, // milliseconds, 0 = permanent
         showProgress: true

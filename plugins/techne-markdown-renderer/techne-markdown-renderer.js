@@ -33,6 +33,10 @@
     };
 
     const resolveImageHref = (href, { baseDir } = {}) => {
+        const shared = window.NightOwlPreviewMarkdown?.resolvePreviewImageSource;
+        if (typeof shared === 'function') {
+            return shared(href, { baseDir });
+        }
         const value = String(href || '').trim();
         if (!value || isAbsoluteLike(value)) return href;
         if (!baseDir) return href;
@@ -717,7 +721,7 @@ body.dark-mode .frontmatter-separator {
         }
 
         if (window.NightOwlPreviewMarkdown?.setSanitizedHTML) {
-            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html);
+            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html, { baseDir: _currentBaseDir });
         } else {
             previewElement.innerHTML = html;
         }

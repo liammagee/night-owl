@@ -364,6 +364,10 @@ function generateGeneralSettings() {
                     <input type="checkbox" id="disable-ai-notifications" ${currentSettings.notifications?.aiEnabled === false ? 'checked' : ''}>
                     <span>Mute AI notifications (keep non-AI notifications)</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="quiet-routine-notifications" ${currentSettings.notifications?.quietRoutine !== false ? 'checked' : ''}>
+                    <span>Show routine confirmations (saved, word wrap, mode switches) in the status bar instead of as popups</span>
+                </label>
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Turn this on to hide toast notifications and other in-app alerts while you work.
                 </p>
@@ -1728,6 +1732,7 @@ function addSettingsEventListeners(category) {
     // Notification preference preview (applies immediately in runtime; persists on Save).
     const disableNotificationsCheckbox = document.getElementById('disable-notifications');
     const disableAINotificationsCheckbox = document.getElementById('disable-ai-notifications');
+    const quietRoutineCheckbox = document.getElementById('quiet-routine-notifications');
 
     const applyRuntimeNotificationPreferences = () => {
         if (!window.appSettings) window.appSettings = {};
@@ -1738,6 +1743,9 @@ function addSettingsEventListeners(category) {
         }
         if (disableAINotificationsCheckbox) {
             window.appSettings.notifications.aiEnabled = !disableAINotificationsCheckbox.checked;
+        }
+        if (quietRoutineCheckbox) {
+            window.appSettings.notifications.quietRoutine = quietRoutineCheckbox.checked;
         }
 
         // Hide active toasts immediately when notifications are muted.
@@ -1780,6 +1788,9 @@ function addSettingsEventListeners(category) {
     }
     if (disableAINotificationsCheckbox) {
         disableAINotificationsCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
+    }
+    if (quietRoutineCheckbox) {
+        quietRoutineCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
     }
     if (disableNotificationsCheckbox || disableAINotificationsCheckbox) {
         applyRuntimeNotificationPreferences();
@@ -2458,6 +2469,12 @@ function collectSettingsFromForm() {
     if (disableAINotifications !== undefined) {
         if (!updatedSettings.notifications) updatedSettings.notifications = {};
         updatedSettings.notifications.aiEnabled = !disableAINotifications;
+    }
+
+    const quietRoutineNotifications = document.getElementById('quiet-routine-notifications')?.checked;
+    if (quietRoutineNotifications !== undefined) {
+        if (!updatedSettings.notifications) updatedSettings.notifications = {};
+        updatedSettings.notifications.quietRoutine = quietRoutineNotifications;
     }
 
     const publishedUrlMappings = document.getElementById('published-url-mappings')?.value;

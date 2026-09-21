@@ -53,27 +53,111 @@
                     return `<h${depth} id="${id}">${headingHtml}</h${depth}>\n`;
                 },
                 image({ href, title, text }) {
-                    const hrefStr = String(href || '');
-                    if (
-                        hrefStr &&
-                        !hrefStr.startsWith('http') &&
-                        !hrefStr.startsWith('/') &&
-                        !hrefStr.startsWith('file://') &&
-                        !hrefStr.startsWith('data:')
-                    ) {
-                        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-                        const normalizedHref = hrefStr.replace(/^\.\//, '');
-                        const fullPath = `file://${baseDir}/${normalizedHref}`;
-                        const titleAttr = title ? ` title="${title}"` : '';
-                        return `<img src="${fullPath}" alt="${text || ''}"${titleAttr} />`;
-                    }
-                    const titleAttr = title ? ` title="${title}"` : '';
-                    return `<img src="${hrefStr}" alt="${text || ''}"${titleAttr} />`;
+                    const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+                    const src = resolvePreviewImageSource(href, { baseDir });
+                    const titleAttr = title ? ` title="${escapeAttribute(title)}"` : '';
+                    return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(text || '')}"${titleAttr} />`;
                 }
             },
             gfm: true,
             breaks: true
         });
+    }
+
+    function escapeAttribute(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    const ABSOLUTE_IMAGE_SOURCE = /^(?:[a-z][a-z0-9+.-]*:|#)/i;
+    const WINDOWS_DRIVE_PATH = /^[a-zA-Z]:[\\/]/;
+
+    function isAbsoluteFilesystemPath(value) {
+        const str = String(value || '');
+        return str.startsWith('/') || WINDOWS_DRIVE_PATH.test(str);
+    }
+
+    // Percent-encode one path segment so characters such as spaces, '#', '?' and '%'
+    // survive inside a file:// URL. Already-encoded segments are decoded first so that
+    // they are not encoded twice.
+    function encodePathSegment(segment) {
+        if (segment === '' || segment === '.' || segment === '..') return segment;
+        let decoded = segment;
+        try {
+            decoded = decodeURIComponent(segment);
+        } catch {
+            decoded = segment;
+        }
+        return encodeURIComponent(decoded);
+    }
+
+    function encodeFilesystemPath(path) {
+        return String(path || '')
+            .replace(/\\/g, '/')
+            .split('/')
+            .map(encodePathSegment)
+            .join('/');
+    }
+
+    function toFileUrl(path) {
+        const normalized = String(path || '').replace(/\\/g, '/');
+        if (WINDOWS_DRIVE_PATH.test(normalized)) {
+            return `file:///${normalized.slice(0, 2)}${encodeFilesystemPath(normalized.slice(2))}`;
+        }
+        const encoded = encodeFilesystemPath(normalized);
+        return `file://${encoded.startsWith('/') ? '' : '/'}${encoded}`;
+    }
+
+    /**
+     * Resolve an image reference from markdown or raw HTML to a URL the preview can load.
+     *
+     * - Absolute URLs (http, https, data, blob, file) and fragments are returned unchanged.
+     * - Absolute filesystem paths become percent-encoded file:// URLs.
+     * - Relative paths are joined to baseDir (the directory of the open file) and
+     *   percent-encoded so spaces and '#' in folder or file names still resolve.
+     * - Without a baseDir the (normalised) relative path is returned as-is.
+     */
+    function resolvePreviewImageSource(href, { baseDir } = {}) {
+        const value = String(href == null ? '' : href).trim();
+        if (!value) return value;
+        if (isAbsoluteFilesystemPath(value)) return toFileUrl(value);
+        if (ABSOLUTE_IMAGE_SOURCE.test(value)) return value;
+
+        const relative = value.replace(/^\.\//, '');
+        const base = String(baseDir || '').replace(/[\\/]+$/, '');
+        if (!base) return relative;
+        if (/^file:\/\//i.test(base)) {
+            return `${base}/${encodeFilesystemPath(relative)}`;
+        }
+        if (isAbsoluteFilesystemPath(base)) {
+            return toFileUrl(`${base}/${relative}`);
+        }
+        return `${base}/${relative}`;
+    }
+
+    function currentPreviewBaseDir() {
+        if (typeof window === 'undefined') return '';
+        return window.currentFileDirectory || window.appSettings?.workingDirectory || '';
+    }
+
+    // Raw <img> tags written directly in markdown are not seen by the marked image
+    // renderer, so resolve their relative sources here against the open file's folder.
+    function resolvePreviewImages(root, { baseDir } = {}) {
+        if (!root || typeof root.querySelectorAll !== 'function') return 0;
+        const base = baseDir == null ? currentPreviewBaseDir() : baseDir;
+        let changed = 0;
+        root.querySelectorAll('img[src]').forEach((img) => {
+            const original = img.getAttribute('src') || '';
+            const resolved = resolvePreviewImageSource(original, { baseDir: base });
+            if (resolved && resolved !== original) {
+                img.setAttribute('src', resolved);
+                changed += 1;
+            }
+        });
+        return changed;
     }
 
     function renderFrontmatterHeaderFallback(yamlBlock) {
@@ -274,7 +358,7 @@
         return template.innerHTML;
     }
 
-    function setSanitizedHTML(element, html) {
+    function setSanitizedHTML(element, html, { baseDir } = {}) {
         if (!element) return '';
         const sanitized = sanitizePreviewHTML(html);
         const template = document.createElement('template');
@@ -296,7 +380,9 @@
         fixHeaderlessTables,
         processMarkdownContent,
         sanitizePreviewHTML,
-        setSanitizedHTML
+        setSanitizedHTML,
+        resolvePreviewImageSource,
+        resolvePreviewImages
     };
 
     if (typeof window !== 'undefined') {
@@ -306,3 +392,4 @@
         module.exports = api;
     }
 })();
+        resolvePreviewImages(template.content, { baseDir });

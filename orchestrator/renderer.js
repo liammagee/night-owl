@@ -1035,6 +1035,21 @@ function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
     }, delay);
 }
 
+// Resolve a relative image reference (markdown image, raw <img>, slide background)
+// against the open file's directory. Delegates to the shared preview-markdown module,
+// which percent-encodes spaces and '#' so file:// URLs load reliably.
+function resolvePreviewImagePath(href) {
+    const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory || '';
+    const shared = window.NightOwlPreviewMarkdown?.resolvePreviewImageSource;
+    if (typeof shared === 'function') {
+        return shared(href, { baseDir });
+    }
+    const value = String(href || '').trim();
+    if (!value || /^(?:[a-z][a-z0-9+.-]*:|#)/i.test(value)) return value;
+    const joined = value.startsWith('/') ? value : [baseDir.replace(/\/+$/, ''), value.replace(/^\.\//, '')].filter(Boolean).join('/');
+    return `file://${joined.startsWith('/') ? '' : '/'}${joined}`;
+}
+
 async function renderMarkdownContent(markdownContent) {
     // Prefer the shared Techne markdown renderer plugin when available
     if (window.TechneMarkdownRenderer?.renderPreview) {
@@ -4082,7 +4097,8 @@ async function initializeMonacoEditor() {
                 scrollbar: {
                     verticalScrollbarSize: 10,
                     horizontalScrollbarSize: 10
-                }
+                },
+                ...(window.NightOwlEditorLayout?.editorOptionsForWordWrap('on') || {})
             });
             
             // Make editor available globally for formatting functions
@@ -8087,9 +8103,13 @@ document.addEventListener('keydown', async (e) => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyZ') {
         e.preventDefault();
         if (window.editor && window.editor.updateOptions) {
-            const wrapOn = window.editor.getRawOptions().wordWrap === 'on';
+            const wrapOn = window.editor.getRawOptions().wordWrap !== 'off';
             const newValue = wrapOn ? 'off' : 'on';
-            window.editor.updateOptions({ wordWrap: newValue });
+            if (window.NightOwlEditorLayout?.applyWordWrap) {
+                window.NightOwlEditorLayout.applyWordWrap(window.editor, newValue, previewSourceEl);
+            } else {
+                window.editor.updateOptions({ wordWrap: newValue });
+            }
             // Persist to saved settings
             if (window.appSettings?.editor) {
                 window.appSettings.editor.wordWrap = newValue;
@@ -13126,22 +13146,10 @@ function showNotification(message, type = 'info', optionsOrDuration = undefined)
         return;
     }
 
-    // Remove any existing notification
-    const existingNotification = document.querySelector('.notification');
-    if (existingNotification) {
-        existingNotification.classList.add('hide');
-        setTimeout(() => {
-            if (existingNotification.parentNode) {
-                existingNotification.remove();
-            }
-        }, 250); // Wait for hide animation
-    }
-    
-    // Create new notification
+    // Minimal fallback toast used only if the notification module failed to load.
+    document.querySelectorAll('.notification').forEach((existing) => existing.remove());
     const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    
-    // Set content based on whether HTML is enabled
+    notification.className = `notification notification-${type} show`;
     if (isHTML) {
         notification.innerHTML = message;
     } else {
@@ -13149,26 +13157,7 @@ function showNotification(message, type = 'info', optionsOrDuration = undefined)
     }
     
     document.body.appendChild(notification);
-    
-    // Trigger show animation
-    requestAnimationFrame(() => {
-        notification.classList.add('show');
-    });
-    
-    // Auto-remove after configured duration with hide animation
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.classList.remove('show');
-            notification.classList.add('hide');
-            
-            // Remove from DOM after animation
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 250);
-        }
-    }, Math.max(500, duration));
+    setTimeout(() => notification.remove(), Math.max(500, duration));
 }
 
 
@@ -13362,6 +13351,13 @@ function markContentAsSaved() {
 // Initialize formatting directly
 setTimeout(() => {
     // Initializing formatting buttons
+    // Delegated to the app-native notification center (orchestrator/modules/notifications.js),
+    // which routes routine confirmations to the status bar and collapses repeated toasts.
+    const center = window.NightOwlNotifications?.center;
+    if (center) {
+        return center.show(message, type, optionsOrDuration);
+    }
+
     
     const formatBoldBtn = document.getElementById('format-bold-btn');
     const formatItalicBtn = document.getElementById('format-italic-btn');
@@ -13426,7 +13422,6 @@ function setPaneVisibilityButtonState(toggleBtn, isVisible, onVariantClass = 'bt
 }
 
 function toggleSidebar() {
-    
     const sidebar = document.getElementById('left-sidebar');
     const resizer = document.getElementById('sidebar-resizer');
     const toggleBtn = document.getElementById('toggle-sidebar-btn');
@@ -13821,14 +13816,7 @@ function renderSlideThumbnails(content) {
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
         if (!match) return null;
-        let imgPath = match[1].trim();
-        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
-        } else if (imgPath.startsWith('/')) {
-            imgPath = `file://${imgPath}`;
-        }
-        return imgPath;
+        return resolvePreviewImagePath(match[1].trim());
     };
 
     // Render thumbnail HTML with per-slide caching
@@ -14153,14 +14141,7 @@ function renderVerticalSlideThumbnails() {
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
         if (!match) return null;
-        let imgPath = match[1].trim();
-        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('/') && !imgPath.startsWith('file://') && !imgPath.startsWith('data:')) {
-            const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-            if (baseDir) imgPath = `file://${baseDir}/${imgPath}`;
-        } else if (imgPath.startsWith('/')) {
-            imgPath = `file://${imgPath}`;
-        }
-        return imgPath;
+        return resolvePreviewImagePath(match[1].trim());
     };
 
     const renderHTML = (md) => {
@@ -14821,7 +14802,12 @@ function applyEditorSettings(settings) {
             editorOptions.minimap = { enabled: settings.editor.showMinimap };
         }
         if (settings.editor.wordWrap !== undefined) {
-            editorOptions.wordWrap = settings.editor.wordWrap;
+            if (window.NightOwlEditorLayout?.editorOptionsForWordWrap) {
+                Object.assign(editorOptions, window.NightOwlEditorLayout.editorOptionsForWordWrap(settings.editor.wordWrap));
+                window.NightOwlEditorLayout.syncSourceViewWrap(settings.editor.wordWrap, previewSourceEl);
+            } else {
+                editorOptions.wordWrap = settings.editor.wordWrap;
+            }
         }
         if (settings.editor.fontSize !== undefined) {
             editorOptions.fontSize = settings.editor.fontSize;
