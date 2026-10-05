@@ -568,6 +568,8 @@ Content to analyze:
     // === Notifications ===
     notifications: {
         enabled: true,
+        aiEnabled: true,
+        quietRoutine: true, // routine confirmations go to the status bar instead of toasts
         position: 'bottom-right', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
         duration: 3000, // milliseconds, 0 = permanent
         showProgress: true
@@ -1116,17 +1118,22 @@ function clearPersistedEditorTabs() {
     }
     appSettings.editorTabs.openTabs = [];
     appSettings.editorTabs.activeTabIndex = 0;
+    appSettings.editorTabs.activeTabPath = null;
 }
 
 function applyLaunchTargetToSettings(target) {
     if (!target || !target.path) return null;
 
     if (target.type === 'directory') {
+        const reopeningWorkspace = normalizeWorkspacePath(appSettings.workingDirectory)
+            === normalizeWorkspacePath(target.path);
         const folderPath = setPrimaryWorkingDirectory(target.path);
         addToRecentWorkspaces(folderPath);
-        currentFilePath = null;
-        appSettings.currentFile = '';
-        clearPersistedEditorTabs();
+        if (!reopeningWorkspace) {
+            currentFilePath = null;
+            appSettings.currentFile = '';
+            clearPersistedEditorTabs();
+        }
         saveSettings();
         debugMain(`Launch target applied as workspace: ${folderPath}`);
         return { ...target, path: folderPath };
@@ -1142,7 +1149,8 @@ function applyLaunchTargetToSettings(target) {
         appSettings.editorTabs = {
             ...(appSettings.editorTabs || {}),
             openTabs: [{ filePath, fileName: path.basename(filePath) }],
-            activeTabIndex: 0
+            activeTabIndex: 0,
+            activeTabPath: filePath
         };
         saveSettings();
         debugMain(`Launch target applied as file: ${filePath}`);
@@ -1507,33 +1515,16 @@ function createWindow(options = {}) {
     }
 
     try {
-      // Ask renderer if there are unsaved changes (only for files that still exist on disk).
+      // Include every dirty buffer, including untitled and deleted-on-disk files.
       // Race the IPC call against a timeout so a disposed/hung renderer can't trap the user —
       // the previous "Render frame was disposed" rejection caused the close handler to hang
       // when executeJavaScript never settled.
       const dirtyFilesPromise = wc.executeJavaScript(
-        `(async function() {
-          async function fileExists(p) {
-            try {
-              const r = await window.electronAPI.files.checkFileExists(p);
-              return typeof r === 'object' ? !!r?.exists : !!r;
-            } catch (e) { return true; } // assume dirty on IPC error
-          }
-          if (window.editorTabs) {
-            // Parallelize existence checks so we don't serialize one IPC round-trip per tab —
-            // a long sequential loop widens the window for frame-disposal races during close.
-            const checks = [];
-            for (const [path, tab] of window.editorTabs.tabs) {
-              if (tab.isDirty) {
-                checks.push(fileExists(path).then(ok => ok ? tab.fileName : null));
-              }
-            }
-            const results = await Promise.all(checks);
-            return results.filter(Boolean);
-          }
-          if (window.hasUnsavedChanges && window.currentFilePath) {
-            const ok = await fileExists(window.currentFilePath);
-            if (!ok) { window.hasUnsavedChanges = false; return []; }
+        `(function() {
+          if (window.NightOwlWindowClose) return window.NightOwlWindowClose.unsavedNames();
+          if (window.tabManager) {
+            return [...window.tabManager.tabs.values()]
+              .filter(tab => tab.isDirty).map(tab => tab.fileName);
           }
           return window.hasUnsavedChanges ? ['current file'] : [];
         })()`

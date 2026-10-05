@@ -17,7 +17,8 @@ npm run electron-dev
 
 # Run tests
 npm run test:unit        # Unit tests
-npm run test:e2e         # E2E tests (requires display)
+npm run test:e2e         # Required workflow E2E tests (requires display)
+npm run test:editor      # Editor, session recovery, and template regressions
 npm run test:all         # All tests
 
 # Run deterministic performance budgets when relevant

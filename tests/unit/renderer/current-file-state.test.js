@@ -41,3 +41,16 @@ describe('current-file-state', () => {
     expect(setCurrentFile).toHaveBeenCalledWith(null);
   });
 });
+
+describe('current-file path identity', () => {
+  test('preserves legal trailing spaces in file names', () => {
+    expect(window.NightOwlCurrentFile.normalize('/workspace/draft.md ')).toBe('/workspace/draft.md ');
+  });
+
+  test('finds the directory for Windows paths and root-level files', async () => {
+    await window.NightOwlCurrentFile.set('C:\\work\\draft.md');
+    expect(window.currentFileDirectory).toBe('C:\\work');
+    await window.NightOwlCurrentFile.set('/draft.md');
+    expect(window.currentFileDirectory).toBe('/');
+  });
+});

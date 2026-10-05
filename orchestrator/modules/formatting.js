@@ -700,13 +700,29 @@ async function formatDisplayMath() {
 }
 
 // --- Slide Markers ---
-async function addSlideMarkersToParagraphs() {
-    if (!window.editor) {
-        console.error('[addSlideMarkersToParagraphs] No editor available');
-        return;
+function captureSlideMarkerTarget() {
+    const editor = window.editor;
+    const model = editor?.getModel?.();
+    if (!model) return null;
+    return { editor, model, content: model.getValue() };
+}
+
+function applySlideMarkerEdit(target, content) {
+    // Confirmation is asynchronous: never replace newer edits or another tab.
+    if (window.editor !== target.editor || target.editor.getModel() !== target.model ||
+        target.model.isDisposed?.() || target.model.getValue() !== target.content) {
+        window.showNotification?.('The document changed. Please try the slide marker action again.', 'info');
+        return false;
     }
-    
-    // Add confirmation dialog to prevent accidental modifications
+    target.editor.pushUndoStop();
+    target.editor.executeEdits('slide-markers', [{ range: target.model.getFullModelRange(), text: content }]);
+    target.editor.pushUndoStop();
+    return true;
+}
+
+async function addSlideMarkersToParagraphs() {
+    const target = captureSlideMarkerTarget();
+    if (!target) return;
     const confirmed = await window.showAppConfirm({
         title: 'Add Slide Markers',
         message: 'Add slide markers after each paragraph?',
@@ -714,129 +730,57 @@ async function addSlideMarkersToParagraphs() {
         confirmText: 'Add Markers',
         variant: 'warning'
     });
-    
-    if (!confirmed) {
+    if (!confirmed) return;
+
+    const { content } = target;
+    const document = window.NightOwlSlides.parseDocument(content);
+    const protectedLines = new Set(document.protectedLines);
+    const separatorLines = new Set(document.separatorLines);
+    const lines = content.split('\n');
+    const lineEnding = content.includes('\r\n') ? '\r' : '';
+    const newLines = [];
+    let markersAdded = 0;
+    lines.forEach((line, index) => {
+        newLines.push(line);
+        const trimmed = line.trim();
+        if (!trimmed || protectedLines.has(index + 1) || separatorLines.has(index + 1) ||
+            /^(?: {4}|\t)/.test(line) || /^#+\s/.test(trimmed) ||
+            index === lines.length - 1 || lines[index + 1].trim()) return;
+        let next = index + 1;
+        while (next < lines.length && !lines[next].trim()) next++;
+        if (next === lines.length || separatorLines.has(next + 1)) return;
+        newLines.push(lineEnding, `---${lineEnding}`);
+        markersAdded++;
+    });
+    if (!markersAdded) {
+        window.showNotification?.('No paragraphs needed slide markers', 'info');
         return;
     }
-    
-    const content = window.editor.getValue();
-    const lines = content.split('\n');
-    const newLines = [];
-    let i = 0;
-    
-    while (i < lines.length) {
-        const line = lines[i];
-        const trimmed = line.trim();
-        
-        // Add current line
-        newLines.push(line);
-        
-        // Check if this is the end of a paragraph (non-empty line followed by empty line or end of file)
-        if (trimmed !== '' && 
-            (i === lines.length - 1 || lines[i + 1].trim() === '')) {
-            
-            // Check if the next non-empty line is already a slide marker
-            let nextNonEmptyIndex = i + 1;
-            while (nextNonEmptyIndex < lines.length && lines[nextNonEmptyIndex].trim() === '') {
-                nextNonEmptyIndex++;
-            }
-            
-            // Don't add slide marker if:
-            // - Next non-empty line is already a slide marker (---)
-            // - Current line is already a slide marker
-            // - Current line is a heading (#)
-            // - We're at the very end of the document
-            const isCurrentSlideMarker = trimmed === '---';
-            const isCurrentHeading = trimmed.match(/^#+\s/);
-            const nextLine = nextNonEmptyIndex < lines.length ? lines[nextNonEmptyIndex].trim() : '';
-            const isNextSlideMarker = nextLine === '---';
-            const isAtEnd = i === lines.length - 1;
-            
-            if (!isCurrentSlideMarker && !isCurrentHeading && !isNextSlideMarker && !isAtEnd) {
-                // Add empty line if there isn't one already
-                if (i < lines.length - 1 && lines[i + 1].trim() !== '') {
-                    newLines.push('');
-                }
-                // Add slide marker
-                newLines.push('---');
-            }
-        }
-        
-        i++;
-    }
-    
-    const newContent = newLines.join('\n');
-    if (newContent !== content) {
-        window.editor.setValue(newContent);
-        if (window.updatePreviewAndStructure) {
-            await window.updatePreviewAndStructure(newContent);
-        }
-        
-        // Count how many markers were added
-        const originalMarkers = (content.match(/^---$/gm) || []).length;
-        const newMarkers = (newContent.match(/^---$/gm) || []).length;
-        const markersAdded = newMarkers - originalMarkers;
-        
-        if (window.showNotification) {
-            window.showNotification(`Added ${markersAdded} slide marker${markersAdded !== 1 ? 's' : ''}`, 'success');
-        }
-    } else {
-        if (window.showNotification) {
-            window.showNotification('No paragraphs needed slide markers', 'info');
-        }
+    if (applySlideMarkerEdit(target, newLines.join('\n'))) {
+        window.showNotification?.(`Added ${markersAdded} slide marker${markersAdded !== 1 ? 's' : ''}`, 'success');
     }
 }
 
 async function removeAllSlideMarkers() {
-    if (!window.editor) {
+    const target = captureSlideMarkerTarget();
+    if (!target) return;
+    const separatorLines = new Set(window.NightOwlSlides.parseDocument(target.content).separatorLines);
+    const slideMarkerCount = separatorLines.size;
+    if (!slideMarkerCount) {
+        window.showNotification?.('No slide markers found in the document.', 'info');
         return;
     }
-    
-    const content = window.editor.getValue();
-    const slideMarkerCount = (content.match(/^---$/gm) || []).length;
-    
-    if (slideMarkerCount === 0) {
-        alert('No slide markers found in the document.');
-        return;
-    }
-    
-    // Show confirmation dialog
     const confirmed = await window.showAppConfirm({
         title: 'Remove Slide Markers',
         message: `Remove all ${slideMarkerCount} slide markers from the document?`,
-        detail: 'This action cannot be undone.',
+        detail: 'You can undo this change.',
         confirmText: 'Remove Markers',
-        variant: 'danger'
+        variant: 'warning'
     });
-    
-    if (!confirmed) {
-        return;
-    }
-    
-    
-    const lines = content.split('\n');
-    const newLines = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmed = line.trim();
-        
-        // Skip lines that are just slide markers
-        if (trimmed === '---') {
-            continue;
-        }
-        
-        newLines.push(line);
-    }
-    
-    const newContent = newLines.join('\n');
-    window.editor.setValue(newContent);
-    if (window.updatePreviewAndStructure) {
-        await window.updatePreviewAndStructure(newContent);
-    }
-    
-    if (window.showNotification) {
-        window.showNotification(`Removed ${slideMarkerCount} slide marker${slideMarkerCount !== 1 ? 's' : ''}`, 'success');
+    if (!confirmed) return;
+    const newContent = target.content.split('\n').filter((_, index) => !separatorLines.has(index + 1)).join('\n');
+    if (applySlideMarkerEdit(target, newContent)) {
+        window.showNotification?.(`Removed ${slideMarkerCount} slide marker${slideMarkerCount !== 1 ? 's' : ''}`, 'success');
     }
 }
 

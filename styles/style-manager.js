@@ -12,7 +12,16 @@ class StyleManager {
         this.customStyles = new Map();
         
         this.initializeDefaultTemplates();
-        this.loadUserStyles();
+        this.userStylesReady = this.loadUserStyles();
+        this.presentationRequest = 0;
+    }
+
+    // Support the capability API used by packaged builds and older source checkouts.
+    requestSettings(method, channel, ...args) {
+        const settings = window.electronAPI?.settings;
+        if (typeof settings?.[method] === 'function') return settings[method](...args);
+        if (typeof window.electronAPI?.invoke === 'function') return window.electronAPI.invoke(channel, ...args);
+        throw new Error(`Settings capability ${method} is unavailable`);
     }
 
     // Initialize default templates and styles
@@ -20,9 +29,8 @@ class StyleManager {
         // Presentation templates
         this.presentationTemplates.set('default', {
             name: 'Default',
-            description: 'Modern green theme with elegant gradients',
+            description: 'Modern red accents with clean typography',
             cssFile: './styles/templates/presentations/default.css',
-            preview: './styles/previews/default-presentation.png'
         });
 
         this.presentationTemplates.set('academic', {
@@ -90,10 +98,12 @@ class StyleManager {
     async loadUserStyles() {
         try {
             if (window.electronAPI) {
-                const userStyles = await window.electronAPI.settings.loadUserStyles();
+                const response = await this.requestSettings('loadUserStyles', 'load-user-styles');
+                if (response?.success === false) throw new Error(response.error || 'Could not load custom styles');
+                const userStyles = response?.styles || response;
                 if (userStyles) {
                     Object.entries(userStyles).forEach(([key, style]) => {
-                        this.customStyles.set(key, style);
+                        if (style && typeof style === 'object' && style.type) this.customStyles.set(key, style);
                     });
                 }
             }
@@ -107,7 +117,7 @@ class StyleManager {
         try {
             if (window.electronAPI) {
                 const userStylesObj = Object.fromEntries(this.customStyles);
-                await window.electronAPI.settings.saveUserStyles(userStylesObj);
+                await this.requestSettings('saveUserStyles', 'save-user-styles', userStylesObj);
             }
         } catch (error) {
             console.error('[StyleManager] Could not save user styles:', error);
@@ -173,8 +183,10 @@ class StyleManager {
     }
 
     // Apply presentation template
-    async applyPresentationTemplate(templateId) {
+    async applyPresentationTemplate(templateId, { persist = true } = {}) {
+        const request = ++this.presentationRequest;
         try {
+            await this.userStylesReady;
             const template = this.presentationTemplates.get(templateId) ||
                             this.customStyles.get(templateId);
 
@@ -182,22 +194,20 @@ class StyleManager {
                 throw new Error(`Template ${templateId} not found`);
             }
 
-            // Remove existing presentation styles
-            this.removeStyleElement('presentation-template');
-
-            // Load and apply new template
+            // Keep the current template intact if loading fails, and ignore stale loads.
             const css = await this.loadCSSFile(template.cssFile || template.css);
+            if (request !== this.presentationRequest) return false;
+            if (persist) await this.saveStylePreferences({ presentationTemplate: templateId });
+            if (request !== this.presentationRequest) return false;
             this.injectStyle(css, 'presentation-template');
-
             this.currentPresentationTemplate = templateId;
-            
-            // Save preference
-            await this.saveStylePreferences();
             
             // Dispatch event for UI updates
             window.dispatchEvent(new CustomEvent('presentation-template-changed', {
                 detail: { templateId, template }
             }));
+            // Font and padding changes can alter slide fitting without a DOM mutation.
+            window.dispatchEvent(new Event('resize'));
 
             return true;
         } catch (error) {
@@ -353,31 +363,31 @@ class StyleManager {
 
     // Utility methods
     async loadCSSFile(filePath) {
-        try {
-            if (filePath.startsWith('./styles/') && window.electronAPI) {
-                // Load from file system
-                const response = await window.electronAPI.settings.loadStyleFile(filePath);
-                if (response.success) {
-                    return response.content;
-                } else {
-                    console.error('[StyleManager] Error loading CSS file:', response.error);
-                    return '';
+        if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Stylesheet is empty');
+        if (/^\.\/(?:styles|css)\//.test(filePath)) {
+            if (window.electronAPI) {
+                const response = await this.requestSettings('loadStyleFile', 'load-style-file', filePath);
+                if (!response?.success || !response.content?.trim()) {
+                    throw new Error(response?.error || `Could not load ${filePath}`);
                 }
-            } else {
-                // Treat as inline CSS
-                return filePath;
+                return response.content;
             }
-        } catch (error) {
-            console.error('[StyleManager] Error loading CSS file:', error);
-            return '';
+            const response = await fetch(filePath);
+            if (!response.ok) throw new Error(`Could not load ${filePath}: ${response.status}`);
+            const css = await response.text();
+            if (!css.trim()) throw new Error(`Stylesheet ${filePath} is empty`);
+            return css;
         }
+        return filePath;
     }
 
     injectStyle(css, id) {
         const styleElement = document.createElement('style');
         styleElement.id = id;
         styleElement.textContent = css;
-        document.head.appendChild(styleElement);
+        const existing = document.getElementById(id);
+        if (existing) existing.replaceWith(styleElement);
+        else document.head.appendChild(styleElement);
     }
 
     removeStyleElement(id) {
@@ -396,21 +406,24 @@ class StyleManager {
     }
 
     // Save current style preferences
-    async saveStylePreferences() {
+    async saveStylePreferences(overrides = {}) {
         try {
             const preferences = {
                 presentationTemplate: this.currentPresentationTemplate,
                 previewStyle: this.currentPreviewStyle,
-                exportStyle: this.currentExportStyle
+                exportStyle: this.currentExportStyle,
+                ...overrides
             };
 
             if (window.electronAPI) {
-                await window.electronAPI.settings.saveStylePreferences(preferences);
+                const result = await this.requestSettings('saveStylePreferences', 'save-style-preferences', preferences);
+                if (result?.success === false) throw new Error(result.error || 'Could not save style preferences');
             } else {
                 localStorage.setItem('hegel-style-preferences', JSON.stringify(preferences));
             }
         } catch (error) {
             console.error('[StyleManager] Error saving style preferences:', error);
+            throw error;
         }
     }
 
@@ -420,7 +433,9 @@ class StyleManager {
             let preferences;
             
             if (window.electronAPI) {
-                preferences = await window.electronAPI.settings.loadStylePreferences();
+                const response = await this.requestSettings('loadStylePreferences', 'load-style-preferences');
+                if (response?.success === false) throw new Error(response.error || 'Could not load style preferences');
+                preferences = response?.preferences || response;
             } else {
                 const stored = localStorage.getItem('hegel-style-preferences');
                 preferences = stored ? JSON.parse(stored) : null;
@@ -453,11 +468,12 @@ class StyleManager {
 
     // Initialize - apply saved preferences
     async initialize() {
+        await this.userStylesReady;
         await this.loadStylePreferences();
         
         // Apply saved styles
         if (this.currentPresentationTemplate) {
-            await this.applyPresentationTemplate(this.currentPresentationTemplate);
+            await this.applyPresentationTemplate(this.currentPresentationTemplate, { persist: false });
         }
         if (this.currentPreviewStyle) {
             await this.applyPreviewStyle(this.currentPreviewStyle);

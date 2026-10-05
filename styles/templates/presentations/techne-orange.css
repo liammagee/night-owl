@@ -2,7 +2,13 @@
    Swiss grid / trash‑polka inspired, matching the Techne app theme.
 */
 
-:root {
+#presentation-content,
+#presentation-root {
+    --presentation-content-padding: 44px 52px;
+    --presentation-text: var(--techne-black);
+    --presentation-table-bg: var(--techne-white);
+    --presentation-table-header-bg: var(--techne-off-white);
+    --presentation-image-overlay: rgba(255, 255, 255, 0.84);
     --techne-black: #0a0a0a;
     --techne-white: #ffffff;
     --techne-off-white: #fafafa;
@@ -188,4 +194,50 @@ div.absolute.slide::before {
 .slide th, .slide-content th {
     background: rgba(10, 10, 10, 0.04);
     font-weight: 800;
+}
+
+/* The template controls appearance; the presentation stage owns its 16:9
+   geometry. Keep the same content inset in authoring and delivery modes. */
+#presentation-content #presentation-root .slide {
+    width: 864px !important;
+    min-width: 864px !important;
+    max-width: 864px !important;
+    height: 486px !important;
+    min-height: 486px !important;
+    max-height: 486px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+#presentation-content #presentation-root .slide-content {
+    height: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding: var(--presentation-content-padding) !important;
+    background: transparent !important;
+    font-family: inherit !important;
+}
+
+#presentation-content #presentation-root .slide-has-bg .slide-content {
+    background: var(--presentation-image-overlay) !important;
+}
+
+/* Legacy presentation rules force light table surfaces. Use this template's
+   local palette so Dark remains legible without changing the workspace. */
+#presentation-content #presentation-root .slide-content table,
+#presentation-content #presentation-root .slide-content td {
+    background: var(--presentation-table-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content th {
+    background: var(--presentation-table-header-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content tr,
+#presentation-content #presentation-root .slide-content tr:hover {
+    background: transparent !important;
 }

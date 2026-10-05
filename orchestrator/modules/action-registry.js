@@ -305,7 +305,7 @@
     function installShortcutHandler(target, { contextProvider = () => undefined } = {}) {
       if (!target?.addEventListener) return () => {};
       const handler = event => {
-        if (event.defaultPrevented || event.repeat) return;
+        if (event.defaultPrevented || event.repeat || event.isComposing) return;
         const context = contextProvider(event);
         const targetElement = event.target;
         const isMonacoInput = Boolean(targetElement?.closest?.('.monaco-editor'));

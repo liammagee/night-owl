@@ -1,0 +1,570 @@
+/* Interior workspace surfaces. Load after the legacy and Techne stylesheets.
+   Visibility, pane routing, and modal positioning remain owned by the app. */
+:root {
+    --workspace-panel-surface: #fdfcf9;
+    --workspace-panel-raised: #ffffff;
+    --workspace-panel-subtle: #f5f3ef;
+    --workspace-panel-hover: #eeece7;
+    --workspace-panel-border: #deddd7;
+    --workspace-panel-ink: #27323d;
+    --workspace-panel-muted: #5c6670;
+    --workspace-panel-accent: #a93646;
+    --workspace-panel-accent-hover: #912b3a;
+    --workspace-panel-accent-soft: #f6e9eb;
+    --workspace-panel-on-accent: #ffffff;
+    --workspace-panel-focus: #bc6673;
+    --workspace-panel-danger: #b1343f;
+    --workspace-panel-overlay: rgba(29, 35, 43, 0.26);
+    --workspace-panel-shadow: 0 18px 56px rgba(30, 39, 49, 0.16), 0 3px 10px rgba(30, 39, 49, 0.06);
+    --workspace-panel-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body:is(.dark-mode, .dark-theme, .techne-dark, [data-theme="dark"]) {
+    --workspace-panel-surface: #20272f;
+    --workspace-panel-raised: #252d36;
+    --workspace-panel-subtle: #1c232a;
+    --workspace-panel-hover: #303a45;
+    --workspace-panel-border: #3b4550;
+    --workspace-panel-ink: #e9edf0;
+    --workspace-panel-muted: #acb5be;
+    --workspace-panel-accent: #ed8b98;
+    --workspace-panel-accent-hover: #f5a2ac;
+    --workspace-panel-accent-soft: #3f2c35;
+    --workspace-panel-on-accent: #271d22;
+    --workspace-panel-focus: #ed8b98;
+    --workspace-panel-danger: #f29b9f;
+    --workspace-panel-overlay: rgba(7, 11, 16, 0.54);
+    --workspace-panel-shadow: 0 18px 56px rgba(0, 0, 0, 0.34), 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Modal frames: a restrained surface and a clear title/content/action rhythm. */
+body :is(.modal-overlay, .app-confirm-overlay, .command-palette-overlay) {
+    background: var(--workspace-panel-overlay) !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+body :is(.modal-dialog, .app-confirm-dialog, #find-replace-dialog) {
+    color: var(--workspace-panel-ink) !important;
+    background: var(--workspace-panel-surface) !important;
+    border: 1px solid var(--workspace-panel-border) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--workspace-panel-shadow) !important;
+    font-family: var(--workspace-panel-font);
+}
+
+body .modal-dialog {
+    max-width: min(900px, calc(100vw - 48px));
+    max-height: calc(100vh - 64px);
+}
+
+body .modal-dialog :is(.modal-header, .modal-footer) {
+    background: var(--workspace-panel-surface) !important;
+    border-color: var(--workspace-panel-border) !important;
+    padding: 16px 22px;
+    gap: 8px;
+}
+
+body .modal-dialog :is(.modal-title, .modal-header h2, .modal-header h3) {
+    margin: 0;
+    color: var(--workspace-panel-ink) !important;
+    font-family: var(--workspace-panel-font) !important;
+    font-size: 16px !important;
+    font-weight: 650;
+    line-height: 1.4;
+    letter-spacing: -0.02em !important;
+    text-transform: none !important;
+}
+
+body .modal-dialog :is(.modal-content, .modal-body) {
+    color: var(--workspace-panel-ink) !important;
+    background: var(--workspace-panel-surface) !important;
+}
+
+body .modal-dialog .modal-content {
+    padding: 24px;
+}
+
+/* Scoped controls override the thick global Techne rules without changing
+   editor chrome, document content, or button visibility. */
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane, #statistics-pane, #speaker-notes-pane)
+    :is(button, .btn) {
+    min-height: 30px;
+    padding: 5px 10px !important;
+    border: 1px solid var(--workspace-panel-border) !important;
+    border-radius: 6px !important;
+    background: var(--workspace-panel-raised) !important;
+    color: var(--workspace-panel-ink) !important;
+    box-shadow: none !important;
+    font-family: var(--workspace-panel-font) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 1.35;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    transform: none !important;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane, #statistics-pane, #speaker-notes-pane)
+    :is(button, .btn):hover:not(:disabled) {
+    background: var(--workspace-panel-hover) !important;
+    border-color: var(--workspace-panel-muted) !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane, #statistics-pane, #speaker-notes-pane)
+    :is(.btn-primary, button.active, .stats-scope-btn.active) {
+    background: var(--workspace-panel-accent-soft) !important;
+    border-color: var(--workspace-panel-accent) !important;
+    color: var(--workspace-panel-accent) !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog) .modal-footer .btn-primary,
+body :is(#settings-dialog, .app-confirm-dialog) .app-confirm-actions .btn-primary {
+    background: var(--workspace-panel-accent) !important;
+    color: var(--workspace-panel-on-accent) !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog) .modal-footer .btn-primary:hover:not(:disabled),
+body :is(#settings-dialog, .app-confirm-dialog) .app-confirm-actions .btn-primary:hover:not(:disabled) {
+    background: var(--workspace-panel-accent-hover) !important;
+    border-color: var(--workspace-panel-accent-hover) !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #search-pane, #citations-pane)
+    :is(.btn-error, .btn-danger) {
+    background: var(--workspace-panel-surface) !important;
+    color: var(--workspace-panel-danger) !important;
+    border-color: var(--workspace-panel-danger) !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane, #statistics-pane, #speaker-notes-pane)
+    :is(button, .btn):disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+body :is(#settings-dialog, .modal-overlay) .modal-close {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    color: var(--workspace-panel-muted) !important;
+    font-size: 21px !important;
+    font-weight: 400 !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane)
+    :is(input[type="text"], input[type="search"], input[type="password"], input[type="email"],
+        input[type="url"], input[type="number"], select, textarea) {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 32px;
+    padding: 7px 9px !important;
+    border: 1px solid var(--workspace-panel-border) !important;
+    border-radius: 6px !important;
+    background: var(--workspace-panel-raised) !important;
+    color: var(--workspace-panel-ink) !important;
+    font-family: var(--workspace-panel-font) !important;
+    font-size: 12px !important;
+    line-height: 1.45;
+    box-shadow: none !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, #find-replace-dialog, #search-pane, #find-pane, #citations-pane)
+    :is(input, textarea)::placeholder {
+    color: var(--workspace-panel-muted) !important;
+    opacity: 0.85;
+}
+
+body :is(#settings-dialog, .modal-overlay, .app-confirm-dialog, #find-replace-dialog,
+    #search-pane, #find-pane, #citations-pane, #statistics-pane, #speaker-notes-pane)
+    :is(input, textarea, select, button):focus-visible {
+    outline: 2px solid var(--workspace-panel-focus) !important;
+    outline-offset: 2px;
+    border-color: var(--workspace-panel-focus) !important;
+    box-shadow: none !important;
+}
+
+body :is(#settings-dialog, .modal-overlay, #find-replace-dialog, #search-pane, #find-pane)
+    :is(input[type="checkbox"], input[type="radio"]) {
+    accent-color: var(--workspace-panel-accent);
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* Settings keeps its established categories, but loses card-like visual noise. */
+body #settings-dialog .modal-sidebar {
+    width: 188px;
+    padding: 10px 8px;
+    background: var(--workspace-panel-subtle) !important;
+    border-right: 1px solid var(--workspace-panel-border);
+}
+
+body #settings-dialog .settings-nav {
+    padding: 0;
+}
+
+body #settings-dialog .settings-nav-item {
+    margin: 2px 0;
+    padding: 9px 10px;
+    border-left: 2px solid transparent;
+    border-radius: 5px;
+    color: var(--workspace-panel-muted);
+    font-size: 12px;
+    gap: 9px;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+body #settings-dialog .settings-nav-item:hover {
+    background: var(--workspace-panel-hover);
+    color: var(--workspace-panel-ink);
+}
+
+body #settings-dialog .settings-nav-item.active {
+    background: var(--workspace-panel-accent-soft);
+    color: var(--workspace-panel-accent);
+    border-left-color: var(--workspace-panel-accent);
+    font-weight: 600;
+}
+
+body #settings-dialog .settings-nav-item .nav-label {
+    font-size: 12px;
+}
+
+body #settings-dialog .settings-section {
+    margin-bottom: 28px;
+}
+
+body #settings-dialog .settings-section h3 {
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--workspace-panel-border);
+    color: var(--workspace-panel-ink) !important;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: 0;
+}
+
+body #settings-dialog .settings-group {
+    gap: 10px;
+}
+
+body #settings-dialog .settings-group label {
+    padding: 6px 0;
+    gap: 10px;
+    color: var(--workspace-panel-ink);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+body #settings-dialog .settings-group label:hover {
+    padding: 6px 0;
+    background: transparent;
+}
+
+body #settings-dialog :is(.settings-group p, .setting-description, .feature-description) {
+    color: var(--workspace-panel-muted) !important;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+body #settings-dialog .settings-group span {
+    color: var(--workspace-panel-ink);
+    font-size: 12px;
+}
+
+/* Commands and quick-open share the same compact, legible surface. */
+body .command-palette-overlay {
+    padding-top: clamp(64px, 15vh, 150px);
+}
+
+body .command-palette-overlay .command-palette {
+    width: 570px;
+    min-width: 0;
+    max-width: calc(100vw - 48px);
+    max-height: min(580px, 72vh);
+    border: 1px solid var(--workspace-panel-border) !important;
+    border-radius: 12px !important;
+    background: var(--workspace-panel-surface) !important;
+    color: var(--workspace-panel-ink) !important;
+    box-shadow: var(--workspace-panel-shadow) !important;
+    overflow: hidden;
+}
+
+body .command-palette-overlay :is(.command-palette-input-container, .command-palette-header) {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--workspace-panel-border) !important;
+    background: var(--workspace-panel-surface) !important;
+    gap: 12px;
+}
+
+body .command-palette-overlay :is(.command-palette-input, #command-palette-input) {
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: var(--workspace-panel-ink) !important;
+    font-family: var(--workspace-panel-font) !important;
+    font-size: 15px !important;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+body .command-palette-overlay :is(.command-palette-input, #command-palette-input)::placeholder {
+    color: var(--workspace-panel-muted) !important;
+}
+
+body .command-palette-overlay .command-palette-results {
+    padding: 6px;
+    max-height: min(460px, 58vh);
+    overscroll-behavior: contain;
+}
+
+body .command-palette-overlay :is(.command-item, .command-palette-item) {
+    min-height: 36px;
+    padding: 8px 10px;
+    margin: 1px 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--workspace-panel-ink) !important;
+    font-family: var(--workspace-panel-font);
+    font-size: 12px;
+    line-height: 1.4;
+    gap: 14px;
+}
+
+body .command-palette-overlay :is(.command-item, .command-palette-item):hover {
+    background: var(--workspace-panel-hover) !important;
+}
+
+body .command-palette-overlay :is(.command-item, .command-palette-item).selected {
+    background: var(--workspace-panel-accent-soft) !important;
+    color: var(--workspace-panel-accent) !important;
+    border-color: transparent;
+}
+
+body .command-palette-overlay :is(.command-label, .command-palette-item-name) {
+    font-size: 12px;
+    font-weight: 500;
+    color: inherit;
+}
+
+body .command-palette-overlay :is(.command-shortcut, .command-palette-shortcut) {
+    padding: 2px 5px;
+    border: 1px solid var(--workspace-panel-border);
+    border-radius: 4px;
+    background: var(--workspace-panel-raised) !important;
+    color: var(--workspace-panel-muted) !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+body .command-palette-overlay :is(.command-palette-item-path, .command-palette-no-results) {
+    color: var(--workspace-panel-muted) !important;
+    font-size: 11px;
+}
+
+body .command-palette-overlay .command-palette-no-results {
+    padding: 24px 16px;
+    font-style: normal;
+}
+
+body .command-palette-overlay mark {
+    color: inherit;
+    background: transparent;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--workspace-panel-accent);
+}
+
+/* Search and utility panes: visual changes only, never change their display. */
+body :is(#search-pane, #find-pane, #statistics-pane, #citations-pane, #speaker-notes-pane) {
+    background: var(--workspace-panel-surface) !important;
+    color: var(--workspace-panel-ink) !important;
+    font-family: var(--workspace-panel-font);
+    font-size: 12px;
+}
+
+body #search-pane :is(.search-controls, .search-options, .search-file-types) {
+    gap: 8px !important;
+}
+
+body #search-pane .search-controls > div {
+    flex-wrap: wrap;
+}
+
+body #search-pane .search-controls > div:first-child {
+    background: var(--workspace-panel-subtle) !important;
+    color: var(--workspace-panel-muted) !important;
+    padding: 10px !important;
+    border: 1px solid var(--workspace-panel-border);
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    line-height: 1.55;
+}
+
+body #search-pane :is(.search-options, .search-file-types) {
+    color: var(--workspace-panel-muted);
+    font-size: 11px !important;
+    line-height: 1.5;
+}
+
+body #search-pane :is(.search-results-header, .search-result-item, .search-result-header) {
+    border-color: var(--workspace-panel-border) !important;
+}
+
+body #search-pane .search-results-header {
+    padding: 10px 0 !important;
+}
+
+body #search-pane #search-results-count {
+    color: var(--workspace-panel-muted) !important;
+    font-size: 11px !important;
+}
+
+body #search-pane .search-result-item {
+    margin-bottom: 8px;
+    background: var(--workspace-panel-raised);
+    border-radius: 6px;
+}
+
+body #search-pane .search-result-header {
+    padding: 9px 10px;
+    background: var(--workspace-panel-subtle);
+    color: var(--workspace-panel-ink);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+body #search-pane .search-match {
+    padding: 7px 10px;
+    border-color: var(--workspace-panel-border);
+    color: var(--workspace-panel-ink);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+body #search-pane :is(.search-match, .search-result-header):hover {
+    background: var(--workspace-panel-hover);
+}
+
+body #search-pane :is(.search-match-line, .search-state-detail) {
+    color: var(--workspace-panel-muted);
+}
+
+body #search-pane :is(.search-state, .search-no-results, .search-loading) {
+    padding: 22px 10px;
+    color: var(--workspace-panel-muted);
+    text-align: left;
+    font-style: normal;
+    line-height: 1.6;
+}
+
+body #search-pane .search-state-title {
+    margin-bottom: 5px;
+    color: var(--workspace-panel-ink);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+body :is(#search-pane, #find-replace-dialog) :is(.search-highlight, mark) {
+    background: var(--workspace-panel-accent-soft);
+    color: var(--workspace-panel-accent);
+    border-radius: 2px;
+}
+
+body #find-replace-dialog :is(.find-replace-header, .find-replace-footer) {
+    background: var(--workspace-panel-subtle);
+    border-color: var(--workspace-panel-border);
+    color: var(--workspace-panel-ink);
+}
+
+body #find-replace-dialog :is(.find-replace-stats, #find-replace-stats, .find-result-location) {
+    color: var(--workspace-panel-muted);
+    font-size: 11px;
+}
+
+body #find-replace-dialog .find-result {
+    border-color: transparent !important;
+    text-align: left;
+}
+
+body #find-replace-dialog .find-result.active {
+    background: var(--workspace-panel-accent-soft) !important;
+    color: var(--workspace-panel-accent) !important;
+}
+
+body :is(#statistics-pane, #citations-pane, #speaker-notes-pane)
+    :is(.statistics-header, .citations-header, .speaker-notes-header) {
+    border-bottom: 1px solid var(--workspace-panel-border) !important;
+    padding-bottom: 12px !important;
+}
+
+body :is(#statistics-pane, #citations-pane, #speaker-notes-pane) h3 {
+    color: var(--workspace-panel-ink) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+}
+
+body :is(#statistics-pane, #citations-pane) :is(.statistics-scope-toggle, #citations-stats) {
+    border-color: var(--workspace-panel-border) !important;
+    background: var(--workspace-panel-subtle) !important;
+    color: var(--workspace-panel-muted) !important;
+}
+
+body .app-confirm-dialog :is(.app-confirm-message, .app-confirm-detail, .app-confirm-path-list) {
+    color: var(--workspace-panel-ink);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+body .app-confirm-dialog :is(.app-confirm-detail, .app-confirm-more) {
+    color: var(--workspace-panel-muted);
+}
+
+body .app-confirm-dialog .app-confirm-path-list {
+    background: var(--workspace-panel-subtle);
+    border: 1px solid var(--workspace-panel-border);
+    border-radius: 6px;
+}
+
+@media (max-width: 700px) {
+    body #settings-dialog .modal-sidebar {
+        width: 148px;
+        padding: 8px 4px;
+    }
+
+    body #settings-dialog .modal-content {
+        padding: 18px;
+    }
+
+    body .modal-dialog {
+        max-width: calc(100vw - 24px);
+        max-height: calc(100vh - 32px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body :is(#settings-dialog, .modal-overlay, .command-palette-overlay, #find-replace-dialog,
+        #search-pane, #find-pane) * {
+        transition: none !important;
+        animation: none !important;
+    }
+}

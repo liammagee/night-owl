@@ -109,8 +109,18 @@ async function guardedWriteFile(filePath, content, options = {}, context = {}) {
   const knownState = fileStateMap.get(filePath);
   const baselineMtimeMs = expectedMtimeMs ?? (knownState ? knownState.mtimeMs : null);
   const currentStat = await statOrNull(filePath, fsApi);
+  let externallyModified = currentStat
+    ? hasExternalModification(currentStat, baselineMtimeMs)
+    : Number.isFinite(baselineMtimeMs);
 
-  if (!force && hasExternalModification(currentStat, baselineMtimeMs)) {
+  // Recovered buffers can predate this process's mtime cache. Compare their
+  // saved content with disk before autosave is allowed to replace newer work.
+  if (!force && !externallyModified && typeof options.expectedContent === 'string') {
+    const diskContent = currentStat ? await fsApi.readFile(filePath, 'utf8') : null;
+    externallyModified = diskContent !== options.expectedContent;
+  }
+
+  if (!force && externallyModified) {
     return {
       success: false,
       code: SAVE_CONFLICT_CODE,
@@ -318,7 +328,11 @@ function register(deps) {
       return;
     }
 
-    rememberFileState(filePath, stat);
+    // Activating an existing tab does not reload its editor content. Keep the
+    // baseline from its last read/save so switching tabs cannot hide a disk edit.
+    if (!fileStateMap.has(filePath)) {
+      rememberFileState(filePath, stat);
+    }
     currentFileWatchPath = filePath;
 
     const directory = path.dirname(filePath);
@@ -476,6 +490,18 @@ function register(deps) {
       label,
       baseDirectory: options.baseDirectory || getWorkingDirectory()
     });
+  }
+
+  function resolveEditorSavePath(filePath) {
+    const result = resolveWorkspaceWritePath(filePath, 'Save path');
+    if (result.success) return result;
+    // Native Open and Save As may select files outside the workspace. Permit
+    // subsequent saves of those already loaded documents, but keep arbitrary
+    // new paths under the workspace guard.
+    if (result.path && (fileStateMap.has(result.path) || fileStateMap.has(filePath))) {
+      return { success: true, path: result.path };
+    }
+    return result;
   }
 
   function pathGuardFailure(result, extra = {}) {
@@ -732,19 +758,16 @@ function register(deps) {
 
       debug(`[FileHandlers] Creating file: ${filePath}`);
 
-      // Check if file already exists
+      // Create exclusively: checking access before writing lets concurrent
+      // requests both succeed and overwrite each other's initial contents.
       try {
-        await fs.access(filePath);
-        return {
-          success: false,
-          error: 'A file with that name already exists'
-        };
+        await fs.writeFile(filePath, content, { encoding: 'utf8', flag: 'wx' });
       } catch (err) {
-        // File doesn't exist, which is what we want
+        if (err.code === 'EEXIST') {
+          return { success: false, error: 'A file with that name already exists' };
+        }
+        throw err;
       }
-
-      // Create the file with optional content
-      await fs.writeFile(filePath, content, 'utf8');
       clearFileScanCaches();
 
       debug(`[FileHandlers] File created successfully: ${filePath}`);
@@ -1603,7 +1626,7 @@ function register(deps) {
 
   ipcMain.handle('perform-save-with-path', async (event, content, filePath, options = {}) => {
     try {
-      const targetResult = resolveWorkspaceWritePath(filePath, 'Save path');
+      const targetResult = resolveEditorSavePath(filePath);
       if (!targetResult.success) {
         return pathGuardFailure(targetResult, { filePath });
       }
@@ -1620,9 +1643,6 @@ function register(deps) {
         return saveResult;
       }
       clearFileScanCaches();
-      
-      // Update current file path
-      setCurrentFilePath(filePath);
       
       debug(`[FileHandlers] File saved with path: ${filePath}`);
       return {
@@ -1644,7 +1664,7 @@ function register(deps) {
 
   ipcMain.handle('perform-save-as', async (event, options) => {
     const { BrowserWindow } = require('electron');
-    const currentMainWindow = resolveMainWindow();
+    const currentMainWindow = resolveWindowFromEvent(event);
     
     if (!currentMainWindow) {
       console.error('[FileHandlers] No main window available for save dialog');
@@ -1652,8 +1672,8 @@ function register(deps) {
     }
 
     try {
-      const { content, suggestedName } = options;
-      const workingDir = getWorkingDirectory();
+      const { content, suggestedName, defaultDirectory } = options;
+      const workingDir = normalizeWorkspacePath(defaultDirectory) || getWorkingDirectory();
       
       const result = await dialog.showSaveDialog(currentMainWindow, {
         title: 'Save File As',
@@ -1699,6 +1719,8 @@ function register(deps) {
     try {
       // Clear current file path for new file
       setCurrentFilePath(null);
+      stopWatchingCurrentFile();
+      sendToRenderer(resolveWindowFromEvent(event), 'new-file-created');
       
       debug('[FileHandlers] New file triggered');
       return { success: true, message: 'New file created' };
@@ -1723,8 +1745,6 @@ function register(deps) {
       debug(`[FileHandlers] Current file set to: ${filePath}`);
       setCurrentFilePath(filePath);
       if (filePath && fsSync.existsSync(filePath)) {
-        const stat = fsSync.statSync(filePath);
-        rememberFileState(filePath, stat);
         watchCurrentFile(filePath);
       } else {
         stopWatchingCurrentFile();
@@ -1831,14 +1851,26 @@ function register(deps) {
           debug(`[FileHandlers] Target is directory, moving to: ${finalTargetPath}`);
         }
       } catch (error) {
-        // Target doesn't exist or can't be accessed, use targetPath as-is
+        if (error.code !== 'ENOENT') throw error;
+        // Target doesn't exist, use targetPath as-is.
+      }
+
+      // Drag/drop has no overwrite confirmation. A same-name destination must
+      // survive both moves (rename replaces it) and copies (copyFile replaces it).
+      if (await statOrNull(finalTargetPath)) {
+        return {
+          success: false,
+          error: 'A file or folder with that name already exists at the destination',
+          sourcePath,
+          targetPath: finalTargetPath
+        };
       }
       
       if (operation === 'move' || operation === 'cut') {
         await fs.rename(sourcePath, finalTargetPath);
       } else if (operation === 'copy') {
         if (type === 'file') {
-          await fs.copyFile(sourcePath, finalTargetPath);
+          await fs.copyFile(sourcePath, finalTargetPath, fsSync.constants.COPYFILE_EXCL);
         } else {
           // For directories, we'd need a recursive copy operation
           throw new Error('Directory copying not implemented yet');
@@ -3223,6 +3255,16 @@ function register(deps) {
 
   const recoveryDir = userDataPath ? path.join(userDataPath, 'recovery') : null;
   const recoveryFile = recoveryDir ? path.join(recoveryDir, 'unsaved-tabs.json') : null;
+  let recoveryQueue = Promise.resolve();
+
+  function queueRecoveryOperation(operation) {
+    // Snapshot writes and clears can overlap when tabs change during a pending
+    // save. Serialize them so the latest request wins and temp files are never
+    // shared by concurrent writes. Loads must wait for earlier writes, too.
+    const result = recoveryQueue.then(operation);
+    recoveryQueue = result.catch(() => {});
+    return result;
+  }
 
   async function ensureRecoveryDir() {
     if (!recoveryDir) return;
@@ -3231,7 +3273,7 @@ function register(deps) {
     } catch (_) { /* ignore if exists */ }
   }
 
-  ipcMain.handle('recovery-persist', async (_event, recoveryData) => {
+  ipcMain.handle('recovery-persist', (_event, recoveryData) => queueRecoveryOperation(async () => {
     if (!recoveryFile) return { success: false, error: 'No userData path' };
     try {
       await ensureRecoveryDir();
@@ -3245,9 +3287,9 @@ function register(deps) {
       console.error('[Recovery] Failed to persist:', error);
       return { success: false, error: error.message };
     }
-  });
+  }));
 
-  ipcMain.handle('recovery-load', async () => {
+  ipcMain.handle('recovery-load', () => queueRecoveryOperation(async () => {
     if (!recoveryFile) return { success: true, data: null };
     try {
       const raw = await fs.readFile(recoveryFile, 'utf-8');
@@ -3258,9 +3300,9 @@ function register(deps) {
       console.error('[Recovery] Failed to load:', error);
       return { success: false, error: error.message };
     }
-  });
+  }));
 
-  ipcMain.handle('recovery-clear', async () => {
+  ipcMain.handle('recovery-clear', () => queueRecoveryOperation(async () => {
     if (!recoveryFile) return { success: true };
     try {
       await fs.unlink(recoveryFile);
@@ -3270,7 +3312,7 @@ function register(deps) {
       console.error('[Recovery] Failed to clear:', error);
       return { success: false, error: error.message };
     }
-  });
+  }));
 }
 
 module.exports = {

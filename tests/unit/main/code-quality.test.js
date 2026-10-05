@@ -161,6 +161,37 @@ describe('Code quality guardrails', () => {
     expect(rendererSource).not.toContain('function setActiveTreeFolder');
   });
 
+  test('preview images, notifications and editor wrapping are app-native modules', () => {
+    const root = path.join(__dirname, '../../..');
+    const rendererSource = fs.readFileSync(path.join(root, 'orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const styleSource = fs.readFileSync(path.join(root, 'orchestrator/style.css'), 'utf8');
+    const pluginSource = fs.readFileSync(path.join(root, 'plugins/techne-markdown-renderer/techne-markdown-renderer.js'), 'utf8');
+
+    // Modules must load before renderer.js so the delegation targets exist.
+    const rendererIndex = indexSource.indexOf('orchestrator/renderer.js');
+    for (const module of ['orchestrator/modules/notifications.js', 'orchestrator/modules/editor-layout.js', 'orchestrator/modules/preview-markdown.js']) {
+      const moduleIndex = indexSource.indexOf(module);
+      expect(moduleIndex).toBeGreaterThan(-1);
+      expect(moduleIndex).toBeLessThan(rendererIndex);
+    }
+
+    // Image paths are resolved (and percent-encoded) in one shared place.
+    expect(rendererSource).not.toContain('file://${baseDir}');
+    expect(pluginSource).toContain('resolvePreviewImageSource');
+    expect(pluginSource).toContain('setSanitizedHTML(previewElement, html, { baseDir })');
+
+    // Toasts go through the notification center, which routes routine messages to the status bar.
+    expect(rendererSource).toContain('window.NightOwlNotifications?.center');
+    expect(styleSource).toContain('.status-notification.show');
+
+    // Horizontal scrolling: wrap-aware Monaco scrollbar and source view wrapping.
+    expect(rendererSource).toContain('editorOptionsForWordWrap');
+    expect(rendererSource).toContain('syncSourceViewWrap(settings.editor.wordWrap, previewSourceEl)');
+    expect(styleSource).toContain('.preview-source-view.preview-source-nowrap');
+    expect(styleSource).toMatch(/#mode-switcher\s*\{[^}]*overflow-x:\s*auto/);
+  });
+
   test('app code uses app-native confirmation instead of raw browser confirm', () => {
     const appRoots = [
       path.join(__dirname, '../../../orchestrator'),

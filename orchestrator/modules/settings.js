@@ -258,12 +258,8 @@ function showSettingsCategory(category) {
     console.log(`[Settings] Generating content for category: ${category}`);
     content.innerHTML = generateSettingsContent(category);
 
-    // Add event listeners for form elements after DOM has updated
-    // Use requestAnimationFrame to ensure the DOM has been painted
-    requestAnimationFrame(() => {
-        console.log(`[Settings] Adding event listeners for category: ${category}`);
-        addSettingsEventListeners(category);
-    });
+    // innerHTML is synchronous: wire controls before they can receive input.
+    addSettingsEventListeners(category);
 }
 
 function generateSettingsContent(category) {
@@ -363,6 +359,10 @@ function generateGeneralSettings() {
                 <label>
                     <input type="checkbox" id="disable-ai-notifications" ${currentSettings.notifications?.aiEnabled === false ? 'checked' : ''}>
                     <span>Mute AI notifications (keep non-AI notifications)</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="quiet-routine-notifications" ${currentSettings.notifications?.quietRoutine !== false ? 'checked' : ''}>
+                    <span>Show routine confirmations (saved, word wrap, mode switches) in the status bar instead of as popups</span>
                 </label>
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Turn this on to hide toast notifications and other in-app alerts while you work.
@@ -1803,6 +1803,7 @@ function addSettingsEventListeners(category) {
     // Notification preference preview (applies immediately in runtime; persists on Save).
     const disableNotificationsCheckbox = document.getElementById('disable-notifications');
     const disableAINotificationsCheckbox = document.getElementById('disable-ai-notifications');
+    const quietRoutineCheckbox = document.getElementById('quiet-routine-notifications');
 
     const applyRuntimeNotificationPreferences = () => {
         if (!window.appSettings) window.appSettings = {};
@@ -1813,6 +1814,9 @@ function addSettingsEventListeners(category) {
         }
         if (disableAINotificationsCheckbox) {
             window.appSettings.notifications.aiEnabled = !disableAINotificationsCheckbox.checked;
+        }
+        if (quietRoutineCheckbox) {
+            window.appSettings.notifications.quietRoutine = quietRoutineCheckbox.checked;
         }
 
         // Hide active toasts immediately when notifications are muted.
@@ -1855,6 +1859,9 @@ function addSettingsEventListeners(category) {
     }
     if (disableAINotificationsCheckbox) {
         disableAINotificationsCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
+    }
+    if (quietRoutineCheckbox) {
+        quietRoutineCheckbox.addEventListener('change', applyRuntimeNotificationPreferences);
     }
     if (disableNotificationsCheckbox || disableAINotificationsCheckbox) {
         applyRuntimeNotificationPreferences();
@@ -2080,13 +2087,17 @@ function addSettingsEventListeners(category) {
     // Presentation template selection
     const presentationTemplateSelect = document.getElementById('presentation-template-select');
     if (presentationTemplateSelect) {
+        let templateSelectionRequest = 0;
         presentationTemplateSelect.addEventListener('change', async (e) => {
+            const request = ++templateSelectionRequest;
             const newTemplate = e.target.value;
 
             try {
                 // Apply the presentation template immediately (this also saves the preference)
+                if (!window.styleManager) throw new Error('Presentation template engine is unavailable. Please restart the updated app.');
                 if (window.styleManager) {
                     const success = await window.styleManager.applyPresentationTemplate(newTemplate);
+                    if (request !== templateSelectionRequest) return;
                     if (!success) {
                         throw new Error('Failed to apply presentation template');
                     }
@@ -2114,6 +2125,8 @@ function addSettingsEventListeners(category) {
                 window.showNotification(templateNames[newTemplate] || 'Presentation theme applied', 'success');
 
             } catch (error) {
+                if (request !== templateSelectionRequest) return;
+                e.target.value = window.styleManager?.getCurrentStyles().presentation || currentSettings.stylePreferences?.presentationTemplate || 'default';
                 console.error('Failed to apply presentation template:', error);
 
                 // Visual feedback for error
@@ -2613,6 +2626,12 @@ function collectSettingsFromForm() {
     if (disableAINotifications !== undefined) {
         if (!updatedSettings.notifications) updatedSettings.notifications = {};
         updatedSettings.notifications.aiEnabled = !disableAINotifications;
+    }
+
+    const quietRoutineNotifications = document.getElementById('quiet-routine-notifications')?.checked;
+    if (quietRoutineNotifications !== undefined) {
+        if (!updatedSettings.notifications) updatedSettings.notifications = {};
+        updatedSettings.notifications.quietRoutine = quietRoutineNotifications;
     }
 
     const publishedUrlMappings = document.getElementById('published-url-mappings')?.value;

@@ -190,6 +190,27 @@ describe('fileHandlers registration', () => {
     expect(sendB).toHaveBeenCalledWith('refresh-file-tree');
   });
 
+  test('trigger-new-file creates the untitled tab in the requesting window', async () => {
+    const sender = {};
+    const send = jest.fn();
+    const mainSend = jest.fn();
+    const setCurrentFilePath = jest.fn();
+    BrowserWindow.fromWebContents.mockReturnValue({ webContents: { send } });
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: () => ({ webContents: { send: mainSend } }),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath,
+      getCurrentWorkingDirectory: () => '/workspace/current'
+    });
+
+    expect(await getRegisteredHandler('trigger-new-file')({ sender })).toMatchObject({ success: true });
+    expect(setCurrentFilePath).toHaveBeenCalledWith(null);
+    expect(send).toHaveBeenCalledWith('new-file-created');
+    expect(mainSend).not.toHaveBeenCalled();
+  });
+
   test('show-confirm-dialog renders exact paths and cancel-default buttons', async () => {
     dialog.showMessageBox.mockResolvedValue({ response: 0 });
 

@@ -39,7 +39,9 @@ function register(deps) {
   // Keys that only the main process should change (via change-working-directory,
   // switch-workspace, etc.).  The renderer's cached copy can become stale, so
   // a full-object 'set-settings' call from the renderer must not overwrite them.
-  const MAIN_PROCESS_AUTHORITATIVE_KEYS = ['workingDirectory', 'workspaceFolders'];
+  // Current file and session snapshots have their own explicit update paths.
+  // A cached settings dialog/theme snapshot must not reset the last active tab.
+  const MAIN_PROCESS_AUTHORITATIVE_KEYS = ['workingDirectory', 'workspaceFolders', 'currentFile', 'editorTabs'];
 
   const replaceSettingsInPlace = (nextSettings) => {
     // Preserve main-process-authoritative values before merging

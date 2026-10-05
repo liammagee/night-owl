@@ -144,6 +144,7 @@ test.beforeEach(async ({ appPage }) => {
   await appPage.evaluate(() => {
     window.hideCommandPalette?.();
     window.hideQuickOpen?.();
+    window.NightOwlCapabilities?.close();
   });
 });
 

@@ -1,7 +1,13 @@
 /* Default Presentation Template */
 /* Brand red theme with elegant gradients and clean typography */
 
-:root {
+#presentation-content,
+#presentation-root {
+    --presentation-content-padding: 24px 32px;
+    --presentation-text: var(--text-color);
+    --presentation-table-bg: var(--slide-inner-bg);
+    --presentation-table-header-bg: var(--quote-bg);
+    --presentation-image-overlay: rgba(255, 255, 255, 0.84);
     --primary-color: #7a1520;
     --secondary-color: #991b2a;
     --accent-color: #E63946;
@@ -124,38 +130,8 @@ div.absolute.slide {
     padding-left: 1.5em;
 }
 
-/* Ensure proper ordered list numbering */
-.slide ol, .slide-content ol {
-    counter-reset: presentation-ol;
-    list-style: none;
-    padding-left: 2.4em;
-    margin-left: 0;
-}
-
-.slide ol li, .slide-content ol li {
-    counter-increment: presentation-ol;
-    position: relative;
-    padding-left: 0.4em;
-}
-
-.slide ol li::before, .slide-content ol li::before {
-    content: counters(presentation-ol, ".") ".";
-    position: absolute;
-    left: -2.2em;
-    top: 0;
-    color: var(--accent-color);
-    font-weight: 600;
-    min-width: 1.8em;
-    text-align: right;
-}
-
-.slide ol li ol, .slide-content ol li ol {
-    counter-reset: presentation-ol;
-    margin-top: 0.4em;
-    margin-bottom: 0.4em;
-    padding-left: 2em;
-}
-
+/* Native list markers are shared with the presentation renderer. Avoid
+   generated counters here, which would duplicate its ordered-list numbers. */
 /* Nested lists should be smaller than parent lists */
 .slide ul ul, .slide ol ol, .slide ul ol, .slide ol ul,
 .slide-content ul ul, .slide-content ol ol, .slide-content ul ol, .slide-content ol ul {
@@ -373,4 +349,50 @@ div.absolute.slide:has(img) {
 .slide h2, .slide-content h2,
 .slide h3, .slide-content h3 {
     color: var(--secondary-color) !important;
+}
+
+/* The template controls appearance; the presentation stage owns its 16:9
+   geometry. Keep the same content inset in authoring and delivery modes. */
+#presentation-content #presentation-root .slide {
+    width: 864px !important;
+    min-width: 864px !important;
+    max-width: 864px !important;
+    height: 486px !important;
+    min-height: 486px !important;
+    max-height: 486px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+#presentation-content #presentation-root .slide-content {
+    height: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding: var(--presentation-content-padding) !important;
+    background: transparent !important;
+    font-family: inherit !important;
+}
+
+#presentation-content #presentation-root .slide-has-bg .slide-content {
+    background: var(--presentation-image-overlay) !important;
+}
+
+/* Legacy presentation rules force light table surfaces. Use this template's
+   local palette so Dark remains legible without changing the workspace. */
+#presentation-content #presentation-root .slide-content table,
+#presentation-content #presentation-root .slide-content td {
+    background: var(--presentation-table-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content th {
+    background: var(--presentation-table-header-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content tr,
+#presentation-content #presentation-root .slide-content tr:hover {
+    background: transparent !important;
 }

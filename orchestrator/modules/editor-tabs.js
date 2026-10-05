@@ -159,7 +159,7 @@
 
             this.tabs.set(filePath, tab);
             this.tabOrder.push(filePath);
-            this._enforceModelMemoryBudget(filePath);
+            if (!this._restoringTabs) this._enforceModelMemoryBudget(filePath);
             this._renderTabBar();
             this._persistTabs();
             return tab;
@@ -192,7 +192,7 @@
          * Returns the generated path (e.g. "untitled:1") so callers can activate it.
          */
         createUntitledTab() {
-            _untitledCounter++;
+            do { _untitledCounter++; } while (this.tabs.has(`${UNTITLED_PREFIX}${_untitledCounter}`));
             const syntheticPath = `${UNTITLED_PREFIX}${_untitledCounter}`;
             const model = monaco.editor.createModel('', 'markdown');
 
@@ -210,7 +210,7 @@
 
             this.tabs.set(syntheticPath, tab);
             this.tabOrder.push(syntheticPath);
-            this._enforceModelMemoryBudget(syntheticPath);
+            if (!this._restoringTabs) this._enforceModelMemoryBudget(syntheticPath);
             this._renderTabBar();
             this._persistTabs();
             return syntheticPath;
@@ -291,11 +291,16 @@
         rekeyTab(oldPath, newPath) {
             const tab = this.tabs.get(oldPath);
             if (!tab) return;
+            if (newPath === oldPath) return;
+            if (this.tabs.has(newPath)) {
+                throw new Error(`A tab is already open for ${newPath}`);
+            }
 
             // Update the tab's own data
             tab.filePath = newPath;
             tab.fileName = newPath.split('/').pop();
             tab.language = detectLanguage(newPath);
+            monaco.editor.setModelLanguage?.(tab.model, tab.language);
 
             // Move in the Map
             this.tabs.delete(oldPath);
@@ -444,6 +449,7 @@
             }
 
             // Force layout recalculation
+            window.exitPDFOnlyMode?.();
             editor.layout();
             editor.focus();
 
@@ -471,6 +477,10 @@
                 if (!confirmed) return;
             }
 
+            // Another close/delete may have completed while confirmation was
+            // open. Do not remove a replacement tab or splice the last tab at -1.
+            if (this.tabs.get(filePath) !== tab) return;
+
             // Determine next tab to activate
             const idx = this.tabOrder.indexOf(filePath);
             const wasActive = this.activeTabPath === filePath;
@@ -481,7 +491,7 @@
             }
 
             this.tabs.delete(filePath);
-            this.tabOrder.splice(idx, 1);
+            if (idx >= 0) this.tabOrder.splice(idx, 1);
 
             if (wasActive) {
                 if (this.tabOrder.length > 0) {
@@ -594,29 +604,9 @@
          */
         async closeOtherTabs(keepPath) {
             const toClose = this.tabOrder.filter(p => p !== keepPath);
+            if (keepPath && this.tabs.has(keepPath)) this.activateTab(keepPath);
             for (const path of toClose) {
-                const tab = this.tabs.get(path);
-                if (tab && tab.isDirty) {
-                    const confirmed = await window.showAppConfirm({
-                        title: 'Close Unsaved Tab',
-                        message: `"${tab.fileName}" has unsaved changes. Close anyway?`,
-                        detail: 'Unsaved editor changes in this tab will be discarded.',
-                        paths: [path],
-                        confirmText: 'Close Without Saving',
-                        variant: 'danger'
-                    });
-                    if (!confirmed) continue;
-                }
-                if (tab && tab.model && (typeof tab.model.isDisposed !== 'function' || !tab.model.isDisposed())) {
-                    tab.model.dispose();
-                }
-                this.tabs.delete(path);
-            }
-            this.tabOrder = this.tabOrder.filter(p => this.tabs.has(p));
-            if (keepPath && this.tabs.has(keepPath)) {
-                this.activateTab(keepPath);
-            } else if (this.tabOrder.length === 0) {
-                this._clearEditorForNoTabs();
+                await this.closeTab(path);
             }
             this._renderTabBar();
             this._persistTabs();
@@ -651,7 +641,9 @@
         }
 
         async _persistRecovery() {
-            if (!window.electronAPI) return;
+            // A failed read is not an empty recovery file. Preserve the previous
+            // snapshot until a successful load rather than silently erasing it.
+            if (!window.electronAPI || this._restoringTabs || this._recoveryReadFailed) return;
             try {
                 const recoveryData = {};
                 let hasRecoverableTabs = false;
@@ -666,6 +658,7 @@
                         recoveryData[filePath] = {
                             content,
                             isDirty: tab.isDirty,
+                            lastSavedContent: tab.lastSavedContent,
                             language: tab.language,
                             fileName: tab.fileName,
                             savedAt: Date.now()
@@ -689,11 +682,16 @@
             if (!window.electronAPI) return null;
             try {
                 const result = await window.electronAPI.recovery.recoveryLoad();
-                if (result.success && result.data) {
-                    return result.data;
+                if (!result?.success) throw new Error(result?.error || 'Recovery read was not confirmed');
+                if (result.data && (typeof result.data !== 'object' || Array.isArray(result.data))) {
+                    throw new Error('Recovery data has an invalid format');
                 }
+                this._recoveryReadFailed = false;
+                return result.data || null;
             } catch (err) {
+                this._recoveryReadFailed = true;
                 console.warn('[TabManager] Recovery load failed:', err);
+                window.showNotification?.('Previous drafts could not be read. The recovery file has been preserved; new recovery snapshots are paused until restart.', 'warning');
             }
             return null;
         }
@@ -933,7 +931,7 @@
         // --- Persistence ---
 
         async _persistTabs() {
-            if (!window.electronAPI) return;
+            if (!window.electronAPI || this._restoringTabs) return;
             try {
                 const openTabs = this.tabOrder.map(fp => ({
                     filePath: fp,
@@ -942,8 +940,8 @@
                 const activeTabIndex = this.activeTabPath
                     ? this.tabOrder.indexOf(this.activeTabPath)
                     : 0;
-                await window.electronAPI.settings.setSettings({
-                    editorTabs: { openTabs, activeTabIndex }
+                await window.electronAPI.settings.setSettings('editorTabs', {
+                    openTabs, activeTabIndex, activeTabPath: this.activeTabPath
                 });
             } catch (err) {
                 console.warn('[TabManager] Failed to persist tabs:', err);
@@ -951,89 +949,128 @@
         }
 
         async _restoreTabs() {
-            if (!window.electronAPI) return;
+            if (!window.electronAPI || this._restoringTabs) return;
+            this._restoringTabs = true;
+            let restored = false;
             try {
                 const settings = await window.electronAPI.settings.getSettings();
                 const tabSettings = settings?.editorTabs;
-                if (!tabSettings?.openTabs?.length) return;
-
-                const tabsToOpen = tabSettings.openTabs;
-                const activeIdx = tabSettings.activeTabIndex || 0;
-
-                // Load recovery data (unsaved content from prior session)
+                const savedTabs = Array.isArray(tabSettings?.openTabs) ? tabSettings.openTabs : [];
+                const activeIdx = Number.isInteger(tabSettings?.activeTabIndex) ? tabSettings.activeTabIndex : 0;
+                const preferredPath = tabSettings?.activeTabPath || savedTabs[activeIdx]?.filePath || settings?.currentFile;
+                // Older sessions may only have currentFile, without a tab list.
+                const editablePreferredPath = typeof preferredPath === 'string'
+                    && !/\.(pdf|png|jpe?g|gif|bmp|svg|webp|ico)$/i.test(preferredPath)
+                    ? preferredPath : null;
                 const recovery = await this._loadRecovery();
+                const paths = [...new Set([
+                    ...savedTabs.map(tab => tab?.filePath),
+                    editablePreferredPath,
+                    // Recovery may be newer than the last saved tab list.
+                    ...Object.keys(recovery || {})
+                ].filter(path => typeof path === 'string' && path.length > 0))];
+                const restoredPaths = new Map();
                 let recoveredCount = 0;
+                for (const path of paths) {
+                    if (!isUntitledPath(path)) continue;
+                    const id = Number(path.slice(UNTITLED_PREFIX.length));
+                    if (Number.isSafeInteger(id) && id > _untitledCounter) _untitledCounter = id;
+                }
+                const preserveRecoveryBesideExisting = (filePath, recoveryEntry) => {
+                    const existing = this.tabs.get(filePath);
+                    if (typeof recoveryEntry?.content !== 'string'
+                        || (!recoveryEntry.isDirty && !isUntitledPath(filePath))
+                        || existing.model.getValue() === recoveryEntry.content) return filePath;
+                    // A user may open/type in this tab while session I/O is in
+                    // flight. Keep both drafts rather than overwriting either.
+                    const draftPath = this.createUntitledTab();
+                    const draft = this.tabs.get(draftPath);
+                    draft.fileName = `${recoveryEntry.fileName || existing.fileName} (recovered)`;
+                    draft.language = recoveryEntry.language || existing.language;
+                    monaco.editor.setModelLanguage?.(draft.model, draft.language);
+                    draft.model.setValue(recoveryEntry.content);
+                    draft.isDirty = true;
+                    recoveredCount++;
+                    return draftPath;
+                };
 
-                for (const { filePath } of tabsToOpen) {
+                for (const filePath of paths) {
                     const recoveryEntry = recovery?.[filePath];
+                    const hasRecovery = typeof recoveryEntry?.content === 'string';
+                    if (this.tabs.has(filePath)) {
+                        restoredPaths.set(filePath, preserveRecoveryBesideExisting(filePath, recoveryEntry));
+                        continue;
+                    }
 
                     if (isUntitledPath(filePath)) {
-                        // Untitled tab — can only be restored from recovery
-                        if (recoveryEntry) {
-                            _untitledCounter++;
-                            const syntheticPath = `${UNTITLED_PREFIX}${_untitledCounter}`;
-                            const model = monaco.editor.createModel(
-                                recoveryEntry.content || '', recoveryEntry.language || 'markdown'
-                            );
-                            const tab = {
-                                filePath: syntheticPath,
-                                fileName: recoveryEntry.fileName || 'Untitled',
-                                model,
-                                viewState: null,
-                                lastSavedContent: '',
-                                isDirty: true, // untitled restored content is always dirty
-                                language: recoveryEntry.language || 'markdown',
-                                openedAt: Date.now()
-                            };
-                            this.tabs.set(syntheticPath, tab);
-                            this.tabOrder.push(syntheticPath);
+                        if (hasRecovery) {
+                            // Preserve saved identities: remapping 2 -> 1 can
+                            // otherwise hide a later recovery entry for 1.
+                            const syntheticPath = filePath;
+                            const tab = this.createTab(syntheticPath, '', recoveryEntry.language || 'markdown');
+                            tab.fileName = recoveryEntry.fileName || 'Untitled';
+                            tab.language = recoveryEntry.language || 'markdown';
+                            monaco.editor.setModelLanguage?.(tab.model, tab.language);
+                            tab.model.setValue(recoveryEntry.content);
+                            tab.isDirty = recoveryEntry.content !== '' || Boolean(recoveryEntry.isDirty);
+                            restoredPaths.set(filePath, syntheticPath);
                             recoveredCount++;
                         }
                         continue;
                     }
 
-                    // Real file — read from disk first
+                    let response;
                     try {
-                        const response = await window.electronAPI.files.readFile(filePath);
-                        if (response && response.success && response.content !== undefined) {
-                            this.createTab(filePath, response.content, detectLanguage(filePath));
-
-                            // Overlay recovery content if this tab had unsaved changes
-                            if (recoveryEntry && recoveryEntry.isDirty) {
-                                const tab = this.tabs.get(filePath);
-                                if (tab && tab.model) {
-                                    tab.model.setValue(recoveryEntry.content);
-                                    tab.isDirty = true;
-                                    tab.lastSavedContent = response.content;
-                                    recoveredCount++;
-                                }
-                            }
-                        }
+                        response = await window.electronAPI.files.readFile(filePath);
                     } catch (err) {
-                        console.warn(`[TabManager] Skipping missing file: ${filePath}`, err);
+                        console.warn(`[TabManager] Could not read file: ${filePath}`, err);
                     }
+                    // Do not overwrite a tab the user opened during the read.
+                    if (this.tabs.has(filePath)) {
+                        restoredPaths.set(filePath, preserveRecoveryBesideExisting(filePath, recoveryEntry));
+                        continue;
+                    }
+                    const readable = response?.success && typeof response.content === 'string';
+                    const dirtyRecovery = hasRecovery && recoveryEntry.isDirty;
+                    if (!readable && !dirtyRecovery) continue;
+
+                    // Keep recoverable edits even if the backing file moved or
+                    // was deleted while the application was closed.
+                    const alreadySaved = dirtyRecovery && readable && recoveryEntry.content === response.content;
+                    const hasSavedBaseline = typeof recoveryEntry?.lastSavedContent === 'string';
+                    const baseline = dirtyRecovery && !alreadySaved && hasSavedBaseline
+                        ? recoveryEntry.lastSavedContent : (readable ? response.content : '');
+                    const tab = this.createTab(filePath, baseline, detectLanguage(filePath));
+                    if (dirtyRecovery) {
+                        tab.model.setValue(recoveryEntry.content);
+                        tab.isDirty = !alreadySaved;
+                        recoveredCount++;
+                    }
+                    restoredPaths.set(filePath, filePath);
                 }
 
                 if (recoveredCount > 0) {
                     console.log(`[TabManager] Recovered unsaved changes for ${recoveredCount} tab(s)`);
-                    this._renderTabBar();
                 }
-
-                // Activate the previously active tab
-                if (this.tabOrder.length > 0) {
-                    const targetIdx = Math.min(activeIdx, this.tabOrder.length - 1);
-                    this.activateTab(this.tabOrder[targetIdx]);
-                }
-
-                // Clear recovery file now that data has been applied
-                // (it will be re-created if tabs are still dirty)
-                if (recovery) {
-                    await window.electronAPI.recovery.recoveryClear();
-                }
+                // Select by path: skipped/missing tabs change the restored indexes.
+                const targetPath = restoredPaths.get(preferredPath) || this.tabOrder[0];
+                if (targetPath && !this.activeTabPath) this.activateTab(targetPath);
+                this._enforceModelMemoryBudget(this.activeTabPath);
+                this._renderTabBar();
+                restored = true;
             } catch (err) {
                 console.warn('[TabManager] Failed to restore tabs:', err);
+            } finally {
+                this._restoringTabs = false;
+            }
+            if (restored) {
+                await this._persistTabs();
+                // Keep recovered drafts durable immediately. Clearing recovery
+                // here used to lose them on a second crash before the next edit.
+                await this._persistRecovery();
             }
         }
+
     }
 
     // Create singleton and expose globally

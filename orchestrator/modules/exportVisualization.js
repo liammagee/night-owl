@@ -429,8 +429,7 @@ class VisualizationExporter {
                 const content = window.editor.getValue();
                 if (content) {
                     // Split by slide separator (--- on standalone lines)
-                    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
-                    const slides = content.split(slideSeparatorRegex).filter(s => s.trim());
+                    const slides = window.NightOwlSlides.split(content);
                     return slides;
                 }
             }

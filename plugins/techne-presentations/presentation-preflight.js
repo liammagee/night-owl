@@ -33,68 +33,20 @@
   }
 
   function splitSlides(markdown) {
-    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
-    const slides = [];
-    let frontMatterEnd = -1;
-
-    if ((lines[0] || '').replace(/^\uFEFF/, '').trim() === '---') {
-      for (let index = 1; index < lines.length; index += 1) {
-        if (!/^(?:---|\.\.\.)[ \t]*$/.test(lines[index])) continue;
-        const metadata = lines.slice(1, index);
-        if (metadata.some(line => /^[A-Za-z0-9_-]+[ \t]*:/.test(line))) {
-          frontMatterEnd = index;
-        }
-        break;
-      }
-    }
-
-    let start = frontMatterEnd >= 0 ? frontMatterEnd + 1 : 0;
-    let fence = null;
-
-    function append(endExclusive) {
-      let first = start;
-      let last = endExclusive;
-      while (first < last && !lines[first].trim()) first += 1;
-      while (last > first && !lines[last - 1].trim()) last -= 1;
-      if (first >= last) return;
+    const parser = typeof module !== 'undefined' && module.exports
+      ? require('../../orchestrator/modules/slide-parser') : window.NightOwlSlides;
+    return parser.parse(markdown).map((slide, index) => {
+      const lines = slide.content.replace(/\r\n?/g, '\n').split('\n');
+      let first = 0;
+      let last = lines.length;
+      while (first < last && !lines[first].trim()) first++;
+      while (last > first && !lines[last - 1].trim()) last--;
       const source = lines.slice(first, last).join('\n');
       const heading = source.match(/^\s{0,3}#{1,6}\s+(.+)$/m);
-      slides.push({
-        index: slides.length,
-        startLine: first + 1,
-        endLine: last,
+      return { index, startLine: slide.startLine + first, endLine: slide.startLine + last - 1,
         markdown: source,
-        title: heading ? heading[1].replace(/\s+#+\s*$/, '').trim() : `Slide ${slides.length + 1}`
-      });
-    }
-
-    for (let index = start; index < lines.length; index += 1) {
-      const line = lines[index];
-      const fenceMarker = line.match(/^ {0,3}(`{3,}|~{3,})/);
-      if (fence) {
-        if (
-          fenceMarker &&
-          fenceMarker[1][0] === fence.character &&
-          fenceMarker[1].length >= fence.length &&
-          new RegExp(`^ {0,3}${fence.character === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`).test(line)
-        ) {
-          fence = null;
-        }
-        continue;
-      }
-      if (fenceMarker) {
-        fence = { character: fenceMarker[1][0], length: fenceMarker[1].length };
-        continue;
-      }
-
-      const thematicBreak = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})$/.test(line);
-      if (thematicBreak) {
-        append(index);
-        start = index + 1;
-      }
-    }
-    append(lines.length);
-    return slides;
+        title: heading ? heading[1].replace(/\s+#+\s*$/, '').trim() : `Slide ${index + 1}` };
+    });
   }
 
   function lineForOffset(slide, offset) {

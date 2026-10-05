@@ -1159,7 +1159,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     const notes = [];
     let match;
     
-    while ((match = notesRegex.exec(slideContent)) !== null) {
+    while ((match = notesRegex.exec(slideContent.replace(/<!--[\s\S]*?(?:-->|$)/g, ''))) !== null) {
       const noteContent = match[1].trim();
       // Found speaker note
       notes.push(noteContent);
@@ -1309,10 +1309,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Preflight owns the canonical slide boundaries so rendering, source-line
       // navigation, and diagnostics cannot disagree about front matter or
       // CommonMark thematic breaks.
-      const sourceSlides = window.NightOwlPresentationPreflight?.splitSlides?.(trimmedMarkdown) || [];
-      const renderSlides = sourceSlides.length > 0
-        ? sourceSlides
-        : [{ markdown: trimmedMarkdown.trim(), startLine: 1, title: 'Slide 1' }].filter(slide => slide.markdown);
+      const sourceSlides = window.NightOwlPresentationPreflight?.splitSlides?.(trimmedMarkdown)
+        || window.NightOwlSlides.parse(trimmedMarkdown).map((slide, index) => ({
+          markdown: slide.content.trim(), startLine: slide.startLine, title: `Slide ${index + 1}`
+        }));
+      // Empty documents and frontmatter-only files have no slides.
+      const renderSlides = sourceSlides;
       return renderSlides.map((sourceSlide, index) => {
         const text = sourceSlide.markdown;
         const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);

@@ -43,6 +43,7 @@ describe('presentation load recovery', () => {
 
   beforeEach(() => {
     jest.resetModules();
+    window.NightOwlSlides = require('../../../orchestrator/modules/slide-parser.js');
     jest.useFakeTimers();
     document.getElementById = nativeGetElementById;
     document.body.innerHTML = `
@@ -94,7 +95,7 @@ describe('presentation load recovery', () => {
       on: jest.fn(() => unsubscribe),
       start: jest.fn(async () => {})
     };
-    window.editor = { getValue: jest.fn(() => '# Recovered deck') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Recovered deck') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');
@@ -127,7 +128,7 @@ describe('presentation load recovery', () => {
     window.MarkdownPreziApp = function MarkdownPreziApp() {};
     window.showSpeakerNotesPanel = jest.fn();
     window.hideSpeakerNotesPanel = jest.fn();
-    window.editor = { getValue: jest.fn(() => '# Render retry') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Render retry') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');
@@ -163,7 +164,7 @@ describe('presentation load recovery', () => {
     window.MarkdownPreziApp = function MarkdownPreziApp() {};
     window.showSpeakerNotesPanel = jest.fn();
     window.hideSpeakerNotesPanel = jest.fn();
-    window.editor = { getValue: jest.fn(() => '# Resettable deck') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Resettable deck') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');
@@ -184,7 +185,7 @@ describe('presentation load recovery', () => {
     window.MarkdownPreziApp = function MarkdownPreziApp() {};
     window.showSpeakerNotesPanel = jest.fn();
     window.hideSpeakerNotesPanel = jest.fn();
-    window.editor = { getValue: jest.fn(() => '# Invalid then valid') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Invalid then valid') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');
@@ -213,7 +214,7 @@ describe('presentation load recovery', () => {
       start: jest.fn(async () => {})
     };
     const runtime = createReactRuntime();
-    window.editor = { getValue: jest.fn(() => '# Cancelled deck') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Cancelled deck') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');
@@ -240,7 +241,7 @@ describe('presentation load recovery', () => {
     window.showSpeakerNotesPanel = jest.fn();
     window.hideSpeakerNotesPanel = jest.fn();
     window.syncContentToPresentationImmediate = jest.fn();
-    window.editor = { getValue: jest.fn(() => '# Exactly once') };
+    window.editor = { getPosition: jest.fn(() => ({lineNumber:1})), getValue: jest.fn(() => '# Exactly once') };
 
     const modeSwitcher = require(modeSwitcherPath);
     modeSwitcher.switchToMode('presentation');

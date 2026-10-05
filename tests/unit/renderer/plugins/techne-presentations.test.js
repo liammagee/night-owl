@@ -19,6 +19,7 @@ describe('nightowl-presentations plugin', () => {
     delete window.React;
     delete window.ReactDOM;
     delete window.MarkdownPreziApp;
+    delete window.NightOwlSlides;
 
     window.NightOwlFeatures = {
       register: (plugin) => {
@@ -55,6 +56,7 @@ describe('nightowl-presentations plugin', () => {
     );
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
+    expect(scriptsArg[0]).toContain('orchestrator/modules/slide-parser.js');
     // Scripts loaded (with optional cache-busting query params)
     expect(scriptsArg.some(url => url.includes('presentation-viewport.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('presentation-preflight.js'))).toBe(true);

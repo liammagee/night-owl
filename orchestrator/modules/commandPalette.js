@@ -7,6 +7,8 @@ const actionRegistry = window.NightOwlActions;
 const actionRegistryModule = window.NightOwlActionRegistryModule;
 let commandPalette = null;
 let selectedIndex = 0;
+let commandPalettePreviousFocus = null;
+let commandPalettePreviouslyFocusedEditor = false;
 
 function invokePresentationTool(method, options = {}) {
     window.switchToMode?.('presentation');
@@ -44,6 +46,32 @@ function registerCoreAction(id, label, action, shortcut = null, options = {}) {
     });
 }
 
+async function openFileFromPalette() {
+    const selection = await window.electronAPI.files.dialogOpenFile();
+    if (!selection?.success) {
+        if (selection?.error) throw new Error(selection.error);
+        return;
+    }
+    return window.openFilePathInEditor(selection.filePath, {
+        source: 'command-palette', refreshExistingTabContent: false
+    });
+}
+
+async function openFolderFromPalette() {
+    const result = await window.electronAPI.workspace.changeWorkingDirectory();
+    if (!result?.success && result?.error) throw new Error(result.error);
+}
+
+function showSidebarView(view) {
+    if (document.getElementById('left-sidebar')?.style.display === 'none') window.toggleSidebar();
+    window.switchStructureView(view);
+}
+
+function selectBoundaryFile(index) {
+    window.updateFileTreeItems();
+    window.selectFileTreeItem(index);
+}
+
 // --- Initialize Command Palette ---
 function initializeCommandPalette() {
     // Keep this alias function-local so a classic-script declaration cannot
@@ -73,7 +101,7 @@ function initializeCommandPalette() {
 
     // File Operations
     registerCommand('file.new', 'File: New File', () => window.newFile(), 'Cmd+N');
-    registerCommand('file.open', 'File: Open File', () => window.openFile(), 'Cmd+O');
+    registerCommand('file.open', 'File: Open File', openFileFromPalette, 'Cmd+O');
     registerCommand('file.save', 'File: Save', () => window.saveFile(), 'Cmd+S');
     registerCommand('file.saveAs', 'File: Save As...', () => window.saveAsFile(), 'Cmd+Shift+S');
     registerCommand('file.closeTab', 'File: Close Tab', async () => {
@@ -84,21 +112,21 @@ function initializeCommandPalette() {
             window.close();
         }
     }, 'Cmd+W');
-    registerCommand('file.openFolder', 'File: Open Folder', () => window.changeDirectory(), 'Cmd+Alt+O');
+    registerCommand('file.openFolder', 'File: Open Folder', openFolderFromPalette, 'Cmd+Alt+O');
     registerCommand('file.newFolder', 'File: New Folder', () => window.showNewFolderModal());
     registerCommand('file.duplicateFolder', 'File: Duplicate Selected Folder', () => window.duplicateSelectedFolder?.());
     
     // Edit Operations
     registerCommand('edit.find', 'Edit: Find', () => window.showFindReplaceDialog(false), 'Cmd+F');
     registerCommand('edit.replace', 'Edit: Find and Replace', () => window.showFindReplaceDialog(true), 'Cmd+H');
-    registerCommand('edit.findGlobal', 'Edit: Global Search', () => window.showGlobalSearchDialog(), 'Cmd+Shift+F');
+    registerCommand('edit.findGlobal', 'Edit: Global Search', () => window.showPane('search'), 'Cmd+Shift+F');
     registerCommand('edit.undo', 'Edit: Undo', () => window.editor?.trigger('source', 'undo'), 'Cmd+Z');
     registerCommand('edit.redo', 'Edit: Redo', () => window.editor?.trigger('source', 'redo'), 'Cmd+Shift+Z');
     
     // View Operations
     registerCommand('view.togglePreview', 'View: Toggle Preview', () => window.togglePreview(), 'Cmd+Shift+M');
-    registerCommand('view.toggleStructure', 'View: Toggle Structure Panel', () => window.toggleStructurePane());
-    registerCommand('view.toggleFiles', 'View: Toggle File Explorer', () => window.toggleFilePane());
+    registerCommand('view.toggleStructure', 'View: Show Structure Panel', () => showSidebarView('structure'));
+    registerCommand('view.toggleFiles', 'View: Show File Explorer', () => showSidebarView('file'));
     registerCommand('view.visualMarkdown', 'View: Toggle Visual Markdown', () => {
         const enabled = !Boolean(window.appSettings?.editor?.visualMarkdown);
         window.setVisualMarkdownEnabled?.(enabled);
@@ -124,7 +152,6 @@ function initializeCommandPalette() {
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
     registerCommand('view.circleMode', 'View: Circle Mode', () => window.switchToMode('circle'), 'Cmd+4');
     registerCommand('view.libraryMode', 'View: Library Maze Mode', () => window.switchToMode('library'), 'Cmd+5');
-    registerCommand('view.kanban', 'View: Open Kanban Board', () => window.showKanbanBoard());
     registerCommand('view.minimap.toggle', 'View: Toggle Minimap', () => {
         if (window.editor && window.editor.updateOptions) {
             const currentOptions = window.editor.getRawOptions();
@@ -137,9 +164,13 @@ function initializeCommandPalette() {
     registerCommand('view.wordWrap.toggle', 'View: Toggle Word Wrap', () => {
         if (window.editor && window.editor.updateOptions) {
             const currentOptions = window.editor.getRawOptions();
-            const wrapOn = currentOptions.wordWrap === 'on';
+            const wrapOn = currentOptions.wordWrap !== 'off';
             const wordWrap = wrapOn ? 'off' : 'on';
-            window.editor.updateOptions({ wordWrap });
+            if (window.NightOwlEditorLayout?.applyWordWrap) {
+                window.NightOwlEditorLayout.applyWordWrap(window.editor, wordWrap);
+            } else {
+                window.editor.updateOptions({ wordWrap });
+            }
             if (window.appSettings?.editor) {
                 window.appSettings.editor.wordWrap = wordWrap;
                 window.electronAPI?.settings?.setSettings?.(window.appSettings).catch(() => {});
@@ -154,18 +185,18 @@ function initializeCommandPalette() {
     }, 'Cmd+Shift+Enter');
 
     // Formatting
-    registerCommand('format.bold', 'Format: Bold', () => window.handleFormatText('bold'), 'Cmd+B');
-    registerCommand('format.italic', 'Format: Italic', () => window.handleFormatText('italic'), 'Cmd+I');
-    registerCommand('format.code', 'Format: Inline Code', () => window.handleFormatText('code'), 'Cmd+`');
-    registerCommand('format.strikethrough', 'Format: Strikethrough', () => window.handleFormatText('strikethrough'), 'Cmd+Shift+X');
-    registerCommand('format.heading1', 'Format: Heading 1', () => window.handleFormatText('h1'), 'Cmd+Alt+1');
-    registerCommand('format.heading2', 'Format: Heading 2', () => window.handleFormatText('h2'), 'Cmd+Alt+2');
-    registerCommand('format.heading3', 'Format: Heading 3', () => window.handleFormatText('h3'), 'Cmd+Alt+3');
-    registerCommand('format.bulletList', 'Format: Bullet List', () => window.handleFormatText('bullet-list'), 'Cmd+Shift+8');
-    registerCommand('format.numberedList', 'Format: Numbered List', () => window.handleFormatText('numbered-list'), 'Cmd+Shift+7');
-    registerCommand('format.insertLink', 'Format: Insert Link', () => window.handleFormatText('link'), 'Cmd+K');
-    registerCommand('format.insertImage', 'Format: Insert Image', () => window.handleFormatText('image'), 'Cmd+Shift+I');
-    registerCommand('format.blockquote', 'Format: Blockquote', () => window.handleFormatText('blockquote'), 'Cmd+Shift+.');
+    registerCommand('format.bold', 'Format: Bold', () => window.formatText('**', '**', 'bold text'), 'Cmd+B');
+    registerCommand('format.italic', 'Format: Italic', () => window.formatText('*', '*', 'italic text'), 'Cmd+I');
+    registerCommand('format.code', 'Format: Inline Code', () => window.formatText('`', '`', 'code'), 'Cmd+`');
+    registerCommand('format.strikethrough', 'Format: Strikethrough', () => window.formatText('~~', '~~', 'strikethrough'), 'Cmd+Shift+X');
+    registerCommand('format.heading1', 'Format: Heading 1', () => window.formatHeading(1), 'Cmd+Alt+1');
+    registerCommand('format.heading2', 'Format: Heading 2', () => window.formatHeading(2), 'Cmd+Alt+2');
+    registerCommand('format.heading3', 'Format: Heading 3', () => window.formatHeading(3), 'Cmd+Alt+3');
+    registerCommand('format.bulletList', 'Format: Bullet List', () => window.formatList('-'), 'Cmd+Shift+8');
+    registerCommand('format.numberedList', 'Format: Numbered List', () => window.formatList('1.'), 'Cmd+Shift+7');
+    registerCommand('format.insertLink', 'Format: Insert Link', () => window.insertLink(), 'Cmd+K');
+    registerCommand('format.insertImage', 'Format: Insert Image', () => window.insertImage(), 'Cmd+Shift+I');
+    registerCommand('format.blockquote', 'Format: Blockquote', () => window.formatBlockquote(), 'Cmd+Shift+.');
     registerCommand('format.inlineMath', 'Format: Inline Math ($...$)', async () => await window.formatText('$', '$', 'math'));
     registerCommand('format.displayMath', 'Format: Display Math ($$...$$)', async () => await window.formatDisplayMath());
     registerCommand('format.table', 'Format: Insert Table', () => window.insertTable());
@@ -180,11 +211,11 @@ function initializeCommandPalette() {
     // Navigation
     registerCommand('nav.back', 'Navigate: Back', () => window.navigateBack());
     registerCommand('nav.forward', 'Navigate: Forward', () => window.navigateForward());
-    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.showGoToLineDialog(), 'Cmd+G');
+    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.editor?.getAction('editor.action.gotoLine')?.run(), 'Cmd+G');
     registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1));
     registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1));
-    registerCommand('nav.firstFile', 'Navigate: First File', () => window.selectFirstFile());
-    registerCommand('nav.lastFile', 'Navigate: Last File', () => window.selectLastFile());
+    registerCommand('nav.firstFile', 'Navigate: First File', () => selectBoundaryFile(0));
+    registerCommand('nav.lastFile', 'Navigate: Last File', () => selectBoundaryFile(-1));
     registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile());
     
     // Folding
@@ -192,10 +223,6 @@ function initializeCommandPalette() {
     registerCommand('fold.unfoldAll', 'Fold: Unfold All', () => window.unfoldAll());
     registerCommand('fold.current', 'Fold: Fold Current', () => window.foldCurrent());
     registerCommand('fold.unfoldCurrent', 'Fold: Unfold Current', () => window.unfoldCurrent());
-    registerCommand('fold.expandCurrent', 'Fold: Expand Current', () => window.handleFormatText('expand-current'));
-    registerCommand('fold.contractCurrent', 'Fold: Contract Current', () => window.handleFormatText('contract-current'));
-    registerCommand('fold.expandAll', 'Fold: Expand All', () => window.handleFormatText('expand-all'));
-    registerCommand('fold.contractAll', 'Fold: Contract All', () => window.handleFormatText('contract-all'));
     
     // Export
     registerCommand('export.pdf', 'Export: PDF', () => window.exportToPDF());
@@ -208,11 +235,7 @@ function initializeCommandPalette() {
     registerCommand('export.accessible-html', 'Export: Accessible HTML', () => window.exportToAccessibleHTML());
     
     // AI Operations
-    registerCommand('ai.chat', 'AI: Toggle Chat Panel', () => window.toggleAIChat());
-    registerCommand('ai.copyResponse', 'AI: Copy Last Response to Editor', () => window.copyAIResponseToEditor());
-    registerCommand('ai.loadEditor', 'AI: Load Editor Content to Chat', () => window.loadEditorToChat());
-    registerCommand('ai.clearChat', 'AI: Clear Chat History', () => window.clearAIChat());
-    registerCommand('ai.summarize', 'AI: Summarize Document', () => window.summarizeDocument());
+    registerCommand('ai.chat', 'Assistant: Show Terminal', () => window.showPane('chat'));
     registerCommand('ai.todoSuggestions', 'AI: Get TODO Suggestions', () => {
         const gamification = window.gamificationInstance;
         if (gamification && gamification.todoGamification) {
@@ -263,13 +286,13 @@ function initializeCommandPalette() {
     });
     
     // Settings
-    registerCommand('settings.open', 'Settings: Open Preferences', () => window.openSettings(), 'Cmd+,');
-    registerCommand('settings.theme.toggle', 'Settings: Toggle Theme', () => window.toggleTheme());
+    registerCommand('settings.open', 'Settings: Open Preferences', () => window.openSettingsDialog(), 'Cmd+,');
+    registerCommand('settings.theme.toggle', 'Settings: Toggle Light/Dark Theme', () => window.techneThemeManager.applyTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark'));
     registerCommand('settings.linkPreview.toggle', 'Settings: Toggle Link Previews', async () => await window.toggleLinkPreview());
     
     // Speaker Notes
-    registerCommand('speaker.toggle', 'Speaker Notes: Toggle View', () => window.toggleSpeakerNotesView());
-    registerCommand('speaker.add', 'Speaker Notes: Add Note', () => window.addSpeakerNote());
+    registerCommand('speaker.toggle', 'Speaker Notes: Show View', () => window.showPane('speaker-notes'));
+    registerCommand('speaker.add', 'Speaker Notes: Add Note', () => window.insertSpeakerNotesTemplate());
     
     console.log(`[CommandPalette] ${actionRegistry.list().length} actions available`);
 
@@ -285,10 +308,12 @@ function initializeCommandPalette() {
 // --- Command Palette UI ---
 function showCommandPalette() {
     if (commandPalette) {
-        hideCommandPalette();
+        commandPalette.querySelector('.command-palette-input')?.focus();
         return;
     }
-    
+    commandPalettePreviousFocus = document.activeElement;
+    commandPalettePreviouslyFocusedEditor = Boolean(window.editor?.hasTextFocus?.());
+
     // Create command palette overlay
     commandPalette = document.createElement('div');
     commandPalette.className = 'command-palette-overlay';
@@ -310,8 +335,9 @@ function showCommandPalette() {
     const input = commandPalette.querySelector('.command-palette-input');
     const results = commandPalette.querySelector('.command-palette-results');
     
-    // Focus input
-    setTimeout(() => input.focus(), 10);
+    // Restore and transfer focus synchronously. Delayed callbacks can steal
+    // focus from a command-owned dialog after the palette has closed.
+    input.focus();
     
     // Show all commands initially
     selectedIndex = 0;
@@ -325,28 +351,34 @@ function showCommandPalette() {
     
     // Handle keyboard navigation
     input.addEventListener('keydown', async (e) => {
+        if (e.isComposing) return;
         const items = results.querySelectorAll('.command-item');
         
         switch (e.key) {
             case 'Escape':
                 e.preventDefault();
+                e.stopPropagation();
                 hideCommandPalette();
                 break;
                 
             case 'ArrowDown':
                 e.preventDefault();
+                e.stopPropagation();
                 selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
                 updateSelection(items, selectedIndex);
                 break;
                 
             case 'ArrowUp':
                 e.preventDefault();
+                e.stopPropagation();
                 selectedIndex = Math.max(selectedIndex - 1, 0);
                 updateSelection(items, selectedIndex);
                 break;
                 
             case 'Enter':
                 e.preventDefault();
+                e.stopPropagation();
+                if (e.repeat || !commandPalette) return;
                 const selectedItem = items[selectedIndex];
                 if (selectedItem) {
                     const commandId = selectedItem.dataset.commandId;
@@ -370,14 +402,19 @@ function showCommandPalette() {
 }
 
 function hideCommandPalette() {
-    if (commandPalette) {
-        document.body.removeChild(commandPalette);
-        commandPalette = null;
-        
-        // Return focus to editor
-        if (window.editor) {
-            setTimeout(() => window.editor.focus(), 10);
-        }
+    if (!commandPalette) return;
+    commandPalette.remove();
+    commandPalette = null;
+    const focusTarget = commandPalettePreviousFocus;
+    const focusEditor = commandPalettePreviouslyFocusedEditor;
+    commandPalettePreviousFocus = null;
+    commandPalettePreviouslyFocusedEditor = false;
+    if (focusEditor) {
+        window.editor?.focus?.();
+    } else if (focusTarget?.isConnected && focusTarget !== document.body) {
+        focusTarget.focus();
+    } else {
+        window.editor?.focus?.();
     }
 }
 
@@ -386,17 +423,22 @@ function updateCommandResults(query, resultsContainer) {
         includeUnavailable: false,
         context: { editor: window.editor, mode: window.NightOwlUIState?.getState?.().mode }
     }).slice(0, 50);
-    
+
     resultsContainer.innerHTML = filteredCommands.map((cmd, index) => `
         <div class="command-item ${index === 0 ? 'selected' : ''}" data-command-id="${cmd.id}">
             <div class="command-label">${highlightMatch(cmd.label, query)}</div>
             ${cmd.shortcut ? `<div class="command-shortcut">${actionRegistryModule.formatShortcut(cmd.shortcut, navigator.platform)}</div>` : ''}
         </div>
     `).join('');
-    
+
+    if (!filteredCommands.length) {
+        resultsContainer.innerHTML = '<div class="command-palette-no-results">No matching commands</div>';
+    }
+
     // Add click handlers
     resultsContainer.querySelectorAll('.command-item').forEach(item => {
         item.addEventListener('click', async () => {
+            if (!commandPalette) return;
             const commandId = item.dataset.commandId;
             hideCommandPalette();
             await executeCommand(commandId);

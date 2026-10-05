@@ -375,14 +375,15 @@ class StyleSettingsUI {
     }
 
     // Template/style selection handlers
-    selectTemplate(templateId) {
-        this.modal.querySelectorAll('.template-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-        this.modal.querySelector(`[onclick*="selectTemplate('${templateId}')"]`).classList.add('selected');
-        
-        // Apply immediately for preview
-        window.styleManager.applyPresentationTemplate(templateId);
+    async selectTemplate(templateId) {
+        const request = (this.templateSelectionRequest || 0) + 1;
+        this.templateSelectionRequest = request;
+        const success = await window.styleManager.applyPresentationTemplate(templateId);
+        if (request !== this.templateSelectionRequest) return;
+        if (!success) {
+            window.showNotification?.('Could not apply presentation template. The previous template is still active.', 'error');
+        }
+        if (this.modal) this.renderCurrentTab();
     }
 
     selectPreviewStyle(styleId) {

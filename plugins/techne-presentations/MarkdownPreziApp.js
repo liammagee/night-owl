@@ -1356,7 +1356,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     var notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
     var notes = [];
     var match;
-    while ((match = notesRegex.exec(slideContent)) !== null) {
+    while ((match = notesRegex.exec(slideContent.replace(/<!--[\s\S]*?(?:-->|$)/g, ''))) !== null) {
       var noteContent = match[1].trim();
       // Found speaker note
       notes.push(noteContent);
@@ -1490,14 +1490,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // Preflight owns the canonical slide boundaries so rendering, source-line
       // navigation, and diagnostics cannot disagree about front matter or
       // CommonMark thematic breaks.
-      var sourceSlides = ((_window$NightOwlPrese8 = window.NightOwlPresentationPreflight) === null || _window$NightOwlPrese8 === void 0 || (_window$NightOwlPrese9 = _window$NightOwlPrese8.splitSlides) === null || _window$NightOwlPrese9 === void 0 ? void 0 : _window$NightOwlPrese9.call(_window$NightOwlPrese8, trimmedMarkdown)) || [];
-      var renderSlides = sourceSlides.length > 0 ? sourceSlides : [{
-        markdown: trimmedMarkdown.trim(),
-        startLine: 1,
-        title: 'Slide 1'
-      }].filter(function (slide) {
-        return slide.markdown;
+      var sourceSlides = ((_window$NightOwlPrese8 = window.NightOwlPresentationPreflight) === null || _window$NightOwlPrese8 === void 0 || (_window$NightOwlPrese9 = _window$NightOwlPrese8.splitSlides) === null || _window$NightOwlPrese9 === void 0 ? void 0 : _window$NightOwlPrese9.call(_window$NightOwlPrese8, trimmedMarkdown)) || window.NightOwlSlides.parse(trimmedMarkdown).map(function (slide, index) {
+        return {
+          markdown: slide.content.trim(),
+          startLine: slide.startLine,
+          title: "Slide ".concat(index + 1)
+        };
       });
+      // Empty documents and frontmatter-only files have no slides.
+      var renderSlides = sourceSlides;
       return renderSlides.map(function (sourceSlide, index) {
         var text = sourceSlide.markdown;
         var _extractSpeakerNotes = extractSpeakerNotes(text),

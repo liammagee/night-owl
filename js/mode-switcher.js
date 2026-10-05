@@ -501,123 +501,17 @@ function startPresentationLoad(container, options = {}) {
 }
 
 function jumpToSlideInEditor(slideIndex) {
-  console.log('[Mode Switching] Jumping to slide', slideIndex, 'in editor');
-  
-  if (!window.editor || !window.goToLine) {
-    console.warn('[Mode Switching] Editor or goToLine function not available');
-    return;
-  }
-  
-  try {
-    // Get the current editor content
-    const content = window.editor.getValue();
-    if (!content) {
-      console.warn('[Mode Switching] No content available in editor');
-      return;
-    }
-    
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- that is either at start/end of string or surrounded by newlines
-    // but NOT part of a table (which would have | characters on the same line)
-    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
-    const slides = content.split(slideSeparatorRegex).filter(s => s.trim());
-    
-    if (slideIndex >= slides.length) {
-      console.warn('[Mode Switching] Slide index', slideIndex, 'exceeds available slides', slides.length);
-      return;
-    }
-    
-    // Calculate line number by counting lines before the target slide
-    let lineNumber = 1;
-    for (let i = 0; i < slideIndex; i++) {
-      // Count lines in this slide plus the separator line
-      const slideLines = slides[i].split('\n').length;
-      lineNumber += slideLines;
-      if (i > 0) lineNumber += 1; // Add separator line (--- takes 1 line)
-    }
-    
-    // Add a few lines to account for any extra whitespace after separators
-    if (slideIndex > 0) {
-      lineNumber += 1;
-    }
-    
-    console.log('[Mode Switching] Calculated line number:', lineNumber, 'for slide', slideIndex);
-    
-    // Jump to the calculated line
-    window.goToLine(lineNumber);
-    
-  } catch (error) {
-    console.error('[Mode Switching] Error jumping to slide in editor:', error);
-  }
+  if (!window.editor || !window.goToLine || !Number.isInteger(slideIndex)) return;
+  const slide = window.NightOwlSlides.parse(window.editor.getValue())[slideIndex];
+  if (slide) window.goToLine(slide.startLine);
 }
 
 function calculateSlideFromCursor() {
-  console.log('[Mode Switching] Calculating slide from cursor position');
-  
-  if (!window.editor) {
-    console.warn('[Mode Switching] Editor not available');
-    return 0;
-  }
-  
-  try {
-    // Get current cursor position
-    const position = window.editor.getPosition();
-    if (!position) {
-      console.warn('[Mode Switching] Could not get cursor position');
-      return 0;
-    }
-    
-    const currentLine = position.lineNumber;
-    console.log('[Mode Switching] Current cursor line:', currentLine);
-    
-    // Get the current editor content
-    const content = window.editor.getValue();
-    if (!content) {
-      console.warn('[Mode Switching] No content available in editor');
-      return 0;
-    }
-    
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- that is either at start/end of string or surrounded by newlines
-    // but NOT part of a table (which would have | characters on the same line)
-    const slideSeparatorRegex = /(?:^|\n)---(?:\n|$)/;
-    const slides = content.split(slideSeparatorRegex).filter(s => s.trim());
-    console.log('[Mode Switching] Found', slides.length, 'slides');
-    
-    // Calculate which slide the cursor is in by counting lines
-    let accumulatedLines = 0;
-    
-    for (let i = 0; i < slides.length; i++) {
-      const slideLines = slides[i].split('\n').length;
-      
-      // Add separator line count (except for first slide)
-      if (i > 0) {
-        accumulatedLines += 1; // separator line
-      }
-      
-      // Check if current line falls within this slide
-      const slideStart = accumulatedLines + 1;
-      const slideEnd = accumulatedLines + slideLines;
-      
-      console.log('[Mode Switching] Slide', i, 'lines:', slideStart, 'to', slideEnd);
-      
-      if (currentLine >= slideStart && currentLine <= slideEnd) {
-        console.log('[Mode Switching] Cursor is in slide', i);
-        return i;
-      }
-      
-      accumulatedLines += slideLines;
-    }
-    
-    // If we didn't find a match, assume last slide
-    const lastSlide = Math.max(0, slides.length - 1);
-    console.log('[Mode Switching] Cursor beyond all slides, using last slide:', lastSlide);
-    return lastSlide;
-    
-  } catch (error) {
-    console.error('[Mode Switching] Error calculating slide from cursor:', error);
-    return 0;
-  }
+  if (!window.editor) return 0;
+  const position = window.editor.getPosition();
+  return window.NightOwlSlides.indexAtLine(
+    window.editor.getValue(), position?.lineNumber || 1
+  );
 }
 
 function restoreUIElementsAfterPresentation() {

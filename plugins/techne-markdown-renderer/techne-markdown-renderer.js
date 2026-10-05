@@ -33,6 +33,10 @@
     };
 
     const resolveImageHref = (href, { baseDir } = {}) => {
+        const shared = window.NightOwlPreviewMarkdown?.resolvePreviewImageSource;
+        if (typeof shared === 'function') {
+            return shared(href, { baseDir });
+        }
         const value = String(href || '').trim();
         if (!value || isAbsoluteLike(value)) return href;
         if (!baseDir) return href;
@@ -759,9 +763,9 @@ body.dark-mode .frontmatter-separator {
         const html = rendered.html;
 
         if (window.NightOwlPreviewMarkdown?.setSanitizedHTML) {
-            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html);
+            window.NightOwlPreviewMarkdown.setSanitizedHTML(previewElement, html, { baseDir });
         } else if (window.NightOwlContentSecurity?.setSanitizedHTML) {
-            window.NightOwlContentSecurity.setSanitizedHTML(previewElement, html);
+            window.NightOwlContentSecurity.setSanitizedHTML(previewElement, html, { baseDir });
         } else {
             // The sanitizer is a required security boundary. If startup order
             // is incomplete, show inert source rather than briefly mounting

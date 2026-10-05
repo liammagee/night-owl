@@ -5881,3 +5881,116 @@ body.dark-theme .jsonl-error-panel {
         display: none;
     }
 }
+
+/* Indexing status must disappear when complete and never cover editor controls. */
+.workspace-index-progress[hidden] {
+    display: none !important;
+}
+.workspace-index-progress {
+    pointer-events: none;
+}
+.workspace-index-progress-cancel {
+    pointer-events: auto;
+}
+
+/* ===== HEADER MODE SWITCHER: never clip mode buttons at narrow widths ===== */
+#mode-switcher {
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    box-sizing: border-box;
+}
+
+#mode-switcher > * {
+    flex-shrink: 0;
+}
+
+#mode-switcher > #navigation-controls {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+#mode-switcher #breadcrumb-nav {
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+#mode-switcher #current-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ===== SOURCE VIEW: follow the editor's word-wrap setting ===== */
+.preview-source-view.preview-source-nowrap {
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    overflow: auto;
+}
+
+/* Leave room for the floating preview buttons (sync, source, fullscreen) */
+.preview-source-toolbar {
+    padding-right: 136px;
+}
+
+/* ===== STATUS BAR NOTIFICATIONS (quiet channel for routine confirmations) ===== */
+.status-notification {
+    display: none;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 8px;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 11px;
+    line-height: 18px;
+    background: var(--surface-variant, #eef0f3);
+    color: var(--text-secondary, #555);
+    opacity: 0;
+    transition: opacity var(--transition-normal, 0.2s);
+}
+
+.status-notification.show {
+    display: inline-block;
+    opacity: 1;
+}
+
+.status-notification-success {
+    color: var(--success, #2e7d32);
+    background: var(--success-subtle, rgba(46, 125, 50, 0.1));
+}
+
+.status-notification-warning {
+    color: var(--warning, #b26a00);
+    background: var(--warning-subtle, rgba(178, 106, 0, 0.1));
+}
+
+.status-notification-error {
+    color: var(--error, #c62828);
+    background: var(--error-subtle, rgba(198, 40, 40, 0.1));
+}
+
+.status-notification-info {
+    color: var(--primary, #1565c0);
+    background: var(--primary-subtle, rgba(21, 101, 192, 0.1));
+}
+
+/* ===== STATUS BAR: stay on one line at narrow widths ===== */
+#editor-status-bar {
+    min-width: 0;
+    overflow: hidden;
+    gap: 12px;
+}
+
+#editor-status-bar > div {
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+#editor-status-bar span {
+    white-space: nowrap;
+}

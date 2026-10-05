@@ -112,7 +112,7 @@ function extractSpeakerNotes(content) {
   if (!content) return [];
   
   // Split content by slide markers
-  const slides = content.split(/\n---\n|\n--- \n/);
+  const slides = window.NightOwlSlides.split(content);
   const speakerNotes = [];
   
   slides.forEach((slide, index) => {
@@ -121,7 +121,7 @@ function extractSpeakerNotes(content) {
     const slideNotes = [];
     let match;
     
-    while ((match = notesRegex.exec(slide)) !== null) {
+    while ((match = notesRegex.exec(slide.replace(/<!--[\s\S]*?(?:-->|$)/g, ''))) !== null) {
       slideNotes.push(match[1].trim());
     }
     
