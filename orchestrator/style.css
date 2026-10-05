@@ -4793,3 +4793,14 @@ body.dark-mode .app-confirm-path-list {
 #editor-status-bar span {
     white-space: nowrap;
 }
+
+/* Indexing status must disappear when complete and never cover editor controls. */
+.workspace-index-progress[hidden] {
+    display: none !important;
+}
+.workspace-index-progress {
+    pointer-events: none;
+}
+.workspace-index-progress-cancel {
+    pointer-events: auto;
+}

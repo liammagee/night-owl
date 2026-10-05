@@ -9,12 +9,15 @@
 
     function normalizeFilePath(filePath) {
         if (typeof filePath !== 'string') return null;
-        const trimmed = filePath.trim();
-        return trimmed ? trimmed : null;
+        // Spaces are legal filename characters; use trimming only to reject
+        // empty input, never to change the identity of a real file.
+        return filePath.trim() ? filePath : null;
     }
 
     function getDirectoryName(filePath) {
-        const lastSlash = filePath.lastIndexOf('/');
+        const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+        if (lastSlash === 0) return filePath[0];
+        if (lastSlash === 2 && filePath[1] === ':') return filePath.substring(0, 3);
         return lastSlash >= 0 ? filePath.substring(0, lastSlash) : '';
     }
 

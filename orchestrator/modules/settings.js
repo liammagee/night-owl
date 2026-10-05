@@ -258,12 +258,8 @@ function showSettingsCategory(category) {
     console.log(`[Settings] Generating content for category: ${category}`);
     content.innerHTML = generateSettingsContent(category);
 
-    // Add event listeners for form elements after DOM has updated
-    // Use requestAnimationFrame to ensure the DOM has been painted
-    requestAnimationFrame(() => {
-        console.log(`[Settings] Adding event listeners for category: ${category}`);
-        addSettingsEventListeners(category);
-    });
+    // innerHTML is synchronous: wire controls before they can receive input.
+    addSettingsEventListeners(category);
 }
 
 function generateSettingsContent(category) {
@@ -2016,13 +2012,17 @@ function addSettingsEventListeners(category) {
     // Presentation template selection
     const presentationTemplateSelect = document.getElementById('presentation-template-select');
     if (presentationTemplateSelect) {
+        let templateSelectionRequest = 0;
         presentationTemplateSelect.addEventListener('change', async (e) => {
+            const request = ++templateSelectionRequest;
             const newTemplate = e.target.value;
 
             try {
                 // Apply the presentation template immediately (this also saves the preference)
+                if (!window.styleManager) throw new Error('Presentation template engine is unavailable. Please restart the updated app.');
                 if (window.styleManager) {
                     const success = await window.styleManager.applyPresentationTemplate(newTemplate);
+                    if (request !== templateSelectionRequest) return;
                     if (!success) {
                         throw new Error('Failed to apply presentation template');
                     }
@@ -2050,6 +2050,8 @@ function addSettingsEventListeners(category) {
                 window.showNotification(templateNames[newTemplate] || 'Presentation theme applied', 'success');
 
             } catch (error) {
+                if (request !== templateSelectionRequest) return;
+                e.target.value = window.styleManager?.getCurrentStyles().presentation || currentSettings.stylePreferences?.presentationTemplate || 'default';
                 console.error('Failed to apply presentation template:', error);
 
                 // Visual feedback for error

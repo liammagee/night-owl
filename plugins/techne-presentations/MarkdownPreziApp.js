@@ -944,7 +944,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     var notesRegex = /```notes\s*\n([\s\S]*?)\n```/g;
     var notes = [];
     var match;
-    while ((match = notesRegex.exec(slideContent)) !== null) {
+    while ((match = notesRegex.exec(slideContent.replace(/<!--[\s\S]*?(?:-->|$)/g, ''))) !== null) {
       var noteContent = match[1].trim();
       // Found speaker note
       notes.push(noteContent);
@@ -991,16 +991,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Parse markdown into slides
   var parseMarkdown = function parseMarkdown(markdown) {
-    // Strip trailing whitespace from the entire markdown content first
-    var trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
-
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-    var slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-    var slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(function (slide) {
+    // Keep comments intact until after slide boundaries have been identified.
+    var slideTexts = window.NightOwlSlides.split(markdown).map(function (slide) {
       return slide.trim();
-    }).filter(function (slide) {
-      return slide;
     });
     return slideTexts.map(function (text, index) {
       var _extractSpeakerNotes = extractSpeakerNotes(text),

@@ -64,4 +64,49 @@ describe('File Save Safeguards', () => {
     expect(fsApi.writeFile).toHaveBeenCalledWith(filePath, 'updated content', 'utf8');
     expect(fileStateMap.get(filePath).mtimeMs).toBe(3000);
   });
+
+  test('recovered content cannot overwrite an external edit even after its mtime baseline was refreshed', async () => {
+    const fsApi = {
+      stat: jest.fn(async () => ({ mtimeMs: 2000, size: 30 })),
+      readFile: jest.fn(async () => 'external edits after the crash'),
+      writeFile: jest.fn(), mkdir: jest.fn(), copyFile: jest.fn()
+    };
+    const fileStateMap = new Map([['/tmp/test.md', { mtimeMs: 2000, size: 30 }]]);
+
+    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'recovered draft', {
+      expectedContent: 'content before the crash'
+    }, { fsApi, fileStateMap });
+
+    expect(result).toMatchObject({ success: false, code: 'FILE_MODIFIED_EXTERNALLY', currentMtimeMs: 2000 });
+    expect(fsApi.writeFile).not.toHaveBeenCalled();
+    expect(fsApi.copyFile).not.toHaveBeenCalled();
+  });
+
+  test('autosave does not recreate a document deleted since it was opened', async () => {
+    const fsApi = {
+      stat: jest.fn(async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }),
+      writeFile: jest.fn()
+    };
+    const fileStateMap = new Map([['/tmp/test.md', { mtimeMs: 2000, size: 30 }]]);
+
+    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'draft', {}, { fsApi, fileStateMap });
+
+    expect(result).toMatchObject({ success: false, code: 'FILE_MODIFIED_EXTERNALLY', currentMtimeMs: null });
+    expect(fsApi.writeFile).not.toHaveBeenCalled();
+  });
+
+  test('explicit force can save recovered content after a conflict was confirmed', async () => {
+    const fsApi = {
+      stat: jest.fn(async () => ({ mtimeMs: 2000, size: 30 })),
+      readFile: jest.fn(),
+      writeFile: jest.fn(), mkdir: jest.fn(), copyFile: jest.fn()
+    };
+    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'recovered draft', {
+      expectedContent: 'old content', force: true
+    }, { fsApi });
+
+    expect(result.success).toBe(true);
+    expect(fsApi.readFile).not.toHaveBeenCalled();
+    expect(fsApi.writeFile).toHaveBeenCalledWith('/tmp/test.md', 'recovered draft', 'utf8');
+  });
 });

@@ -5,6 +5,7 @@ const showSpeakerNotesBtn = document.getElementById('show-speaker-notes-btn');
 const speakerNotesPane = document.getElementById('speaker-notes-pane');
 const speakerNotesContent = document.getElementById('speaker-notes-content');
 const toggleSpeakerNotesInPreviewBtn = document.getElementById('toggle-speaker-notes-in-preview');
+let speakerNotesInitialized = false;
 
 
 // Insert speaker notes template
@@ -99,6 +100,8 @@ function toggleSpeakerNotesInPreview() {
 
 // Initialize speaker notes functionality
 function initializeSpeakerNotes() {
+    if (speakerNotesInitialized) return;
+    speakerNotesInitialized = true;
     if (showSpeakerNotesBtn) {
         showSpeakerNotesBtn.addEventListener('click', () => {
             showRightPane('speaker-notes');
@@ -116,3 +119,11 @@ window.insertSpeakerNotesTemplate = insertSpeakerNotesTemplate;
 window.updateSpeakerNotesDisplay = updateSpeakerNotesDisplay;
 window.toggleSpeakerNotesInPreview = toggleSpeakerNotesInPreview;
 window.initializeSpeakerNotes = initializeSpeakerNotes;
+
+// This module is loaded after the editor becomes interactive. Renderer startup
+// may have already passed its optional initialization hook by then.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSpeakerNotes, { once: true });
+} else {
+    initializeSpeakerNotes();
+}

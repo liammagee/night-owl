@@ -67,4 +67,18 @@ describe('settingsHandlers runtime AI updates', () => {
     expect(result).toEqual({ success: true });
     expect(tutorBridge.setDefaultProvider).toHaveBeenCalledWith('auto');
   });
+
+  test('stale preferences cannot replace the current document or session, but explicit tab updates can', () => {
+    const session = { openTabs: [{ filePath: '/last.md' }], activeTabPath: '/last.md', activeTabIndex: 0 };
+    const appSettings = { currentFile: '/last.md', editorTabs: session, theme: 'light' };
+    settingsHandlers.register({ appSettings, defaultSettings: {}, saveSettings: jest.fn() });
+    const setSettings = getRegisteredHandler('set-settings');
+    setSettings({}, { theme: 'dark', currentFile: '/old.md', editorTabs: { openTabs: [], activeTabIndex: 0 } });
+    expect(appSettings.theme).toBe('dark');
+    expect(appSettings.currentFile).toBe('/last.md');
+    expect(appSettings.editorTabs).toEqual(session);
+    setSettings({}, 'editorTabs', { openTabs: [{ filePath: '/new.md' }], activeTabPath: '/new.md', activeTabIndex: 0 });
+    expect(appSettings.editorTabs.activeTabPath).toBe('/new.md');
+    expect(appSettings.editorTabs.openTabs).toEqual([{ filePath: '/new.md' }]);
+  });
 });

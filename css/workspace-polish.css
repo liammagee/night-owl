@@ -1,0 +1,130 @@
+/* Final shell layer: quiet chrome, coherent controls, and room for the document. */
+body.workspace-polished {
+    --wp-bg: var(--workspace-panel-surface);
+    --wp-raised: var(--workspace-panel-raised);
+    --wp-subtle: var(--workspace-panel-subtle);
+    --wp-border: var(--workspace-panel-border);
+    --wp-ink: var(--workspace-panel-ink);
+    --wp-muted: var(--workspace-panel-muted);
+    --wp-accent: var(--workspace-panel-accent);
+    --wp-soft: var(--workspace-panel-accent-soft);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--wp-ink);
+}
+body.workspace-polished :is(#mode-switcher, #editor-toolbar, #editor-tabs-bar, #editor-status-bar, #structure-pane-header, #left-sidebar, #left-sidebar-activity, #left-sidebar-workspace, #right-pane .toggle-buttons) {
+    background: var(--wp-bg) !important;
+    border-color: var(--wp-border) !important;
+    box-shadow: none !important;
+    color: var(--wp-ink);
+}
+body.workspace-polished :is(#left-sidebar, #editor-container, #right-pane) { border-color: var(--wp-border) !important; }
+body.workspace-polished #mode-switcher { height: 44px !important; min-height: 44px; padding: 0 12px !important; gap: 14px; overflow: hidden; }
+body.workspace-polished #navigation-controls { flex: 1 1 220px; min-width: 0; }
+body.workspace-polished #breadcrumb-nav { min-width: 0; max-width: none !important; font-size: 11px !important; white-space: nowrap; }
+body.workspace-polished #navigation-controls > div { margin: 0 4px !important; background: var(--wp-border) !important; flex-shrink: 0; }
+body.workspace-polished #mode-switcher > [role="group"] { flex-shrink: 0; padding: 3px !important; gap: 2px !important; border: 0 !important; background: var(--wp-subtle) !important; border-radius: 7px !important; }
+body.workspace-polished #mode-switcher > div:last-child { flex-shrink: 0; gap: 2px !important; }
+body.workspace-polished #mode-switcher > div:last-child > span { display: none; }
+body.workspace-polished #mode-switcher :is(.mode-btn, .btn) {
+    font-family: inherit !important; font-size: 11px !important; font-weight: 500 !important;
+    letter-spacing: 0 !important; text-transform: none !important; border: 0 !important;
+    box-shadow: none !important; border-radius: 5px !important; line-height: 1 !important;
+    min-height: 28px; padding: 7px 10px !important; background: transparent !important; color: var(--wp-muted) !important;
+}
+body.workspace-polished #mode-switcher :is(.nav-btn, .pane-visibility-btn) { padding: 5px !important; width: 28px; height: 28px; flex-shrink: 0; }
+body.workspace-polished #mode-switcher .mode-btn.active { background: var(--wp-raised) !important; color: var(--wp-accent) !important; box-shadow: 0 1px 3px #00000012 !important; }
+body.workspace-polished #mode-switcher .pane-visibility-btn.btn-primary { color: var(--wp-accent) !important; background: var(--wp-soft) !important; }
+body.workspace-polished #mode-switcher button:hover:not(:disabled) { background: var(--wp-subtle) !important; color: var(--wp-ink) !important; transform: none !important; }
+body.workspace-polished #mode-switcher button:disabled { opacity: .32; }
+body.workspace-polished .workspace-icon { width: 17px; height: 17px; display: inline-block; flex: none; vertical-align: middle; pointer-events: none; }
+body.workspace-polished :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--wp-accent) !important; outline-offset: 2px; }
+body.workspace-polished #left-sidebar-activity { width: 44px !important; min-width: 44px !important; padding: 8px 4px !important; border-right: 1px solid var(--wp-border) !important; }
+body.workspace-polished .activity-toggle-buttons { gap: 4px !important; }
+body.workspace-polished #left-sidebar-activity .pane-toggle-button {
+    width: 34px !important; min-width: 34px !important; height: 34px !important; min-height: 34px !important;
+    margin: 0 !important; padding: 7px !important; border: 0 !important; border-radius: 6px !important;
+    color: var(--wp-muted) !important; background: transparent !important; box-shadow: none !important;
+}
+body.workspace-polished #left-sidebar-activity .pane-toggle-button.active { background: var(--wp-soft) !important; color: var(--wp-accent) !important; }
+body.workspace-polished #left-sidebar-activity .pane-toggle-button:hover { background: var(--wp-subtle) !important; transform: none !important; }
+body.workspace-polished #structure-pane-header { padding: 12px 12px 8px !important; border-bottom: 1px solid var(--wp-border) !important; }
+body.workspace-polished #tag-search-section { margin: 0 0 10px !important; }
+body.workspace-polished #tag-search-input { border: 1px solid var(--wp-border) !important; border-radius: 6px !important; padding: 7px 9px !important; height: 30px; font-size: 11px !important; background: var(--wp-raised) !important; color: var(--wp-ink) !important; box-shadow: none !important; }
+body.workspace-polished #tag-filter-chips:empty { display: none !important; }
+body.workspace-polished #structure-pane-title { font: 600 10px/1.5 -apple-system, BlinkMacSystemFont, sans-serif !important; letter-spacing: .1em !important; color: var(--wp-muted) !important; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+body.workspace-polished .pane-header-top { gap: 6px; }
+body.workspace-polished .pane-header-actions button { border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--wp-muted) !important; border-radius: 4px !important; width: 25px; height: 25px; padding: 4px !important; }
+body.workspace-polished #file-tree-view { padding: 8px 4px !important; background: var(--wp-bg) !important; }
+body.workspace-polished .file-tree-item { font-size: 12px !important; line-height: 1.6; border-radius: 4px; color: var(--wp-ink); }
+body.workspace-polished .file-tree-item.current-file { background: var(--wp-soft) !important; border-left-color: var(--wp-accent) !important; color: var(--wp-accent) !important; }
+body.workspace-polished #structure-list { padding: 8px !important; }
+body.workspace-polished #editor-toolbar { min-height: 36px !important; padding: 3px 8px !important; gap: 2px !important; border-bottom: 1px solid var(--wp-border) !important; scrollbar-width: thin; scrollbar-color: var(--wp-border) transparent; }
+body.workspace-polished #editor-toolbar .toolbar-btn { width: 28px; min-width: 28px !important; height: 28px; padding: 4px !important; font-size: 11px !important; line-height: 18px; border: 0 !important; border-radius: 4px !important; background: transparent !important; color: var(--wp-ink) !important; box-shadow: none !important; }
+body.workspace-polished #editor-toolbar .toolbar-btn:hover { background: var(--wp-subtle) !important; color: var(--wp-accent) !important; transform: none !important; }
+body.workspace-polished #editor-toolbar .toolbar-separator { height: 16px !important; margin: 0 5px !important; background: var(--wp-border) !important; border: 0 !important; }
+body.workspace-polished #editor-toolbar .color-picker-container { flex-shrink: 0; width: 28px; height: 28px; }
+body.workspace-polished #color-picker-input { inset: 0; }
+body.workspace-polished .workflow-preset-bar { min-height: 32px; padding: 3px 12px; background: var(--wp-bg); border-bottom-color: var(--wp-border); gap: 8px; scrollbar-width: thin; }
+body.workspace-polished .workflow-preset-label { font-size: 9px; color: var(--wp-muted); letter-spacing: .09em; }
+body.workspace-polished .workflow-preset-choices button { min-height: 24px; padding: 3px 8px; border: 1px solid transparent !important; background: transparent !important; color: var(--wp-muted) !important; font-size: 10px; box-shadow: none !important; border-radius: 4px !important; }
+body.workspace-polished .workflow-preset-choices button.active { color: var(--wp-accent) !important; background: var(--wp-soft) !important; }
+body.workspace-polished .workflow-preset-description { min-width: 0; flex: 1; color: var(--wp-muted); font-size: 10px; }
+body.workspace-polished #editor-tabs-bar { min-height: 32px !important; border-bottom: 1px solid var(--wp-border) !important; }
+body.workspace-polished .editor-tab { min-height: 32px !important; font-size: 11px !important; padding: 6px 12px !important; border-right: 1px solid var(--wp-border) !important; background: transparent !important; }
+body.workspace-polished .editor-tab.active { background: var(--wp-raised) !important; border-bottom: 2px solid var(--wp-accent) !important; }
+body.workspace-polished #preview-pane { background: var(--wp-raised) !important; padding-top: 40px; }
+body.workspace-polished #preview-content { padding: 20px 32px 40px !important; color: var(--wp-ink) !important; background: var(--wp-raised) !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; font-size: 15px; line-height: 1.75; }
+body.workspace-polished #preview-content :is(h1, h2, h3, h4) { color: var(--wp-ink) !important; letter-spacing: -.025em; line-height: 1.3 !important; font-family: inherit !important; text-transform: none !important; }
+body.workspace-polished #preview-content h1 { font-size: 1.9em !important; }
+body.workspace-polished #preview-content h2 { font-size: 1.55em !important; }
+body.workspace-polished #preview-content h3 { font-size: 1.25em !important; }
+body.workspace-polished #preview-content > :first-child { margin-top: 0 !important; }
+body.workspace-polished #preview-content :is(hr, h1, h2) { border-color: var(--wp-border) !important; }
+body.workspace-polished #preview-pane :is(.preview-toolbar-btn, .preview-fullscreen-toggle) { top: 7px !important; width: 28px !important; height: 28px !important; border: 1px solid var(--wp-border) !important; border-radius: 5px !important; padding: 4px !important; box-shadow: none !important; background: var(--wp-raised) !important; color: var(--wp-muted) !important; opacity: 1 !important; }
+body.workspace-polished #preview-pane #preview-scroll-sync-btn.active { background: var(--wp-soft) !important; color: var(--wp-accent) !important; border-color: transparent !important; }
+body.workspace-polished #preview-fullscreen-btn { right: 10px !important; }
+body.workspace-polished #preview-source-btn { right: 44px !important; }
+body.workspace-polished #preview-scroll-sync-btn { right: 78px !important; }
+body.workspace-polished #preview-microfiche-btn { right: 112px !important; }
+body.workspace-polished #right-pane .toggle-buttons { min-height: 36px !important; max-height: 36px !important; padding: 3px 8px !important; gap: 4px !important; border-top: 1px solid var(--wp-border) !important; }
+body.workspace-polished #right-pane .pane-toggle-button { border: 0 !important; border-radius: 5px !important; padding: 5px 10px !important; min-height: 28px !important; font: 500 11px/18px -apple-system, BlinkMacSystemFont, sans-serif !important; color: var(--wp-muted) !important; background: transparent !important; box-shadow: none !important; }
+body.workspace-polished #right-pane .pane-toggle-button.active { background: var(--wp-soft) !important; color: var(--wp-accent) !important; }
+body.workspace-polished #editor-status-bar { height: 26px !important; min-height: 26px; border-top: 1px solid var(--wp-border) !important; font-size: 10px !important; color: var(--wp-muted) !important; gap: 16px; overflow: hidden; white-space: nowrap; }
+body.workspace-polished :is(#status-left, #status-right) { gap: 12px !important; min-width: 0; overflow: hidden; }
+body.workspace-polished #status-right { margin-left: auto; }
+body.workspace-polished :is(#char-count, #line-count, #progress-status) { display: none; }
+body.workspace-polished ::-webkit-scrollbar { width: 7px; height: 5px; }
+body.workspace-polished ::-webkit-scrollbar-track { background: transparent !important; }
+body.workspace-polished ::-webkit-scrollbar-thumb { background: var(--wp-border) !important; border-radius: 5px !important; }
+@media (max-width: 1250px) { body.workspace-polished .workflow-preset-description { display: none; } }
+@media (max-width: 1000px) { body.workspace-polished #mode-switcher { gap: 6px; padding: 0 6px !important; } body.workspace-polished #mode-switcher .mode-btn { padding: 7px !important; } body.workspace-polished #preview-content { padding: 16px 22px 32px !important; } body.workspace-polished #preview-word-count { display: none; } }
+@media (prefers-reduced-motion: reduce) { body.workspace-polished :is(button, .editor-tab, .file-tree-item) { transition: none !important; } }
+
+/* IDs deliberately outweigh legacy theme rules with !important declarations. */
+body.workspace-polished #left-sidebar .activity-toggle-buttons { background: transparent !important; border: 0 !important; }
+body.workspace-polished #left-sidebar-activity .pane-toggle-button.active { border-left: 0 !important; }
+body.workspace-polished #structure-pane-header .pane-header-actions .btn { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+body.workspace-polished #right-pane :is(#show-preview-btn, #show-chat-btn, #show-speaker-notes-btn, #show-wholepart-btn).active { background: var(--wp-soft) !important; color: var(--wp-accent) !important; }
+body.workspace-polished #editor-tabs-bar .editor-tab.active { border-bottom-color: var(--wp-accent) !important; box-shadow: none !important; }
+body.workspace-polished #slide-thumbnails-strip { background: var(--wp-subtle) !important; border-color: var(--wp-border) !important; }
+body.workspace-polished #slide-thumbnails-strip .slide-thumb { border: 1px solid var(--wp-border) !important; border-radius: 5px !important; box-shadow: none !important; }
+body.workspace-polished #slide-thumbnails-strip .slide-thumb.active { border: 2px solid var(--wp-accent) !important; box-shadow: 0 0 0 2px var(--wp-soft) !important; }
+body.workspace-polished #editor-toolbar > span { display: none; }
+body.workspace-polished #preview-content blockquote { border-left: 3px solid var(--wp-accent) !important; color: var(--wp-muted) !important; }
+body.workspace-polished #left-sidebar-activity { flex-basis: 44px !important; max-width: 44px !important; }
+body.workspace-polished #preview-content.microfiche-active { padding: 0 !important; }
+body.workspace-polished :is(#resizer, #sidebar-resizer) { background: var(--wp-border) !important; border: 0 !important; }
+body.workspace-polished :is(#resizer, #sidebar-resizer):hover { background: var(--wp-accent) !important; }
+body.workspace-polished #mode-switcher { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+body.workspace-polished #mode-switcher > div:has(.pane-visibility-btn) > span { display: none; }
+body.workspace-polished #preview-pane .abstraction-controls { font-size: 11px !important; background: var(--wp-bg) !important; border-color: var(--wp-border) !important; }
+body.workspace-polished #preview-zoom-controls { padding: 7px 12px !important; margin: 0 !important; background: var(--wp-bg) !important; border-color: var(--wp-border) !important; }
+body.workspace-polished #preview-zoom-controls label { color: var(--wp-muted) !important; font-size: 10px !important; }
+body.workspace-polished #preview-content:has(.pdf-preview-container) { padding: 0 !important; }
+body.workspace-polished #speaker-notes-pane .speaker-note { background: var(--wp-subtle) !important; border-left: 2px solid var(--wp-accent) !important; padding: 16px !important; border-radius: 6px !important; }
+body.workspace-polished #speaker-notes-pane .speaker-note-header { color: var(--wp-muted) !important; font-size: 11px !important; }
+body.workspace-polished #speaker-notes-pane .speaker-note-content { font-size: 13px; line-height: 1.7 !important; color: var(--wp-ink); }
+body.workspace-polished #mode-switcher { border-bottom-width: 1px !important; }
+body.workspace-polished #preview-content blockquote { background: var(--wp-subtle) !important; color: var(--wp-ink) !important; padding: 12px 16px !important; border-radius: 0 5px 5px 0; box-shadow: none !important; }
+body.workspace-polished #preview-content blockquote :is(p, li) { color: inherit !important; }
+body.workspace-polished #preview-content :is(pre, code) { border-color: var(--wp-border) !important; }

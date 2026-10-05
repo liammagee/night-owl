@@ -826,7 +826,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     const notes = [];
     let match;
     
-    while ((match = notesRegex.exec(slideContent)) !== null) {
+    while ((match = notesRegex.exec(slideContent.replace(/<!--[\s\S]*?(?:-->|$)/g, ''))) !== null) {
       const noteContent = match[1].trim();
       // Found speaker note
       notes.push(noteContent);
@@ -874,13 +874,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
-    // Strip trailing whitespace from the entire markdown content first
-    const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
-
-    // Split content by slide separators (--- on standalone lines)
-    // Match --- with optional trailing whitespace that is either at start/end of string or surrounded by newlines
-    const slideSeparatorRegex = /(?:^|\n)---[ \t]*(?:\n|$)/;
-    const slideTexts = trimmedMarkdown.split(slideSeparatorRegex).map(slide => slide.trim()).filter(slide => slide);
+    // Keep comments intact until after slide boundaries have been identified.
+    const slideTexts = window.NightOwlSlides.split(markdown).map(slide => slide.trim());
     return slideTexts.map((text, index) => {
       const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
       const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);

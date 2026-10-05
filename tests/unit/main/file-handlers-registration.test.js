@@ -126,6 +126,27 @@ describe('fileHandlers registration', () => {
     expect(sendB).toHaveBeenCalledWith('refresh-file-tree');
   });
 
+  test('trigger-new-file creates the untitled tab in the requesting window', async () => {
+    const sender = {};
+    const send = jest.fn();
+    const mainSend = jest.fn();
+    const setCurrentFilePath = jest.fn();
+    BrowserWindow.fromWebContents.mockReturnValue({ webContents: { send } });
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: () => ({ webContents: { send: mainSend } }),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath,
+      getCurrentWorkingDirectory: () => '/workspace/current'
+    });
+
+    expect(await getRegisteredHandler('trigger-new-file')({ sender })).toMatchObject({ success: true });
+    expect(setCurrentFilePath).toHaveBeenCalledWith(null);
+    expect(send).toHaveBeenCalledWith('new-file-created');
+    expect(mainSend).not.toHaveBeenCalled();
+  });
+
   test('show-confirm-dialog renders exact paths and cancel-default buttons', async () => {
     dialog.showMessageBox.mockResolvedValue({ response: 0 });
 
@@ -186,24 +207,30 @@ describe('fileHandlers registration', () => {
       userDataPath: '/mock/user-data'
     });
 
+    const watcher = { close: jest.fn(), on: jest.fn() };
+    const watchSpy = jest.spyOn(fsSync, 'watch').mockReturnValue(watcher);
     const setCurrentFile = getRegisteredHandler('set-current-file');
-    setCurrentFile(null, filePath);
+    jest.useFakeTimers();
+    try {
+      setCurrentFile(null, filePath);
+      const onDiskEvent = watchSpy.mock.calls[0][2];
+      fsSync.writeFileSync(filePath, 'changed on disk\n', 'utf8');
+      onDiskEvent('change', path.basename(filePath));
+      jest.advanceTimersByTime(150);
 
-    await new Promise(resolve => setTimeout(resolve, 50));
-    fsSync.writeFileSync(filePath, 'changed on disk\n', 'utf8');
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    expect(send).toHaveBeenCalledWith(
-      'current-file-changed-on-disk',
-      expect.objectContaining({
-        filePath,
-        size: Buffer.byteLength('changed on disk\n')
-      })
-    );
-
-    setCurrentFile(null, null);
-    fsSync.rmSync(tempDir, { recursive: true, force: true });
+      expect(send).toHaveBeenCalledWith(
+        'current-file-changed-on-disk',
+        expect.objectContaining({
+          filePath,
+          size: Buffer.byteLength('changed on disk\n')
+        })
+      );
+    } finally {
+      setCurrentFile(null, null);
+      watchSpy.mockRestore();
+      jest.useRealTimers();
+      fsSync.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   test('open-external opens web URLs in the browser instead of treating them as file paths', async () => {

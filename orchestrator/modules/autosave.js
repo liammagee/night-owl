@@ -1,4 +1,23 @@
 // --- Auto-save functionality ---
+let autoSaveScheduledTarget = null;
+
+function enqueueEditorSave(operation) {
+    const previous = window._editorSaveQueue || Promise.resolve();
+    const pending = previous.catch(() => {}).then(operation);
+    window._editorSaveQueue = pending;
+    return pending;
+}
+
+function captureAutoSaveTarget() {
+    const tm = window.tabManager;
+    const filePath = tm?.activeTabPath;
+    const tab = tm?.tabs?.get(filePath);
+    const model = editor?.getModel();
+    return {
+        tm, tab, filePath, model,
+        matchedAtCapture: Boolean(tab && model && tab.model === model && tab.filePath === window.currentFilePath)
+    };
+}
 
 // Initialize auto-save functionality
 function initializeAutoSave() {
@@ -11,11 +30,8 @@ function initializeAutoSave() {
     const interval = window.appSettings.autoSave.interval || 2000; // Default 2 seconds
     console.log(`[autosave.js] Auto-save initialized with ${interval}ms interval`);
 
-    // Set initial saved content
-    if (editor) {
-        lastSavedContent = editor.getValue();
-        console.log('[autosave.js] Initial content saved for comparison');
-    }
+    // Enabling automatic saving is not a disk save. Preserve the saved baseline
+    // so existing drafts still count as unsaved after settings are changed.
 }
 
 // Mark that there are unsaved changes and schedule auto-save
@@ -26,12 +42,29 @@ function scheduleAutoSave() {
         currentFilePath: window.currentFilePath
     });
 
-    if (!window.appSettings?.autoSave?.enabled) {
-        console.log('[autosave.js] ❌ Auto-save disabled in settings');
-        return;
-    }
+    if (window.suppressAutoSave || !editor) return;
 
-    const currentContent = editor ? editor.getValue() : '';
+    const currentContent = editor.getValue();
+    const tm = window.tabManager;
+    const activeTab = tm?.tabs?.get(tm.activeTabPath);
+    if (activeTab && editor.getModel() !== activeTab.model) return;
+    const savedContent = activeTab ? activeTab.lastSavedContent : lastSavedContent;
+    const isDirty = currentContent !== savedContent;
+    window.hasUnsavedChanges = isDirty;
+    if (tm?.syncActiveTabDirty) tm.syncActiveTabDirty(isDirty);
+    updateUnsavedIndicator(isDirty);
+
+    if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        // Scheduling in another tab must not cancel the outgoing draft's only
+        // pending save. Queue it now, keeping the new tab's own debounce below.
+        if (autoSaveScheduledTarget && autoSaveScheduledTarget.model !== editor.getModel()
+            && window.appSettings?.autoSave?.enabled) {
+            performAutoSave(autoSaveScheduledTarget);
+        }
+        autoSaveTimer = null;
+        autoSaveScheduledTarget = null;
+    }
 
     console.log('[autosave.js] 📋 Content comparison:', {
         currentContentLength: currentContent.length,
@@ -41,11 +74,13 @@ function scheduleAutoSave() {
     });
 
     // Check if content has actually changed
-    if (currentContent === lastSavedContent) {
+    if (!isDirty) {
         console.log('[autosave.js] ℹ️ No content changes detected, setting hasUnsavedChanges to false');
         window.hasUnsavedChanges = false;
         return;
     }
+
+    if (!window.appSettings?.autoSave?.enabled) return;
 
     console.log('[autosave.js] ✅ Content changed, setting hasUnsavedChanges to true');
     window.hasUnsavedChanges = true;
@@ -57,8 +92,12 @@ function scheduleAutoSave() {
     
     // Schedule auto-save
     const interval = window.appSettings.autoSave.interval || 2000;
+    const target = captureAutoSaveTarget();
+    autoSaveScheduledTarget = target;
     autoSaveTimer = setTimeout(() => {
-        performAutoSave();
+        autoSaveTimer = null;
+        autoSaveScheduledTarget = null;
+        performAutoSave(target);
     }, interval);
     
     // Update status indicator
@@ -66,7 +105,19 @@ function scheduleAutoSave() {
 }
 
 // Perform the actual auto-save
-async function performAutoSave() {
+async function performAutoSave(capturedTarget) {
+    // Serialize disk writes so an older, slower save cannot overwrite a newer
+    // version. Re-read the active buffer after any previous write completes.
+    const target = capturedTarget?.tm ? capturedTarget : captureAutoSaveTarget();
+    if (autoSaveTimer && (!autoSaveScheduledTarget || autoSaveScheduledTarget.model === target.model)) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+        autoSaveScheduledTarget = null;
+    }
+    return enqueueEditorSave(() => performAutoSaveNow(target));
+}
+
+async function performAutoSaveNow(target) {
     const startedAt = Date.now();
     let saveAttemptLogged = false;
     const logSaveAttempt = (status, details = {}) => {
@@ -84,20 +135,13 @@ async function performAutoSave() {
         console.log('[performAutoSave] Save attempt', attempt);
     };
 
-    // Clear any pending scheduled save — a stale timer firing after this run could
-    // re-enter with a path/buffer that drifted across a tab switch and corrupt a file.
-    if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = null;
-    }
-
     console.log('[performAutoSave] Called with:', {
         hasUnsavedChanges: window.hasUnsavedChanges,
         hasEditor: !!editor,
         currentFilePath: window.currentFilePath
     });
 
-    if (!window.hasUnsavedChanges || !editor) {
+    if (!target.tab && (!window.hasUnsavedChanges || !editor)) {
         logSaveAttempt('skipped', {
             path: window.currentFilePath,
             modelMatchedPath: false
@@ -111,16 +155,8 @@ async function performAutoSave() {
     // model belongs to the active tab AND window.currentFilePath agrees.
     // If any mismatch, abort rather than risk writing the active buffer to a
     // different file on disk.
-    const tm = window.tabManager;
-    const activePath = tm && tm.activeTabPath;
-    const activeTab = activePath && tm.tabs ? tm.tabs.get(activePath) : null;
-    const editorModel = editor.getModel();
-    const modelMatchedPath = Boolean(
-        activeTab &&
-        editorModel &&
-        activeTab.model === editorModel &&
-        activeTab.filePath === window.currentFilePath
-    );
+    const { tm, filePath: activePath, tab: activeTab, model: editorModel } = target;
+    const modelMatchedPath = target.matchedAtCapture;
 
     if (!activeTab || !editorModel) {
         logSaveAttempt('aborted', {
@@ -130,7 +166,8 @@ async function performAutoSave() {
         console.warn('[performAutoSave] Abort: no active tab or editor model', { activePath });
         return;
     }
-    if (activeTab.model !== editorModel) {
+    if (activeTab.model !== editorModel || editorModel.isDisposed?.()
+        || tm.tabs.get(activePath) !== activeTab || activeTab.filePath !== activePath) {
         logSaveAttempt('aborted', {
             path: activeTab.filePath,
             modelMatchedPath
@@ -142,7 +179,7 @@ async function performAutoSave() {
         });
         return;
     }
-    if (activeTab.filePath !== window.currentFilePath) {
+    if (!target.matchedAtCapture && !activePath.startsWith('untitled:')) {
         logSaveAttempt('aborted', {
             path: activeTab.filePath,
             modelMatchedPath
@@ -155,7 +192,7 @@ async function performAutoSave() {
     }
 
     try {
-        const content = editor.getValue();
+        const content = editorModel.getValue();
         const savePath = activeTab.filePath;
 
         // Untitled tabs need an explicit save-as flow, not auto-save.
@@ -166,6 +203,11 @@ async function performAutoSave() {
                 modelMatchedPath
             });
             console.log('[performAutoSave] Skipping - untitled tab (needs save-as)');
+            return;
+        }
+
+        if (content === activeTab.lastSavedContent) {
+            logSaveAttempt('skipped', { path: savePath, byteLength: content.length, modelMatchedPath });
             return;
         }
 
@@ -181,15 +223,33 @@ async function performAutoSave() {
 
         // Pass the tab's path explicitly rather than relying on main-process
         // currentFilePath state, which has its own drift paths.
-        const result = await window.electronAPI.invoke('perform-save-with-path', content, savePath);
+        const result = await window.electronAPI.invoke('perform-save-with-path', content, savePath, {
+            expectedContent: activeTab.lastSavedContent
+        });
 
         if (result.success) {
-            lastSavedContent = content;
-            activeTab.lastSavedContent = content;
-            activeTab.isDirty = false;
-            window.hasUnsavedChanges = false;
-            updateUnsavedIndicator(false);
-            showNotification('Auto-saved', 'success', 1000);
+            // The user may have edited, closed, renamed, or switched this tab
+            // while the disk write was pending. Only acknowledge the captured
+            // version and never change another tab's saved/dirty state.
+            if (tm.tabs.get(savePath) === activeTab && activeTab.model === editorModel) {
+                activeTab.lastSavedContent = content;
+                activeTab.isDirty = editorModel.getValue() !== content;
+                const stillActive = tm.activeTabPath === savePath
+                    && editor.getModel() === editorModel
+                    && window.currentFilePath === savePath;
+                if (stillActive) {
+                    lastSavedContent = content;
+                    window.lastSavedContent = content;
+                    window.hasUnsavedChanges = activeTab.isDirty;
+                    updateUnsavedIndicator(activeTab.isDirty);
+                    if (typeof window._setLastSavedContent === 'function') {
+                        window._setLastSavedContent(content);
+                    }
+                    if (!activeTab.isDirty) showNotification('Auto-saved', 'success', 1000);
+                }
+                if (typeof tm._renderTabBar === 'function') tm._renderTabBar();
+                if (typeof tm._scheduleRecoveryPersist === 'function') tm._scheduleRecoveryPersist();
+            }
             logSaveAttempt('saved', {
                 path: savePath,
                 byteLength: content.length,
@@ -233,13 +293,18 @@ function updateUnsavedIndicator(hasUnsaved) {
 function markContentAsSaved() {
     if (editor) {
         lastSavedContent = editor.getValue();
+        window.lastSavedContent = lastSavedContent;
         window.hasUnsavedChanges = false;
         updateUnsavedIndicator(false);
+        if (window.tabManager?.syncActiveTabDirty) {
+            window.tabManager.syncActiveTabDirty(false, lastSavedContent);
+        }
         
         // Clear auto-save timer
-        if (autoSaveTimer) {
+        if (autoSaveTimer && (!autoSaveScheduledTarget || autoSaveScheduledTarget.model === editor.getModel())) {
             clearTimeout(autoSaveTimer);
             autoSaveTimer = null;
+            autoSaveScheduledTarget = null;
         }
     }
 }
@@ -247,6 +312,7 @@ function markContentAsSaved() {
 
 // --- Export for Global Access ---
 window.initializeAutoSave = initializeAutoSave;
+window.enqueueEditorSave = enqueueEditorSave;
 window.scheduleAutoSave = scheduleAutoSave;
 window.performAutoSave = performAutoSave;
 window.updateUnsavedIndicator = updateUnsavedIndicator;

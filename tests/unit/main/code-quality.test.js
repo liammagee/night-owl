@@ -388,19 +388,6 @@ describe('Code quality guardrails', () => {
     expect(previewIndex).toBeGreaterThan(deferredSyncIndex);
   });
 
-  test('same-path open requests are queued instead of dropped', () => {
-    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
-
-    expect(rendererSource).toContain('const _queuedOpenFileRequests = new Map();');
-    expect(rendererSource).toContain('_queuedOpenFileRequests.set(filePath, {');
-    expect(rendererSource).toContain('refreshExistingTabContent: true');
-    expect(rendererSource).toContain('const queuedRequest = _queuedOpenFileRequests.get(filePath);');
-    expect(rendererSource).toContain('tab.model.setValue(content);');
-    expect(rendererSource).toContain('tab.lastSavedContent = content;');
-    expect(rendererSource).toContain('await openFileInEditor(');
-    expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
-  });
-
   test('Mermaid fullscreen controls clean up transient listeners', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
 

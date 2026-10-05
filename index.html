@@ -3854,6 +3854,9 @@
             border-top-color: var(--border-color, #3f3f46);
         }
     </style>
+    <link rel="stylesheet" href="css/workspace-panels-polish.css">
+    <link rel="stylesheet" href="css/workspace-polish.css">
+    <script defer src="orchestrator/modules/workspace-polish.js"></script>
 </head>
 <body>
     <!-- Techne theme background layers (enabled via body.techne-theme) -->
@@ -3862,18 +3865,6 @@
         <div class="techne-layer techne-grid-primary"></div>
         <div class="techne-layer techne-grid-secondary"></div>
         <div class="techne-layer techne-grid-micro"></div>
-    </div>
-
-    <!-- Command Palette Modal (VS Code style Cmd+P) -->
-    <div id="command-palette-overlay" class="command-palette-overlay" style="display: none;">
-        <div id="command-palette" class="command-palette">
-            <div class="command-palette-header">
-                <input type="text" id="command-palette-input" placeholder="Type to search files..." autocomplete="off">
-            </div>
-            <div id="command-palette-results" class="command-palette-results">
-                <div class="command-palette-loading">Loading files...</div>
-            </div>
-        </div>
     </div>
 
     <!-- Keyboard Shortcuts Help Modal -->
@@ -5053,6 +5044,7 @@
     <script src="orchestrator/modules/navigation.js" defer></script>
     <script src="orchestrator/modules/commandPalette.js" defer></script>
     <script src="orchestrator/modules/autosave.js" defer></script>
+    <script src="orchestrator/modules/window-close.js" defer></script>
     <script src="orchestrator/modules/app-confirm.js" defer></script>
     <script src="orchestrator/modules/editor-tabs.js" defer></script>
     <script src="orchestrator/modules/preview-markdown.js" defer></script>
@@ -5138,6 +5130,8 @@
 
     <!-- Fuzzy match utility (used by renderer autocomplete) -->
     <script src="services/fuzzyMatch.js"></script>
+
+    <script src="orchestrator/modules/slide-parser.js"></script>
 
     <!-- Main renderer script -->
     <script src="orchestrator/renderer.js"></script>

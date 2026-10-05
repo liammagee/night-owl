@@ -272,9 +272,6 @@ let folderCreationParentPath = '';
 let fileCreationParentPath = '';
 
 // Command Palette elements
-const commandPaletteOverlay = document.getElementById('command-palette-overlay');
-const commandPaletteInput = document.getElementById('command-palette-input');
-const commandPaletteResults = document.getElementById('command-palette-results');
 
 // Speaker notes pane elements
 
@@ -1017,7 +1014,7 @@ let previewUpdateTimeout = null;
 function debouncedUpdatePreviewAndStructure(markdownContent, delay) {
     if (delay === undefined) {
         // Adaptive delay: count slide separators as a complexity proxy
-        const slideCount = (markdownContent.match(/\n---[ \t]*\n/g) || []).length + 1;
+        const slideCount = window.NightOwlSlides.split(markdownContent).length;
         if (slideCount > 30) {
             delay = 500;
         } else if (slideCount > 10) {
@@ -1435,10 +1432,19 @@ function scrollToHeadingInPreview(headingText) {
         if (previewElement && previewContentDiv) {
             // Wrap scroll in requestAnimationFrame to handle timing issues
             requestAnimationFrame(() => {
-                previewElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start' // Scrolls to the top of the element
-                });
+                const pane = document.getElementById('preview-pane');
+                if (!pane || !pane.contains(previewElement)) return;
+                // Themes may make the content itself scrollable instead of the pane.
+                let scroller = previewElement.parentElement;
+                while (scroller && scroller !== pane) {
+                    if (/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+                        && scroller.scrollHeight > scroller.clientHeight) break;
+                    scroller = scroller.parentElement;
+                }
+                if (!scroller) return;
+                const top = scroller.scrollTop + previewElement.getBoundingClientRect().top
+                    - scroller.getBoundingClientRect().top - scroller.clientTop;
+                scroller.scrollTo({ top, behavior: 'smooth' });
             });
         }
     }
@@ -4210,7 +4216,10 @@ async function initializeMonacoEditor() {
                 // (scheduleAutoSave bails early if auto-save is off, but we still
                 // want to persist unsaved content for crash recovery)
                 if (window.tabManager && !suppressAutoSave) {
-                    window.tabManager.syncActiveTabDirty(true);
+                    const activeTab = window.tabManager.tabs.get(window.tabManager.activeTabPath);
+                    window.tabManager.syncActiveTabDirty(
+                        !activeTab || currentContent !== activeTab.lastSavedContent
+                    );
                 }
 
                 if (!suppressAutoSave) {
@@ -6157,39 +6166,13 @@ async function generateThumbnailForMultipleFiles(filePaths) {
     });
 }
 
-// Guard against concurrent openFileInEditor calls for the same file
-let _openingFilePath = null;
-const _queuedOpenFileRequests = new Map();
-
-async function openFileInEditor(filePath, content, options = {}) {
-    // If the same file is requested again while its first open is still
-    // swapping models, keep the latest request instead of dropping it. The
-    // newer content may reflect a disk reload or search/open race.
-    if (_openingFilePath === filePath) {
-        _queuedOpenFileRequests.set(filePath, {
-            filePath,
-            content,
-            options: { ...options, refreshExistingTabContent: true }
-        });
-        return;
-    }
-
-    _openingFilePath = filePath;
-    try {
-        await _openFileInEditorImpl(filePath, content, options);
-    } finally {
-        if (_openingFilePath === filePath) _openingFilePath = null;
-
-        const queuedRequest = _queuedOpenFileRequests.get(filePath);
-        if (queuedRequest) {
-            _queuedOpenFileRequests.delete(filePath);
-            await openFileInEditor(
-                queuedRequest.filePath,
-                queuedRequest.content,
-                queuedRequest.options
-            );
-        }
-    }
+// Serialize complete model/path transitions, including asynchronous bibliography
+// and preview work. Duplicate opens keep the existing tab's unsaved buffer.
+let _fileOpenQueue = Promise.resolve();
+function openFileInEditor(filePath, content, options = {}) {
+    const operation = _fileOpenQueue.then(() => _openFileInEditorImpl(filePath, content, options));
+    _fileOpenQueue = operation.catch(() => {});
+    return operation;
 }
 
 async function _openFileInEditorImpl(filePath, content, options = {}) {
@@ -6220,7 +6203,7 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
 
     // Detect file type before any state sync so editable files can defer
     // currentFilePath updates until after their Monaco model is swapped.
-    const isPDF = filePath.endsWith('.pdf');
+    const isPDF = /\.pdf$/i.test(filePath);
     const isImageFile = /\.(png|jpg|jpeg|gif|bmp|svg|webp|ico)$/i.test(filePath);
     const isHTML = isHTMLFilePath(filePath);
     const isBibTeX = filePath.endsWith('.bib');
@@ -6324,8 +6307,13 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     
     // Handle PDF files
     if (isPDF) {
-        handlePDFFile(filePath);
+        await handlePDFFile(filePath);
         // Note: PDF files don't trigger AI chat context updates since they're not editable
+        return;
+    }
+
+    if (isImageFile) {
+        showImageViewer(filePath);
         return;
     }
     
@@ -6360,8 +6348,15 @@ async function _openFileInEditorImpl(filePath, content, options = {}) {
     updateAIChatContext(filePath);
 }
 
-// Layout management for PDF-only mode
+// Layout management for PDF-only mode. Preserve the user's visibility choices.
+let pdfOnlyLayout = null;
 function enterPDFOnlyMode() {
+    if (pdfOnlyLayout) return;
+    const ids = ['editor-pane', 'resizer', 'preview-zoom-controls'];
+    pdfOnlyLayout = {
+        displays: ids.map(id => [id, document.getElementById(id)?.style.display]),
+        zoomEnabled: window.previewZoom?.isEnabled
+    };
     
     // Hide the editor pane
     const editorPane = document.getElementById('editor-pane');
@@ -6391,7 +6386,7 @@ function enterPDFOnlyMode() {
     // Expand right pane (which contains preview) to take full width
     if (rightPane) {
         // Store original width for restoration
-        if (!rightPane.dataset.originalWidth) {
+        if (rightPane.dataset.originalWidth === undefined) {
             rightPane.dataset.originalWidth = rightPane.style.width || '';
             rightPane.dataset.originalFlex = rightPane.style.flex || '';
         }
@@ -6419,6 +6414,7 @@ function enterPDFOnlyMode() {
 }
 
 function exitPDFOnlyMode() {
+    if (!pdfOnlyLayout) return;
     
     // Remove PDF keyboard navigation
     if (window.pdfKeyboardListener) {
@@ -6432,26 +6428,14 @@ function exitPDFOnlyMode() {
         window.pdfWheelListener = null;
     }
     
-    // Restore the editor pane
-    const editorPane = document.getElementById('editor-pane');
     const rightPane = document.getElementById('right-pane');
-    const resizer = document.getElementById('resizer');
-    
-    if (editorPane) {
-        editorPane.style.display = '';
+    for (const [id, display] of pdfOnlyLayout.displays) {
+        const element = document.getElementById(id);
+        if (element) element.style.display = display || '';
     }
-    
-    // Restore the resizer
-    if (resizer) {
-        resizer.style.display = '';
-    }
-    
-    // Restore preview zoom controls (text abstraction feature)
-    const previewZoomControls = document.getElementById('preview-zoom-controls');
-    if (previewZoomControls) {
-        previewZoomControls.style.display = '';
-    }
-    
+    if (window.previewZoom) window.previewZoom.isEnabled = pdfOnlyLayout.zoomEnabled;
+    pdfOnlyLayout = null;
+
     // Restore right pane to original size
     if (rightPane && rightPane.dataset.originalWidth !== undefined) {
         rightPane.style.width = rightPane.dataset.originalWidth;
@@ -6467,53 +6451,51 @@ function exitPDFOnlyMode() {
     }
 }
 
-// Handle PDF file opening
-function handlePDFFile(filePath) {
-    
-    // Clear any existing highlights from previous PDF
+window.exitPDFOnlyMode = exitPDFOnlyMode;
+
+// PDF previews must never replace the model belonging to an existing text tab.
+async function handlePDFFile(filePath) {
     clearAllHighlights();
-    
-    // Enter PDF-only mode immediately to hide editor and text abstraction controls
     enterPDFOnlyMode();
-    
-    // Check for associated Markdown file
-    const baseName = filePath.replace(/\.pdf$/i, '');
-    const associatedMdFile = baseName + '.md';
-    
-    // Check if associated markdown file exists
-    window.electronAPI.invoke('check-file-exists', associatedMdFile)
-        .then(result => {
-            const exists = typeof result === 'object' ? result?.exists : result;
-            if (exists) {
-                // Exit PDF-only mode and restore normal layout
+    const associatedMdFile = filePath.replace(/\.pdf$/i, '') + '.md';
+    try {
+        const result = await window.electronAPI.invoke('check-file-exists', associatedMdFile);
+        if (window.currentFilePath !== filePath) return;
+        const exists = typeof result === 'object' ? result?.exists : result;
+        if (exists) {
+            const markdownResult = await window.electronAPI.invoke('open-file-path', associatedMdFile);
+            if (window.currentFilePath !== filePath) return;
+            if (markdownResult?.success) {
                 exitPDFOnlyMode();
-                // Load the markdown file in the editor
-                return window.electronAPI.invoke('open-file-path', associatedMdFile);
-            } else {
-                // PDF-only mode already entered above
-                return null;
+                if (window.tabManager) {
+                    if (!window.tabManager.hasTab(associatedMdFile)) {
+                        window.tabManager.createTab(associatedMdFile, markdownResult.content);
+                    }
+                    if (!window.tabManager.hasTab(associatedMdFile)) {
+                        enterPDFOnlyMode();
+                        displayPDFInPreview(filePath);
+                        return;
+                    }
+                    const previous = window.__suppressTabPreviewUpdate;
+                    window.__suppressTabPreviewUpdate = true;
+                    try { window.tabManager.activateTab(associatedMdFile); }
+                    finally { window.__suppressTabPreviewUpdate = previous; }
+                } else {
+                    await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true }, {
+                        skipPreviewUpdate: true,
+                        syncCurrentFileAfterModel: true
+                    });
+                }
             }
-        })
-        .then(async markdownResult => {
-            if (markdownResult && markdownResult.success) {
-                // Set a counter for multiple suppression calls
-                window.suppressPreviewUpdateCount = 2; // For both Monaco event and handleEditableFile call
-                await handleEditableFile(associatedMdFile, markdownResult.content, { isMarkdown: true });
-            } else {
-                // No associated markdown, clear editor without updating preview
-                clearEditor(true);
-            }
-            
-            // Display PDF in preview panel (this should not be overridden)
-            displayPDFInPreview(filePath);
-        })
-        .catch(error => {
-            console.error('[Renderer] Error checking for associated markdown:', error);
-            // Assume no associated markdown and enter PDF-only mode
-            enterPDFOnlyMode();
-            clearEditor(true);
-            displayPDFInPreview(filePath);
-        });
+        }
+        // The hidden text model stays intact when no companion document exists.
+        displayPDFInPreview(filePath);
+    } catch (error) {
+        if (window.currentFilePath !== filePath) return;
+        console.error('[Renderer] Error checking for associated markdown:', error);
+        enterPDFOnlyMode();
+        displayPDFInPreview(filePath);
+    }
 }
 
 function getHTMLPreviewText(htmlContent) {
@@ -6739,24 +6721,6 @@ async function handleEditableFile(filePath, content, fileTypes, options = {}) {
     if (!options.syncCurrentFileAfterModel) {
         window.electronAPI.invoke('set-current-file', filePath);
     }
-}
-
-// Clear the editor
-function clearEditor(suppressPreviewUpdate = false) {
-    
-    if (editor && typeof editor.setValue === 'function') {
-        if (suppressPreviewUpdate) {
-            // Set a flag to prevent the next preview update
-            window.suppressNextPreviewUpdate = true;
-        }
-        editor.setValue('# File Preview\n\nThis file is displayed in the preview panel.');
-    } else if (fallbackEditor) {
-        fallbackEditor.value = '# File Preview\n\nThis file is displayed in the preview panel.';
-    }
-    
-    lastSavedContent = '';
-    window.hasUnsavedChanges = false;
-    updateUnsavedIndicator(false);
 }
 
 // Display PDF in preview panel with search functionality
@@ -8059,7 +8023,8 @@ async function createFallbackEditor() {
 
 // --- Global Keyboard Shortcuts ---
 document.addEventListener('keydown', async (e) => {
-    
+    if (e.defaultPrevented || e.isComposing || e.repeat) return;
+
     // Only handle shortcuts when not in input fields (except find/replace inputs)
     const isInInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
     const isInFindReplace = e.target === findInput || e.target === replaceInput;
@@ -9342,7 +9307,6 @@ function hideAllRightPanes() {
         { element: previewPane, name: 'preview' },
         { element: chatPane, name: 'chat' },
         { element: wholepartPane, name: 'wholepart' },
-        { element: document.getElementById('search-pane'), name: 'search' },
         { element: document.getElementById('speaker-notes-pane'), name: 'speaker-notes' }
     ];
     
@@ -9359,7 +9323,6 @@ function deactivateAllToggleButtons() {
         showPreviewBtn,
         showChatBtn,
         showWholepartBtn,
-        document.getElementById('show-search-btn'),
         document.getElementById('show-speaker-notes-btn')
     ];
     
@@ -9424,6 +9387,14 @@ function showSpecificPane(paneType) {
 }
 
 function showRightPane(paneType) {
+    // Search lives in the left sidebar. Hiding right-pane content here used
+    // to leave an empty pane whenever Cmd/Ctrl+Shift+F opened search.
+    if (paneType === 'search') {
+        if (!sidebarVisible) toggleSidebar();
+        switchStructureView('search');
+        document.getElementById('global-search-input')?.focus();
+        return;
+    }
     hideAllRightPanes();
     deactivateAllToggleButtons();
     _teardownScrollSync(); // tear down before switching
@@ -9436,6 +9407,7 @@ function showRightPane(paneType) {
 
 // Expose showPane globally for plugins (AI Tutor, etc.)
 window.showPane = function(paneType) {
+    if (paneType === 'search') return showRightPane('search');
     // First make sure the right pane is visible
     const rightPane = document.getElementById('right-pane');
     if (rightPane && (rightPane.classList.contains('pane-hidden') || !previewVisible)) {
@@ -9518,7 +9490,10 @@ function switchStructureView(view) {
     } else if (view === 'search') {
         structurePaneTitle.textContent = 'Search';
         if (searchBtn) searchBtn.classList.add('active');
-        if (searchPane) searchPane.style.display = 'block'; // Show search pane
+        if (searchPane) {
+            searchPane.classList.remove('pane-hidden');
+            searchPane.style.display = 'block';
+        }
     } else if (view === 'statistics') {
         structurePaneTitle.textContent = 'Statistics';
         if (showStatsBtn) showStatsBtn.classList.add('active');
@@ -12608,17 +12583,7 @@ function applyTheme(themeOrIsDark) {
         body.classList.toggle('techne-noise-off', !noiseOn);
         body.classList.toggle('techne-bloom-on', blurBloomOn);
 
-        // Prefer matching Techne presentation templates when available
-        if (window.styleManager && typeof window.styleManager.getPresentationTemplates === 'function') {
-            const desiredTemplate = accent === 'orange' ? 'techne-orange' : 'techne-red';
-            const available = window.styleManager.getPresentationTemplates().some(t => t.id === desiredTemplate);
-            if (available && typeof window.styleManager.applyPresentationTemplate === 'function') {
-                const current = window.styleManager.getCurrentStyles?.().presentation;
-                if (current !== desiredTemplate) {
-                    window.styleManager.applyPresentationTemplate(desiredTemplate);
-                }
-            }
-        }
+
     }
 
     // Store applied theme for other modules
@@ -12838,24 +12803,15 @@ if (window.electronAPI) {
 if (window.electronAPI) {
     window.electronAPI.on('save-all-and-close', async () => {
         try {
-            if (window.editorTabs) {
-                for (const [filePath, tab] of window.editorTabs.tabs) {
-                    if (tab.isDirty && filePath && !filePath.startsWith('untitled:')) {
-                        const content = tab.model ? tab.model.getValue() : null;
-                        if (content !== null) {
-                            await window.electronAPI.invoke('save-file', { filePath, content });
-                        }
-                    }
-                }
+            if (await window.NightOwlWindowClose.saveBeforeClose()) {
+                window.electronAPI.send('saves-completed-close');
             } else {
-                // Fallback: save the current file
-                await saveFile();
+                showNotification('Window kept open: some changes are still unsaved.', 'warning');
             }
         } catch (err) {
             console.error('[renderer] Error saving all files before close:', err);
+            showNotification('Could not save all changes. The window has been kept open.', 'error');
         }
-        // Signal main process that saves are done and it can close
-        window.electronAPI.send('saves-completed-close');
     });
 }
 
@@ -13740,9 +13696,27 @@ function _quickHash(str) {
     return h;
 }
 
+// Scroll only the thumbnail container. scrollIntoView also scrolls hidden-overflow
+// ancestors, which can push the entire editor sideways behind the file sidebar.
+function scrollSlideThumbnailIntoView(container, thumbnail, vertical = false) {
+    if (!container || !thumbnail) return;
+    const bounds = container.getBoundingClientRect();
+    const target = thumbnail.getBoundingClientRect();
+    if (vertical) {
+        const top = target.top - bounds.top - container.clientTop;
+        const bottom = top + target.height;
+        const delta = top < 0 ? top : bottom > container.clientHeight ? bottom - container.clientHeight : 0;
+        if (delta) container.scrollTo({ top: container.scrollTop + delta, behavior: 'smooth' });
+    } else {
+        const left = container.scrollLeft + target.left - bounds.left - container.clientLeft
+            - (container.clientWidth - target.width) / 2;
+        container.scrollTo({ left: Math.max(0, Math.min(left, container.scrollWidth - container.clientWidth)), behavior: 'smooth' });
+    }
+}
+
 function updateSlideThumbnails(content) {
     clearTimeout(slideThumbnailTimer);
-    const slideCount = (content.match(/\n---[ \t]*\n/g) || []).length + 1;
+    const slideCount = window.NightOwlSlides.split(content).length;
     // Fast update for active slide highlight, slower for full rebuild
     const delay = slideCount > 30 ? 1000 : slideCount > 15 ? 500 : 250;
     slideThumbnailTimer = setTimeout(() => {
@@ -13762,7 +13736,7 @@ function renderSlideThumbnails(content) {
     if (!strip) return;
 
     // Split on slide separators (--- on its own line)
-    const slides = content.split(/\n---[ \t]*\n/).map(s => s.trim()).filter(Boolean);
+    const slides = window.NightOwlSlides.split(content);
 
     // Only show if there are 2+ slides and user hasn't hidden them
     if (slides.length < 2) {
@@ -13788,12 +13762,7 @@ function renderSlideThumbnails(content) {
     let activeSlide = 0;
     if (window.editor) {
         const cursorLine = window.editor.getPosition()?.lineNumber || 1;
-        const lines = content.split('\n');
-        let slideIdx = 0;
-        for (let i = 0; i < lines.length && i < cursorLine; i++) {
-            if (lines[i].match(/^---\s*$/) && i > 0) slideIdx++;
-        }
-        activeSlide = Math.min(slideIdx, slides.length - 1);
+        activeSlide = window.NightOwlSlides.indexAtLine(content, cursorLine);
     }
 
     // Check if only the active slide changed (cursor moved) — skip full rebuild
@@ -13808,7 +13777,7 @@ function renderSlideThumbnails(content) {
             t.classList.toggle('active', idx === activeSlide);
         });
         const activeEl = strip.querySelector('.slide-thumb.active');
-        if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        scrollSlideThumbnailIntoView(strip, activeEl);
         return;
     }
 
@@ -13895,7 +13864,7 @@ function renderSlideThumbnails(content) {
 
     // Auto-scroll to active thumbnail
     const activeEl = strip.querySelector('.slide-thumb.active');
-    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    scrollSlideThumbnailIntoView(strip, activeEl);
 
     // Update sidebar Slides button visibility
     updateSlidesSidebarButton(content);
@@ -13908,16 +13877,7 @@ function renderSlideThumbnails(content) {
 
 function navigateToSlide(slideIndex, content) {
     if (!window.editor) return;
-    const lines = content.split('\n');
-    let slideIdx = 0;
-    let targetLine = 1;
-    for (let i = 0; i < lines.length; i++) {
-        if (slideIdx === slideIndex) { targetLine = i + 1; break; }
-        if (lines[i].match(/^---\s*$/) && i > 0) {
-            slideIdx++;
-            if (slideIdx === slideIndex) { targetLine = i + 2; break; }
-        }
-    }
+    const targetLine = window.NightOwlSlides.parse(content)[slideIndex]?.startLine || 1;
     window.editor.revealLineInCenter(targetLine);
     window.editor.setPosition({ lineNumber: targetLine, column: 1 });
     window.editor.focus();
@@ -13932,7 +13892,7 @@ function reorderSlides(fromIndices, toIndex) {
     const content = window.editor.getValue();
 
     // Split preserving the separator pattern. We re-join with \n\n---\n\n.
-    const slides = content.split(/\n---[ \t]*\n/);
+    const slides = window.NightOwlSlides.split(content);
     if (slides.length < 2) return;
 
     // Validate indices
@@ -13957,7 +13917,7 @@ function reorderSlides(fromIndices, toIndex) {
     remaining.splice(adjustedTo, 0, ...dragged);
 
     // Reconstruct the document
-    const newContent = remaining.join('\n\n---\n\n');
+    const newContent = window.NightOwlSlides.join(content, remaining);
 
     // Apply via pushEditOperations for proper undo support
     const model = window.editor.getModel();
@@ -14111,7 +14071,7 @@ function sorted(set) {
 function updateSlidesSidebarButton(content) {
     const btn = document.getElementById('show-slides-btn');
     if (!btn) return;
-    const slideCount = (content.match(/\n---[ \t]*\n/g) || []).length + 1;
+    const slideCount = window.NightOwlSlides.split(content).length;
     btn.style.display = slideCount >= 2 ? '' : 'none';
     const countEl = document.getElementById('slides-pane-count');
     if (countEl) countEl.textContent = slideCount >= 2 ? slideCount : '0';
@@ -14122,7 +14082,7 @@ function renderVerticalSlideThumbnails() {
     if (!paneList) return;
     if (!window.editor) return;
     const content = window.editor.getValue();
-    const slides = content.split(/\n---[ \t]*\n/).map(s => s.trim()).filter(Boolean);
+    const slides = window.NightOwlSlides.split(content);
     if (slides.length < 2) {
         paneList.innerHTML = '<div style="padding: 12px; color: #999; font-size: 12px;">No slides detected. Use --- separators to create slides.</div>';
         return;
@@ -14131,12 +14091,7 @@ function renderVerticalSlideThumbnails() {
     // Find active slide
     let activeSlide = 0;
     const cursorLine = window.editor.getPosition()?.lineNumber || 1;
-    const lines = content.split('\n');
-    let slideIdx = 0;
-    for (let i = 0; i < lines.length && i < cursorLine; i++) {
-        if (lines[i].match(/^---\s*$/) && i > 0) slideIdx++;
-    }
-    activeSlide = Math.min(slideIdx, slides.length - 1);
+    activeSlide = window.NightOwlSlides.indexAtLine(content, cursorLine);
 
     const extractSlideBg = (md) => {
         const match = md.match(/<!--\s*bg:\s*(.+?)\s*-->/i);
@@ -14174,7 +14129,7 @@ function renderVerticalSlideThumbnails() {
 
     // Scroll active into view
     const activeEl = paneList.querySelector('.slide-thumb-vertical.active');
-    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    scrollSlideThumbnailIntoView(paneList, activeEl, true);
 }
 
 function setupVerticalSlideDragAndDrop(container, content) {
@@ -14294,7 +14249,7 @@ function showSlideContextMenu(event, selectedIndices, content) {
     const existing = document.querySelector('.slide-context-menu');
     if (existing) existing.remove();
 
-    const slides = content.split(/\n---[ \t]*\n/);
+    const slides = window.NightOwlSlides.split(content);
     const selectedSlides = sorted(selectedIndices).map(i => slides[i]).filter(s => s !== undefined);
     const count = selectedSlides.length;
     const label = count === 1 ? 'Slide' : `${count} Slides`;
@@ -14405,18 +14360,18 @@ async function handleSlideContextAction(action, selectedIndices, selectedSlides,
 function deleteSlides(indices) {
     if (!window.editor) return;
     const content = window.editor.getValue();
-    const slides = content.split(/\n---[ \t]*\n/);
+    const slides = window.NightOwlSlides.split(content);
     const remaining = slides.filter((_, i) => !indices.has(i));
     if (remaining.length === 0) return; // Don't delete all slides
     const model = window.editor.getModel();
     if (!model) return;
-    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: remaining.join('\n\n---\n\n') }], () => null);
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: window.NightOwlSlides.join(content, remaining) }], () => null);
 }
 
 function duplicateSlides(indices) {
     if (!window.editor) return;
     const content = window.editor.getValue();
-    const slides = content.split(/\n---[ \t]*\n/);
+    const slides = window.NightOwlSlides.split(content);
     const fromSorted = [...indices].sort((a, b) => a - b);
     const dupes = fromSorted.map(i => slides[i]);
     // Insert duplicates right after the last selected slide
@@ -14425,22 +14380,25 @@ function duplicateSlides(indices) {
     newSlides.splice(insertAfter + 1, 0, ...dupes);
     const model = window.editor.getModel();
     if (!model) return;
-    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: newSlides.join('\n\n---\n\n') }], () => null);
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: window.NightOwlSlides.join(content, newSlides) }], () => null);
 }
 
 function pasteSlides(beforeIndex, slideTexts) {
     if (!window.editor) return;
     const content = window.editor.getValue();
-    const slides = content.split(/\n---[ \t]*\n/);
+    const slides = window.NightOwlSlides.split(content);
     const idx = Math.max(0, Math.min(beforeIndex, slides.length));
     slides.splice(idx, 0, ...slideTexts);
     const model = window.editor.getModel();
     if (!model) return;
-    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: slides.join('\n\n---\n\n') }], () => null);
-    navigateToSlide(idx, slides.join('\n\n---\n\n'));
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text: window.NightOwlSlides.join(content, slides) }], () => null);
+    navigateToSlide(idx, window.NightOwlSlides.join(content, slides));
 }
 
 async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
+    const sourceModel = window.editor?.getModel();
+    const sourceContent = sourceModel?.getValue();
+    const sourceIndices = new Set(indices);
     // Get list of markdown files
     let mdFiles = [];
     try {
@@ -14506,15 +14464,27 @@ async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
             const item = document.createElement('div');
             const displayName = f.split('/').pop();
             const dirPath = f.split('/').slice(-2, -1)[0] || '';
-            item.innerHTML = `<span style="font-weight:500">${displayName}</span> <span style="opacity:0.5;font-size:11px">${dirPath}</span>`;
+            const nameLabel = document.createElement('span');
+            nameLabel.style.fontWeight = '500';
+            nameLabel.textContent = displayName;
+            const directoryLabel = document.createElement('span');
+            directoryLabel.style.cssText = 'opacity:0.5;font-size:11px';
+            directoryLabel.textContent = dirPath;
+            item.append(nameLabel, ' ', directoryLabel);
             item.style.cssText = 'padding: 6px 16px; cursor: pointer;';
             item.addEventListener('mouseenter', () => { item.style.background = 'var(--primary-100, rgba(239,68,68,0.1))'; });
             item.addEventListener('mouseleave', () => { item.style.background = ''; });
             item.addEventListener('click', async () => {
                 picker.remove();
                 backdrop.remove();
-                await appendSlidesToFile(f, slideTexts);
-                if (isMove) deleteSlides(indices);
+                if (!await appendSlidesToFile(f, slideTexts)) return;
+                if (isMove) {
+                    if (window.editor?.getModel() !== sourceModel || sourceModel?.getValue() !== sourceContent) {
+                        showNotification('Slides copied. The source changed, so its slides were kept.', 'warning');
+                        return;
+                    }
+                    deleteSlides(sourceIndices);
+                }
                 showNotification(`${isMove ? 'Moved' : 'Copied'} ${slideTexts.length} slide(s) to ${displayName}`);
             });
             listContainer.appendChild(item);
@@ -14535,10 +14505,20 @@ async function copyOrMoveSlidesToFile(indices, slideTexts, isMove) {
 
 async function appendSlidesToFile(filePath, slideTexts) {
     try {
+        const targetIsDirty = () => window.tabManager?.tabs.get(filePath)?.isDirty
+            || (window.splitEditor?.hasUnsavedChanges?.() && window.splitEditor.getCurrentFilePath?.() === filePath);
+        if (targetIsDirty()) {
+            showNotification('Save the destination document before adding slides to it.', 'warning');
+            return false;
+        }
         const result = await window.electronAPI.invoke('read-file-content-only', filePath);
         if (!result?.success) {
             showNotification(`Failed to read ${filePath}`, 'error');
-            return;
+            return false;
+        }
+        if (targetIsDirty()) {
+            showNotification('The destination changed. Save it before adding slides.', 'warning');
+            return false;
         }
         let existingContent = result.content || '';
         // Append slides with separator
@@ -14546,9 +14526,17 @@ async function appendSlidesToFile(filePath, slideTexts) {
         const newContent = existingContent.trim()
             ? existingContent.trimEnd() + '\n\n---\n\n' + slidesBlock
             : slidesBlock;
-        await window.electronAPI.invoke('write-file', { filePath, content: newContent });
+        const saved = await window.electronAPI.invoke('perform-save-with-path', newContent, filePath, {
+            expectedContent: existingContent
+        });
+        if (!saved?.success) {
+            showNotification(`Could not add slides: ${saved?.error || 'the destination could not be saved'}`, 'error');
+            return false;
+        }
+        return true;
     } catch (err) {
         showNotification(`Error writing to file: ${err.message}`, 'error');
+        return false;
     }
 }
 
@@ -14822,182 +14810,112 @@ function applyEditorSettings(settings) {
 }
 
 // --- Manual Save Function ---
+// A save owns a model and path captured at invocation; UI focus can change while
+// a native dialog or disk write is pending.
+function captureEditorSaveTarget() {
+    const tm = window.tabManager;
+    const tabPath = tm?.activeTabPath;
+    const tab = tm?.tabs?.get(tabPath);
+    const model = editor?.getModel();
+    if (!editor || !window.electronAPI || !model || (tab && tab.model !== model)) return null;
+    return { tm, tab, tabPath, model, savedContent: tab?.lastSavedContent ?? lastSavedContent,
+        filePath: tab ? tab.filePath : window.currentFilePath };
+}
+
+function editorSaveTargetIsActive(target) {
+    return editor?.getModel() === target.model
+        && (!target.tab || (target.tm.activeTabPath === target.tab.filePath
+            && target.tm.tabs.get(target.tab.filePath) === target.tab));
+}
+
+function editorSaveTargetStillExists(target) {
+    return !target.model.isDisposed?.()
+        && (!target.tab || (target.tab.filePath === target.tabPath
+            && target.tm.tabs.get(target.tabPath) === target.tab
+            && target.tab.model === target.model));
+}
+
+function acknowledgeEditorSave(target, savedContent, submittedContent) {
+    const { tab, model, tm } = target;
+    if (model.isDisposed?.() || (tab && tm.tabs.get(tab.filePath) !== tab)) return;
+    // Apply a server-side transformation only if the submitted buffer is still
+    // unchanged. Otherwise the newer user edits remain dirty against disk.
+    if (savedContent !== submittedContent && model.getValue() === submittedContent) {
+        const wasSuppressed = window.suppressAutoSave;
+        window.suppressAutoSave = true;
+        try { model.setValue(savedContent); } finally { window.suppressAutoSave = wasSuppressed; }
+    }
+    const isDirty = model.getValue() !== savedContent;
+    if (tab) {
+        tab.lastSavedContent = savedContent;
+        tab.isDirty = isDirty;
+        tm._renderTabBar();
+        tm._scheduleRecoveryPersist();
+    }
+    if (editorSaveTargetIsActive(target)) {
+        lastSavedContent = savedContent;
+        window.lastSavedContent = savedContent;
+        window.hasUnsavedChanges = isDirty;
+        updateUnsavedIndicator(isDirty);
+    }
+}
+
+function queueManualEditorSave(operation) {
+    if (typeof window.enqueueEditorSave === 'function') return window.enqueueEditorSave(operation);
+    const previous = window._editorSaveQueue || Promise.resolve();
+    const pending = previous.catch(() => {}).then(operation);
+    window._editorSaveQueue = pending;
+    return pending;
+}
+
 async function saveFile() {
-    
-    if (!editor) {
-        console.error('[saveFile] No editor available');
-        showNotification('No editor available', 'error');
-        return;
+    const target = captureEditorSaveTarget();
+    if (!target) {
+        showNotification('No editor available to save', 'error');
+        return { success: false };
     }
-    
-    if (!window.electronAPI) {
-        console.error('[saveFile] electronAPI not available');
-        showNotification('Save functionality not available', 'error');
-        return;
-    }
-    
-    try {
-        const content = editor.getValue();
-        
-        if (window.currentFilePath) {
-            // Save existing file
-            const result = await window.electronAPI.invoke('perform-save', content);
-            
-            if (result.success) {
-                // Check if content was modified during save (e.g., H1 heading added)
-                if (result.contentChanged && result.updatedContent && editor) {
-                    editor.setValue(result.updatedContent);
-                    lastSavedContent = result.updatedContent;
-                } else {
-                    lastSavedContent = content;
-                }
-
-                window.hasUnsavedChanges = false;
-                updateUnsavedIndicator(false);
-                showNotification('File saved successfully', 'success');
-
-                // Sync saved state to active tab
-                if (window.tabManager) {
-                    window.tabManager.syncActiveTabDirty(false, lastSavedContent);
-                }
-
-                // Refresh git status after save
-                updateGitStatusIndicator();
-
-                // Update file tree and current file info if this was a new file save
-                if (result.filePath && !window.currentFilePath) {
-                    await setCurrentFilePathState(result.filePath, { syncMain: true });
-                    updateBreadcrumb(result.filePath);
-                    renderFileTree();
-                }
-            } else if (result.code === 'FILE_MODIFIED_EXTERNALLY') {
-                const overwriteConfirmed = await window.showAppConfirm({
+    if (!target.filePath || target.filePath.startsWith('untitled:')) return saveAsFile(target);
+    return queueManualEditorSave(async () => {
+        try {
+            if (!editorSaveTargetStillExists(target)) return { success: false, cancelled: true };
+            const content = target.model.getValue();
+            const savePath = target.filePath;
+            let result = await window.electronAPI.invoke('perform-save-with-path', content, savePath, {
+                expectedContent: target.tab?.lastSavedContent ?? target.savedContent
+            });
+            if (result.code === 'FILE_MODIFIED_EXTERNALLY') {
+                const confirmed = await window.showAppConfirm({
                     title: 'Overwrite Changed File',
                     message: 'This file changed on disk since you opened it. Overwrite anyway?',
                     detail: 'A backup will be created before overwriting.',
-                    paths: [window.currentFilePath].filter(Boolean),
+                    paths: [savePath],
                     confirmText: 'Overwrite',
                     variant: 'danger'
                 });
-                if (!overwriteConfirmed) {
-                    showNotification('Save canceled to avoid overwriting external changes', 'warning');
-                    return;
-                }
-
-                const forcedResult = await window.electronAPI.invoke('perform-save', content, {
-                    force: true,
-                    expectedMtimeMs: result.currentMtimeMs
+                if (!confirmed) return { success: false, cancelled: true };
+                if (!editorSaveTargetStillExists(target)) return { success: false, cancelled: true };
+                result = await window.electronAPI.invoke('perform-save-with-path', content, savePath, {
+                    force: true, expectedMtimeMs: result.currentMtimeMs
                 });
-
-                if (forcedResult.success) {
-                    lastSavedContent = content;
-                    window.hasUnsavedChanges = false;
-                    updateUnsavedIndicator(false);
-                    showNotification('File saved (forced overwrite)', 'success');
-                    if (window.tabManager) {
-                        window.tabManager.syncActiveTabDirty(false, lastSavedContent);
-                    }
-                    updateGitStatusIndicator();
-                } else {
-                    showNotification(`Save failed: ${forcedResult.error}`, 'error');
-                }
-            } else {
-                console.error('[saveFile] Save failed:', result.error);
-                showNotification(`Save failed: ${result.error}`, 'error');
             }
-        } else {
-            // Save new file - show save dialog.
-            // Prefer the folder the user has active in the file tree (last clicked
-            // folder, or the parent of the last opened file). Falls back to the
-            // workspace root only when nothing has been clicked yet.
-            let defaultDirectory = window.selectedFolderPath
-                || window.appSettings?.workingDirectory;
-            if (!defaultDirectory) {
-                try {
-                    const settings = await window.electronAPI.invoke('get-settings');
-                    defaultDirectory = settings?.workingDirectory;
-                } catch (error) {
-                    console.warn('[renderer.js] saveFile - Failed to load settings:', error);
+            if (result.success) {
+                if (!target.tab || target.tab.filePath === savePath) {
+                    const savedContent = result.contentChanged && typeof result.updatedContent === 'string'
+                        ? result.updatedContent : content;
+                    acknowledgeEditorSave(target, savedContent, content);
                 }
-            }
-
-            const result = await window.electronAPI.invoke('perform-save-as', {
-                content: content,
-                defaultDirectory: defaultDirectory
-            });
-            
-            if (result.success && result.filePath) {
-                await setCurrentFilePathState(result.filePath, { syncMain: true });
-                
-                // Only add H1 heading for truly empty or very short content to avoid modifying existing files
-                const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
-                const trimmedContent = content.trim();
-                const shouldAddHeading = trimmedContent.length === 0 || 
-                                       (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
-                
-                if (shouldAddHeading) {
-                    const updatedContent = addH1HeadingIfNeeded(content, fileName);
-                    
-                    // Update editor with new content if heading was added
-                    if (updatedContent !== content && editor) {
-                        editor.setValue(updatedContent);
-                        lastSavedContent = updatedContent;
-                        
-                        // Save the updated content with the heading
-                        try {
-                            const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
-                            if (!saveResult.success) {
-                                console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
-                            }
-                        } catch (error) {
-                            console.warn('[renderer.js] Error saving file with H1 heading:', error);
-                        }
-                    } else {
-                        lastSavedContent = content;
-                    }
-                } else {
-                    // Skip adding heading for files with existing content or slide markers
-                    lastSavedContent = content;
-                }
-                
-                window.hasUnsavedChanges = false;
-                updateUnsavedIndicator(false);
                 showNotification('File saved successfully', 'success');
-                
-                // If saving from an untitled tab, re-key it to the real path instead of
-                // opening a brand-new tab (which would leave an orphan untitled tab).
-                if (window.tabManager && window.tabManager.activeTabPath
-                    && window.isUntitledPath && window.isUntitledPath(window.tabManager.activeTabPath)) {
-                    window.tabManager.rekeyTab(window.tabManager.activeTabPath, result.filePath);
-                    // activateTab to sync globals (currentFilePath, breadcrumb, etc.)
-                    window.tabManager.activateTab(result.filePath);
-                } else if (window.openFileInEditor) {
-                    // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
-                    await window.openFileInEditor(result.filePath, lastSavedContent || content);
-                }
-                
-                // Update file tree and highlight the new file
-                renderFileTree();
-                highlightCurrentFileInTree(result.filePath);
-
-                // Also refresh via IPC to ensure file tree is completely up to date
-                try {
-                    await window.electronAPI.invoke('refresh-file-tree');
-                } catch (error) {
-                    console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
-                }
-                
-                // Update breadcrumb display
-                updateBreadcrumb(result.filePath);
+                updateGitStatusIndicator();
             } else {
                 showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
-                console.error('[renderer.js] Manual save-as failed:', result.error);
             }
+            return result;
+        } catch (error) {
+            console.error('[saveFile] Error saving file:', error);
+            showNotification('Save error: ' + error.message, 'error');
+            return { success: false, error: error.message };
         }
-    } catch (error) {
-        console.error('[saveFile] Error saving file:', error);
-        showNotification('Save error: ' + error.message, 'error');
-    }
+    });
 }
 
 // Add H1 heading with filename if needed
@@ -15054,108 +14972,79 @@ function addH1HeadingIfNeeded(content, fileName) {
 }
 
 // Force save-as dialog (always shows save dialog regardless of current file)
-async function saveAsFile() {
-    if (!editor) {
-        showNotification('No editor available', 'error');
-        return;
+async function saveAsFile(capturedTarget) {
+    // Menu and DOM handlers may pass an event rather than a saved target.
+    const target = capturedTarget?.model ? capturedTarget : captureEditorSaveTarget();
+    if (!target) {
+        showNotification('No editor available to save', 'error');
+        return { success: false };
     }
-    
-    try {
-        const content = editor.getValue();
-        
-        // Force save-as by always showing save dialog.
-        // Prefer the folder the user has active in the file tree, then the
-        // current file's parent (so Save As next to the original is one click),
-        // and only finally fall back to the workspace root.
-        const currentFileDir = window.currentFilePath
-            ? window.currentFilePath.substring(0, window.currentFilePath.lastIndexOf('/'))
-            : null;
-        let defaultDirectory = window.selectedFolderPath
-            || currentFileDir
-            || window.appSettings?.workingDirectory;
-        if (!defaultDirectory) {
-            try {
+    return queueManualEditorSave(async () => {
+        try {
+            if (!editorSaveTargetStillExists(target)) return { success: false, cancelled: true };
+            const content = target.model.getValue();
+            const currentFileDir = target.filePath && !target.filePath.startsWith('untitled:')
+                ? target.filePath.substring(0, target.filePath.lastIndexOf('/')) : null;
+            let defaultDirectory = window.selectedFolderPath || currentFileDir || window.appSettings?.workingDirectory;
+            if (!defaultDirectory) {
                 const settings = await window.electronAPI.invoke('get-settings');
                 defaultDirectory = settings?.workingDirectory;
-            } catch (error) {
-                console.warn('[renderer.js] saveAsFile - Failed to load settings:', error);
             }
-        }
-        
-        
-        const result = await window.electronAPI.invoke('perform-save-as', {
-            content: content,
-            defaultDirectory: defaultDirectory
-        });
-        
-        if (result.success && result.filePath) {
-            await setCurrentFilePathState(result.filePath, { syncMain: true });
-            
-            // Only add H1 heading for truly empty or very short content to avoid modifying existing files
-            const fileName = result.filePath.split('/').pop().replace(/\.[^/.]+$/, ""); // Remove extension
-            const trimmedContent = content.trim();
-            const shouldAddHeading = trimmedContent.length === 0 || 
-                                   (trimmedContent.length < 50 && !trimmedContent.includes('---') && !trimmedContent.startsWith('#'));
-            
-            if (shouldAddHeading) {
-                const updatedContent = addH1HeadingIfNeeded(content, fileName);
-                
-                // Update editor with new content if heading was added
-                if (updatedContent !== content && editor) {
-                    editor.setValue(updatedContent);
-                    lastSavedContent = updatedContent;
-                    
-                    // Save the updated content with the heading
-                    try {
-                        const saveResult = await window.electronAPI.invoke('perform-save', updatedContent);
-                        if (!saveResult.success) {
-                            console.warn('[renderer.js] Failed to save file with H1 heading:', saveResult.error);
-                        }
-                    } catch (error) {
-                        console.warn('[renderer.js] Error saving file with H1 heading:', error);
+            const result = await window.electronAPI.invoke('perform-save-as', { content, defaultDirectory });
+            if (!result.success || !result.filePath) {
+                if (!result.cancelled && !result.canceled) {
+                    showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
+                }
+                return result;
+            }
+            const wasActive = editorSaveTargetIsActive(target);
+            const targetStillOpen = !target.model.isDisposed?.()
+                && (!target.tab || target.tm.tabs.get(target.tabPath) === target.tab);
+            if (targetStillOpen) {
+                if (target.tab) {
+                    // Do not replace another open draft with this save-as result.
+                    const existing = target.tm.tabs.get(result.filePath);
+                    if (existing && existing !== target.tab) {
+                        showNotification('File saved. The already open destination tab was kept; reopen it to see disk changes.', 'warning');
+                        await setCurrentFilePathState(window.currentFilePath, { syncMain: true });
+                        return result;
                     }
-                } else {
-                    lastSavedContent = content;
+                    target.tm.rekeyTab(target.tabPath, result.filePath);
+                    target.filePath = result.filePath;
+                } else if (wasActive && target.tm) {
+                    // Adopt the scratch model so edits typed during the dialog
+                    // are not discarded by reopening the disk snapshot.
+                    const tab = target.tm.createTab(result.filePath, target.model.getValue());
+                    tab.model.dispose();
+                    tab.model = target.model;
+                    target.tab = tab;
+                    target.tm.activateTab(result.filePath);
                 }
-            } else {
-                // Skip adding heading for files with existing content or slide markers
-                lastSavedContent = content;
+                acknowledgeEditorSave(target, content, content);
+                if (wasActive) {
+                    await setCurrentFilePathState(result.filePath, { syncMain: true });
+                    if (editorSaveTargetIsActive(target) && window.currentFilePath === result.filePath) {
+                        updateBreadcrumb(result.filePath);
+                        highlightCurrentFileInTree(result.filePath);
+                    }
+                }
             }
-            
-            window.hasUnsavedChanges = false;
-            updateUnsavedIndicator(false);
+            // Save-as IPC can update main-process current state. Keep it aligned
+            // with whichever tab the user is actually looking at now.
+            await setCurrentFilePathState(window.currentFilePath, { syncMain: true });
+            renderFileTree();
             showNotification('File saved successfully', 'success');
-
-            // Refresh file tree to show new file
-            if (window.renderFileTree) {
-                window.renderFileTree();
-                if (window.highlightCurrentFileInTree) {
-                    window.highlightCurrentFileInTree(result.filePath);
-                }
-            }
-
-            // Also refresh via IPC to ensure file tree is completely up to date
-            try {
-                await window.electronAPI.invoke('refresh-file-tree');
-            } catch (error) {
+            updateGitStatusIndicator();
+            try { await window.electronAPI.invoke('refresh-file-tree'); } catch (error) {
                 console.warn('[renderer.js] Failed to refresh file tree via IPC:', error);
             }
-
-            // Ensure the saved path is the active opened file/tab (not just a scratch buffer).
-            if (window.openFileInEditor) {
-                await window.openFileInEditor(result.filePath, lastSavedContent || content);
-            }
-
-            // Update breadcrumb display
-            updateBreadcrumb(result.filePath);
-        } else {
-            showNotification(`Save failed: ${result.error || 'Unknown error'}`, 'error');
-            console.error('[renderer.js] Manual save-as failed:', result.error);
+            return result;
+        } catch (error) {
+            console.error('[renderer.js] Manual save-as error:', error);
+            showNotification('Save-as error: ' + error.message, 'error');
+            return { success: false, error: error.message };
         }
-    } catch (error) {
-        console.error('[renderer.js] Manual save-as error:', error);
-        showNotification('Save-as error: ' + error.message, 'error');
-    }
+    });
 }
 
 // --- Git Publish Dialog ---
@@ -15856,31 +15745,6 @@ window.handleAshThanks = handleAshThanks;
 window.copyAshToChat = copyAshToChat;
 window.showAsyncStyleFeedback = showAsyncStyleFeedback;
 
-// === Command Palette (VS Code-style Cmd+P) Implementation ===
-
-let commandPaletteFiles = [];
-let commandPaletteFilteredFiles = [];
-let commandPaletteSelectedIndex = 0;
-
-// Show command palette
-function showCommandPalette() {
-    if (!commandPaletteOverlay) return;
-    
-    commandPaletteOverlay.style.display = 'flex';
-    commandPaletteInput.value = '';
-    commandPaletteInput.focus();
-    
-    // Load and display all files
-    loadCommandPaletteFiles();
-}
-
-// Hide command palette
-function hideCommandPalette() {
-    if (commandPaletteOverlay) {
-        commandPaletteOverlay.style.display = 'none';
-    }
-}
-
 // === Keyboard Shortcuts Help Functions ===
 
 // Show keyboard shortcuts help dialog
@@ -15978,263 +15842,6 @@ function hideKeyboardShortcuts() {
 // Make functions globally accessible
 window.showKeyboardShortcuts = showKeyboardShortcuts;
 window.hideKeyboardShortcuts = hideKeyboardShortcuts;
-
-// Load all available files
-async function loadCommandPaletteFiles() {
-    try {
-        // Get all files from the file tree or use existing file data
-        commandPaletteFiles = await getAllProjectFiles();
-        commandPaletteFilteredFiles = [...commandPaletteFiles];
-        commandPaletteSelectedIndex = 0;
-        renderCommandPaletteResults();
-    } catch (error) {
-        console.error('[Command Palette] Error loading files:', error);
-        commandPaletteResults.innerHTML = '<div class="command-palette-no-results">Error loading files</div>';
-    }
-}
-
-// Get all project files recursively from current working directory
-async function getAllProjectFiles() {
-    try {
-        const workingDir = window.currentFileDirectory || window.currentDirectory || window.appSettings?.workingDirectory || '.';
-        const files = [];
-        await scanDirectoryRecursively(workingDir, files, workingDir);
-        return files;
-    } catch (error) {
-        console.error('[Command Palette] Error reading directory:', error);
-        // Fallback: use existing loaded files if available
-        const loadedFiles = [];
-        if (window.fileTreeData && window.fileTreeData.children) {
-            collectFilesFromTree(window.fileTreeData.children, loadedFiles);
-        }
-        return loadedFiles;
-    }
-}
-
-// Recursively scan directory for files
-async function scanDirectoryRecursively(dirPath, fileList, rootDir) {
-    try {
-        const items = await window.electronAPI.invoke('list-directory-files', dirPath);
-        
-        if (!items || !Array.isArray(items)) {
-            console.warn('[Command Palette] No items returned for directory:', dirPath);
-            return;
-        }
-        
-        for (const item of items) {
-            // Skip hidden files and directories
-            if (item.name.startsWith('.')) continue;
-            
-            // Skip common non-essential directories
-            if (item.isDirectory && ['node_modules', '.git', 'dist', 'build', '.vscode'].includes(item.name)) {
-                continue;
-            }
-            
-            if (item.isDirectory) {
-                // Recursively scan subdirectory
-                await scanDirectoryRecursively(item.path, fileList, rootDir);
-            } else {
-                // Add file to list
-                const relativePath = item.path.replace(rootDir, '').replace(/^[\/\\]/, '');
-                fileList.push({
-                    name: item.name,
-                    path: item.path,
-                    relativePath: relativePath,
-                    icon: getFileIcon(item.name)
-                });
-            }
-        }
-    } catch (error) {
-        console.error('[Command Palette] Error scanning directory:', dirPath, error);
-    }
-}
-
-// Recursively collect files from file tree data
-function collectFilesFromTree(children, fileList, basePath = '') {
-    for (const item of children) {
-        if (item.type === 'file') {
-            fileList.push({
-                name: item.name,
-                path: item.path,
-                relativePath: basePath + item.name,
-                icon: getFileIcon(item.name)
-            });
-        } else if (item.type === 'directory' && item.children) {
-            collectFilesFromTree(item.children, fileList, basePath + item.name + '/');
-        }
-    }
-}
-
-// Get file icon based on file extension
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const iconMap = {
-        'md': '📝',
-        'txt': '📄',
-        'js': '📜',
-        'ts': '📜',
-        'json': '⚙️',
-        'html': '🌐',
-        'css': '🎨',
-        'py': '🐍',
-        'java': '☕',
-        'cpp': '⚡',
-        'c': '⚡',
-        'pdf': '📕',
-        'doc': '📘',
-        'docx': '📘',
-        'png': '🖼️',
-        'jpg': '🖼️',
-        'jpeg': '🖼️',
-        'gif': '🖼️',
-        'svg': '🖼️'
-    };
-    return iconMap[ext] || '📄';
-}
-
-// Filter files based on search query
-function filterCommandPaletteFiles(query) {
-    if (!query.trim()) {
-        commandPaletteFilteredFiles = [...commandPaletteFiles];
-    } else {
-        const lowerQuery = query.toLowerCase();
-        commandPaletteFilteredFiles = commandPaletteFiles.filter(file => 
-            file.name.toLowerCase().includes(lowerQuery) ||
-            file.relativePath.toLowerCase().includes(lowerQuery)
-        );
-    }
-    commandPaletteSelectedIndex = 0;
-    renderCommandPaletteResults();
-}
-
-// Render command palette results
-function renderCommandPaletteResults() {
-    if (!commandPaletteResults) return;
-    
-    if (commandPaletteFilteredFiles.length === 0) {
-        commandPaletteResults.innerHTML = '<div class="command-palette-no-results">No files found</div>';
-        return;
-    }
-    
-    const html = commandPaletteFilteredFiles.map((file, index) => `
-        <div class="command-palette-item ${index === commandPaletteSelectedIndex ? 'selected' : ''}" 
-             data-index="${index}">
-            <div class="command-palette-item-icon">${file.icon}</div>
-            <div class="command-palette-item-name">${file.name}</div>
-            <div class="command-palette-item-path">${file.relativePath}</div>
-        </div>
-    `).join('');
-    
-    commandPaletteResults.innerHTML = html;
-    
-    // No need to add individual click handlers - we'll use event delegation
-}
-
-// Open selected file
-async function openCommandPaletteFile(file) {
-    hideCommandPalette();
-    try {
-        // Read file content first
-        const result = await window.electronAPI.invoke('read-file', file.path);
-        if (result && result.success) {
-            await openFileInEditor(result.filePath, result.content);
-            // Save current file to settings
-            window.electronAPI.invoke('set-current-file', result.filePath);
-        } else {
-            throw new Error(result?.error || 'Failed to read file');
-        }
-    } catch (error) {
-        console.error('[Command Palette] Error opening file:', error);
-        showNotification('Error opening file: ' + file.name, 'error');
-    }
-}
-
-// Navigate selection in command palette
-function moveCommandPaletteSelection(direction) {
-    if (commandPaletteFilteredFiles.length === 0) return;
-    
-    if (direction === 'up') {
-        commandPaletteSelectedIndex = Math.max(0, commandPaletteSelectedIndex - 1);
-    } else if (direction === 'down') {
-        commandPaletteSelectedIndex = Math.min(commandPaletteFilteredFiles.length - 1, commandPaletteSelectedIndex + 1);
-    }
-    
-    renderCommandPaletteResults();
-    
-    // Scroll selected item into view
-    const selectedItem = commandPaletteResults.querySelector('.command-palette-item.selected');
-    if (selectedItem) {
-        selectedItem.scrollIntoView({ block: 'nearest' });
-    }
-}
-
-// Open currently selected file
-function openSelectedCommandPaletteFile() {
-    if (commandPaletteFilteredFiles.length > 0 && commandPaletteSelectedIndex >= 0) {
-        const selectedFile = commandPaletteFilteredFiles[commandPaletteSelectedIndex];
-        openCommandPaletteFile(selectedFile);
-    }
-}
-
-// Initialize command palette event listeners
-function initializeCommandPalette() {
-    // Input event handler
-    if (commandPaletteInput) {
-        commandPaletteInput.addEventListener('input', (e) => {
-            filterCommandPaletteFiles(e.target.value);
-        });
-        
-        commandPaletteInput.addEventListener('keydown', (e) => {
-            switch (e.key) {
-                case 'ArrowDown':
-                    e.preventDefault();
-                    moveCommandPaletteSelection('down');
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    moveCommandPaletteSelection('up');
-                    break;
-                case 'Enter':
-                    e.preventDefault();
-                    openSelectedCommandPaletteFile();
-                    break;
-                case 'Escape':
-                    e.preventDefault();
-                    hideCommandPalette();
-                    break;
-            }
-        });
-    }
-    
-    // Results click handler using event delegation
-    if (commandPaletteResults) {
-        commandPaletteResults.addEventListener('click', (e) => {
-            const item = e.target.closest('.command-palette-item');
-            if (item) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const index = parseInt(item.getAttribute('data-index'));
-                if (!isNaN(index) && commandPaletteFilteredFiles[index]) {
-                    commandPaletteSelectedIndex = index;
-                    openCommandPaletteFile(commandPaletteFilteredFiles[index]);
-                }
-            }
-        });
-    }
-    
-    // Overlay click handler
-    if (commandPaletteOverlay) {
-        commandPaletteOverlay.addEventListener('click', (e) => {
-            if (e.target === commandPaletteOverlay) {
-                hideCommandPalette();
-            }
-        });
-    }
-}
-
-// Initialize command palette when page loads
-document.addEventListener('DOMContentLoaded', initializeCommandPalette);
 
 // === Structure Manipulation Functions ===
 

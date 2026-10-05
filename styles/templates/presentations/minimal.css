@@ -1,7 +1,13 @@
 /* Minimal Presentation Template */
 /* Clean, minimalist black on white styling for presentations */
 
-:root {
+#presentation-content,
+#presentation-root {
+    --presentation-content-padding: 80px;
+    --presentation-text: var(--text-color);
+    --presentation-table-bg: var(--bg-color);
+    --presentation-table-header-bg: var(--highlight-color);
+    --presentation-image-overlay: rgba(255, 255, 255, 0.84);
     --primary-color: #000000;
     --secondary-color: #333333;
     --accent-color: #E63946;
@@ -272,4 +278,50 @@ div.absolute.slide:has(img) {
     color: var(--secondary-color);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     font-weight: 300;
+}
+
+/* The template controls appearance; the presentation stage owns its 16:9
+   geometry. Keep the same content inset in authoring and delivery modes. */
+#presentation-content #presentation-root .slide {
+    width: 864px !important;
+    min-width: 864px !important;
+    max-width: 864px !important;
+    height: 486px !important;
+    min-height: 486px !important;
+    max-height: 486px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+#presentation-content #presentation-root .slide-content {
+    height: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding: var(--presentation-content-padding) !important;
+    background: transparent !important;
+    font-family: inherit !important;
+}
+
+#presentation-content #presentation-root .slide-has-bg .slide-content {
+    background: var(--presentation-image-overlay) !important;
+}
+
+/* Legacy presentation rules force light table surfaces. Use this template's
+   local palette so Dark remains legible without changing the workspace. */
+#presentation-content #presentation-root .slide-content table,
+#presentation-content #presentation-root .slide-content td {
+    background: var(--presentation-table-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content th {
+    background: var(--presentation-table-header-bg) !important;
+    color: var(--presentation-text) !important;
+}
+
+#presentation-content #presentation-root .slide-content tr,
+#presentation-content #presentation-root .slide-content tr:hover {
+    background: transparent !important;
 }

@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-presentations';
     const BASE = 'plugins/techne-presentations';
-    const VERSION = '20251222g'; // Bump this to bust cache
+    const VERSION = '20261004c'; // Bump this to bust cache
     const reactRoots = new WeakMap();
 
     const cacheBust = (url) => `${url}?v=${VERSION}`;
@@ -87,6 +87,10 @@
                     cacheBust(`${BASE}/speaker-notes.js`),
                     cacheBust(`${BASE}/touch-gestures.js`)
                 ];
+
+                if (!window.NightOwlSlides) {
+                    scripts.unshift(cacheBust('orchestrator/modules/slide-parser.js'));
+                }
 
                 const hasGlobalReact = Boolean(getReactRuntime());
                 if (hasGlobalReact && !window.MarkdownPreziApp) {

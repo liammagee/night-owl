@@ -46,6 +46,10 @@ function resetTabManager() {
     tm.activeTabPath = null;
     tm.maxModelChars = 2_000_000;
     tm.emptyModel = null;
+    tm._restoringTabs = false;
+    tm._recoveryReadFailed = false;
+    clearTimeout(tm._recoveryTimer);
+    tm._recoveryTimer = null;
 }
 
 beforeEach(() => {
@@ -68,6 +72,18 @@ beforeEach(() => {
     window.syncContentToPresentation = jest.fn();
     window.getMonacoTheme = jest.fn();
     window.electronAPI = { invoke: jest.fn().mockResolvedValue({}), on: jest.fn() };
+    window.showAppConfirm = jest.fn().mockResolvedValue(true);
+    monaco.editor.createModel.mockImplementation((initialContent = '') => {
+        let content = initialContent;
+        let disposed = false;
+        return {
+            getValue: jest.fn(() => content),
+            getValueLength: jest.fn(() => content.length),
+            setValue: jest.fn(value => { content = value; }),
+            isDisposed: jest.fn(() => disposed),
+            dispose: jest.fn(() => { disposed = true; })
+        };
+    });
 
     // Mock editor
     window.editor = {
@@ -506,7 +522,7 @@ describe('Recovery persistence', () => {
         expect(tm._recoveryTimer).toBeTruthy();
     });
 
-    test('closeTab triggers recovery update', () => {
+    test('closeTab triggers recovery update', async () => {
         const tm = window.tabManager;
         tm.createTab('/a.md', 'a');
         tm.createTab('/b.md', 'b');
@@ -518,7 +534,7 @@ describe('Recovery persistence', () => {
         tab.isDirty = true;
         tab.model.isDisposed = jest.fn(() => false);
 
-        tm.closeTab('/a.md');
+        await tm.closeTab('/a.md');
 
         // Recovery should be scheduled after close
         expect(tm._recoveryTimer).toBeTruthy();
@@ -641,7 +657,7 @@ describe('Recovery restoration', () => {
         expect(tm.tabs.size).toBe(0);
     });
 
-    test('_restoreTabs clears recovery file after applying', async () => {
+    test('_restoreTabs keeps recovered drafts durable after applying', async () => {
         const tm = window.tabManager;
 
         window.electronAPI.invoke = jest.fn((channel) => {
@@ -672,7 +688,191 @@ describe('Recovery restoration', () => {
 
         await tm._restoreTabs();
 
-        // Should have called recovery-clear after applying
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-clear');
+        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
+        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-persist', expect.objectContaining({
+            '/doc.md': expect.objectContaining({ content: 'unsaved', isDirty: true })
+        }));
     });
+});
+
+describe('tab lifecycle and recovery regressions', () => {
+    test('canceling one tab during Close All leaves a live active model', async () => {
+        const tm = window.tabManager;
+        const a = tm.createTab('/a.md', 'saved');
+        const b = tm.createTab('/b.md', 'draft');
+        b.isDirty = true;
+        tm.activateTab('/a.md');
+        window.showAppConfirm.mockResolvedValue(false);
+        await tm.closeOtherTabs(null);
+        expect(a.model.isDisposed()).toBe(true);
+        expect(b.model.isDisposed()).toBe(false);
+        expect(tm.activeTabPath).toBe('/b.md');
+        expect(window.editor.setModel).toHaveBeenLastCalledWith(b.model);
+        expect(tm._recoveryTimer).toBeTruthy();
+    });
+
+    test('duplicate pending close confirmations cannot remove an unrelated tab', async () => {
+        const tm = window.tabManager;
+        const a = tm.createTab('/a.md', 'draft');
+        tm.createTab('/b.md', 'saved');
+        a.isDirty = true;
+        const replies = [];
+        window.showAppConfirm.mockImplementation(() => new Promise(resolve => replies.push(resolve)));
+        const first = tm.closeTab('/a.md');
+        const second = tm.closeTab('/a.md');
+        replies[0](true);
+        await first;
+        replies[1](true);
+        await second;
+        expect(tm.tabOrder).toEqual(['/b.md']);
+        expect(tm.hasTab('/b.md')).toBe(true);
+        expect(a.model.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    test('re-keying cannot silently replace another open draft', () => {
+        const tm = window.tabManager;
+        const draftPath = tm.createUntitledTab();
+        const existing = tm.createTab('/existing.md', 'precious edits');
+        existing.isDirty = true;
+        expect(() => tm.rekeyTab(draftPath, '/existing.md')).toThrow('already open');
+        expect(tm.tabs.get('/existing.md')).toBe(existing);
+        expect(tm.hasTab(draftPath)).toBe(true);
+        expect(existing.model.isDisposed()).toBe(false);
+    });
+
+    function installRestoreFixture({ tabs = [], active = 0, activePath, currentFile, recovery = null, files = {} }) {
+        window.electronAPI.invoke.mockImplementation(async (channel, filePath) => {
+            if (channel === 'get-settings') return { currentFile, editorTabs: { openTabs: tabs.map(filePath => ({ filePath })), activeTabIndex: active, activeTabPath: activePath } };
+            if (channel === 'recovery-load') return { success: true, data: recovery };
+            if (channel === 'read-file') return Object.hasOwn(files, filePath)
+                ? { success: true, content: files[filePath] } : { success: false };
+            return { success: true };
+        });
+    }
+
+    test('restores the previous active path when a preceding file is missing', async () => {
+        installRestoreFixture({ tabs: ['/missing.md', '/a.md', '/b.md'], active: 1, files: { '/a.md': 'a', '/b.md': 'b' } });
+        await window.tabManager._restoreTabs();
+        expect(window.tabManager.activeTabPath).toBe('/a.md');
+        const settingsWrites = window.electronAPI.invoke.mock.calls.filter(([channel]) => channel === 'set-settings');
+        expect(settingsWrites).toHaveLength(1);
+        expect(settingsWrites[0][1]).toBe('editorTabs');
+        expect(settingsWrites[0][2].openTabs.map(tab => tab.filePath)).toEqual(['/a.md', '/b.md']);
+    });
+
+    test('persists the active file identity through the explicit session update', async () => {
+        const tm = window.tabManager;
+        tm.createTab('/a.md', 'a');
+        tm.createTab('/b.md', 'b');
+        tm.activateTab('/b.md');
+        await tm._persistTabs();
+        expect(window.electronAPI.invoke).toHaveBeenLastCalledWith('set-settings', 'editorTabs', {
+            openTabs: [{ filePath: '/a.md', fileName: 'a.md' }, { filePath: '/b.md', fileName: 'b.md' }],
+            activeTabIndex: 1, activeTabPath: '/b.md'
+        });
+    });
+
+    test('reopens the last document from an older session without saved tabs', async () => {
+        installRestoreFixture({ currentFile: '/last.md', files: { '/last.md': 'last edit' } });
+        await window.tabManager._restoreTabs();
+        expect(window.tabManager.activeTabPath).toBe('/last.md');
+        expect(window.tabManager.tabs.get('/last.md').model.getValue()).toBe('last edit');
+    });
+
+    test('restores the active file by identity even if its saved index is stale', async () => {
+        installRestoreFixture({ tabs: ['/a.md', '/b.md'], active: 0, activePath: '/b.md', files: { '/a.md': 'a', '/b.md': 'b' } });
+        await window.tabManager._restoreTabs();
+        expect(window.tabManager.activeTabPath).toBe('/b.md');
+    });
+
+    test('restores an active untitled draft instead of falling back to the first file', async () => {
+        installRestoreFixture({ tabs: ['/a.md', 'untitled:999'], activePath: 'untitled:999',
+            recovery: { 'untitled:999': { content: 'unfinished draft', isDirty: true } }, files: { '/a.md': 'a' } });
+        await window.tabManager._restoreTabs();
+        const tab = window.tabManager.tabs.get(window.tabManager.activeTabPath);
+        expect(window.isUntitledPath(tab.filePath)).toBe(true);
+        expect(tab.model.getValue()).toBe('unfinished draft');
+        expect(tab.isDirty).toBe(true);
+    });
+
+    test('restores dirty content even when the original file is missing', async () => {
+        installRestoreFixture({ tabs: ['/lost.md'], recovery: { '/lost.md': { content: 'unsaved draft', isDirty: true } } });
+        await window.tabManager._restoreTabs();
+        const tab = window.tabManager.tabs.get('/lost.md');
+        expect(tab.model.getValue()).toBe('unsaved draft');
+        expect(tab.isDirty).toBe(true);
+        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
+    });
+
+    test('restores recovery drafts absent from an outdated tab list', async () => {
+        installRestoreFixture({ recovery: { 'untitled:999': { content: 'recovered', isDirty: true } } });
+        await window.tabManager._restoreTabs();
+        expect(window.tabManager.tabs.size).toBe(1);
+        expect(window.tabManager.tabs.get(window.tabManager.activeTabPath).model.getValue()).toBe('recovered');
+        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-persist', expect.any(Object));
+    });
+
+    test('preserves both untitled recovery entries when saved IDs are out of order', async () => {
+        installRestoreFixture({ tabs: ['untitled:2', 'untitled:1'], recovery: {
+            'untitled:2': { content: 'second draft', isDirty: true },
+            'untitled:1': { content: 'first draft', isDirty: true }
+        } });
+        await window.tabManager._restoreTabs();
+        expect(window.tabManager.tabs.get('untitled:1').model.getValue()).toBe('first draft');
+        expect(window.tabManager.tabs.get('untitled:2').model.getValue()).toBe('second draft');
+        const newPath = window.tabManager.createUntitledTab();
+        expect(['untitled:1', 'untitled:2']).not.toContain(newPath);
+        expect(window.tabManager.tabs.size).toBe(3);
+    });
+
+    test('preserves recovered content beside a draft opened during startup', async () => {
+        const live = window.tabManager.createTab('/a.md', 'new session edits');
+        live.isDirty = true;
+        installRestoreFixture({ tabs: ['/a.md'], recovery: {
+            '/a.md': { content: 'previous session draft', lastSavedContent: 'disk before crash', isDirty: true }
+        } });
+        await window.tabManager._restoreTabs();
+        expect(live.model.getValue()).toBe('new session edits');
+        const recovered = [...window.tabManager.tabs.values()].find(tab => tab !== live);
+        expect(recovered.model.getValue()).toBe('previous session draft');
+        expect(recovered.fileName).toContain('(recovered)');
+        expect(recovered.isDirty).toBe(true);
+    });
+
+    test('preserves recovery file when reading it fails, including subsequent persistence attempts', async () => {
+        window.electronAPI.invoke.mockImplementation(async channel => {
+            if (channel === 'get-settings') return { editorTabs: { openTabs: [] } };
+            if (channel === 'recovery-load') return { success: false, error: 'Permission denied' };
+            return { success: true };
+        });
+        await window.tabManager._restoreTabs();
+        await window.tabManager._persistRecovery();
+        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
+        const draftPath = window.tabManager.createUntitledTab();
+        window.tabManager.tabs.get(draftPath).model.setValue('new work');
+        await window.tabManager._persistRecovery();
+        expect(window.electronAPI.invoke.mock.calls.some(([channel]) => channel === 'recovery-persist')).toBe(false);
+    });
+
+    test('recovered unsaved edits retain their original disk baseline after an external change', async () => {
+        installRestoreFixture({ tabs: ['/a.md'], files: { '/a.md': 'external changes' }, recovery: {
+            '/a.md': { content: 'unsaved edits', lastSavedContent: 'original disk', isDirty: true }
+        } });
+        await window.tabManager._restoreTabs();
+        const tab = window.tabManager.tabs.get('/a.md');
+        expect(tab.model.getValue()).toBe('unsaved edits');
+        expect(tab.lastSavedContent).toBe('original disk');
+        expect(tab.isDirty).toBe(true);
+    });
+
+    test('recovery already saved to disk becomes clean against the current baseline', async () => {
+        installRestoreFixture({ tabs: ['/a.md'], files: { '/a.md': 'saved edits' }, recovery: {
+            '/a.md': { content: 'saved edits', lastSavedContent: 'original disk', isDirty: true }
+        } });
+        await window.tabManager._restoreTabs();
+        const tab = window.tabManager.tabs.get('/a.md');
+        expect(tab.lastSavedContent).toBe('saved edits');
+        expect(tab.isDirty).toBe(false);
+    });
+
 });

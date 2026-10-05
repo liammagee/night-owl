@@ -363,6 +363,7 @@
         const sanitized = sanitizePreviewHTML(html);
         const template = document.createElement('template');
         template.innerHTML = sanitized;
+        resolvePreviewImages(template.content, { baseDir });
         if (typeof element.replaceChildren === 'function') {
             element.replaceChildren(template.content.cloneNode(true));
         } else {
@@ -392,4 +393,3 @@
         module.exports = api;
     }
 })();
-        resolvePreviewImages(template.content, { baseDir });
