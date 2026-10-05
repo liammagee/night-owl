@@ -922,7 +922,7 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
     
     try {
         // Get current file content
-        const result = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.files.readFile(filePath);
         
         // Check if file read was successful
         if (!result.success) {
@@ -937,7 +937,7 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
             const originalLine = lines[lineNumber];
             
             // Get current settings to determine markers
-            const settings = await window.electronAPI.invoke('get-settings');
+            const settings = await window.electronAPI.settings.getSettings();
             const kanbanSettings = settings.kanban || {};
             const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
             const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
@@ -965,7 +965,7 @@ async function updateKanbanTaskInFile(filePath, taskElement, newStatus) {
             lines[lineNumber] = newLine;
             
             // Save the file
-            await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+            await window.electronAPI.files.writeFile(filePath, lines.join('\n'));
         }
     } catch (error) {
         console.error('[Kanban] Error updating file:', error);
@@ -1231,7 +1231,7 @@ async function handleAddTask(columnId, filePath, container) {
 async function updateTaskTextInFile(filePath, taskElement, newText) {
     
     try {
-        const result = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.files.readFile(filePath);
         
         // Check if file read was successful
         if (!result.success) {
@@ -1252,7 +1252,7 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
                 const prefix = listMatch.prefix;
                 
                 // Get current settings to preserve status markers
-                const settings = await window.electronAPI.invoke('get-settings');
+                const settings = await window.electronAPI.settings.getSettings();
                 const kanbanSettings = settings.kanban || {};
                 const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
                 const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
@@ -1291,7 +1291,7 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
                 lines.splice(lineNumber, boundedEndLineNumber - lineNumber + 1, ...replacementLines);
                 taskElement.dataset.endLineNumber = String(lineNumber + replacementLines.length - 1);
 
-                await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+                await window.electronAPI.files.writeFile(filePath, lines.join('\n'));
             }
         }
     } catch (error) {
@@ -1303,7 +1303,7 @@ async function updateTaskTextInFile(filePath, taskElement, newText) {
 async function deleteTaskFromFile(filePath, taskElement) {
     
     try {
-        const result = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.files.readFile(filePath);
         
         // Check if file read was successful
         if (!result.success) {
@@ -1321,7 +1321,7 @@ async function deleteTaskFromFile(filePath, taskElement) {
                 : lineNumber;
             lines.splice(lineNumber, boundedEndLineNumber - lineNumber + 1);
             
-            await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+            await window.electronAPI.files.writeFile(filePath, lines.join('\n'));
         }
     } catch (error) {
         console.error('[Kanban] Error deleting task:', error);
@@ -1332,7 +1332,7 @@ async function deleteTaskFromFile(filePath, taskElement) {
 async function addTaskToFile(filePath, taskText, columnId) {
     
     try {
-        const result = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.files.readFile(filePath);
         
         // Check if file read was successful
         if (!result.success) {
@@ -1343,7 +1343,7 @@ async function addTaskToFile(filePath, taskText, columnId) {
         const lines = content.split('\n');
         
         // Get settings to determine status markers
-        const settings = await window.electronAPI.invoke('get-settings');
+        const settings = await window.electronAPI.settings.getSettings();
         const kanbanSettings = settings.kanban || {};
         const doneMarkers = kanbanSettings.doneMarkers || DEFAULT_DONE_MARKERS;
         const inProgressMarkers = kanbanSettings.inProgressMarkers || DEFAULT_IN_PROGRESS_MARKERS;
@@ -1370,7 +1370,7 @@ async function addTaskToFile(filePath, taskText, columnId) {
         // Add the new task at the end of the file
         lines.push(newLine);
         
-        await window.electronAPI.invoke('write-file', filePath, lines.join('\n'));
+        await window.electronAPI.files.writeFile(filePath, lines.join('\n'));
     } catch (error) {
         console.error('[Kanban] Error adding task:', error);
         throw error;

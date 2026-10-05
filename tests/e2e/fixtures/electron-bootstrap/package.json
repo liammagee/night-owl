@@ -1,0 +1,5 @@
+{
+  "name": "nightowl-electron-e2e-bootstrap",
+  "private": true,
+  "main": "main.cjs"
+}

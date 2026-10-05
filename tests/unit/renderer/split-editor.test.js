@@ -1,4 +1,5 @@
 const path = require('path');
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 const modulePath = path.resolve(__dirname, '../../../orchestrator/modules/split-editor.js');
 
@@ -40,10 +41,11 @@ describe('split editor file and pane lifecycle', () => {
     window.currentFilePath = null;
     window.registerCommand = jest.fn();
     window.monaco = { editor: { create: jest.fn(() => secondEditor), createModel: jest.fn(createModel) } };
-    invoke = jest.fn((channel, value) => Promise.resolve(channel === 'read-file'
+    const electronBridge = createElectronApiMock((channel, value) => Promise.resolve(channel === 'read-file'
       ? { success: true, content: `content:${value}` }
       : { success: true }));
-    window.electronAPI = { invoke };
+    invoke = electronBridge.invoke;
+    window.electronAPI = electronBridge.api;
     window.editor = { layout: jest.fn() };
     window.showNotification = jest.fn();
     require(modulePath);
@@ -67,8 +69,8 @@ describe('split editor file and pane lifecycle', () => {
   }
 
   test('registers both split commands through the real command API', () => {
-    expect(window.registerCommand).toHaveBeenCalledWith('view.split.toggle', 'View: Toggle Split Editor', expect.any(Function));
-    expect(window.registerCommand).toHaveBeenCalledWith('view.split.openCurrent', 'View: Open Current File in Split', expect.any(Function));
+    expect(window.registerCommand).toHaveBeenCalledWith('view.splitEditor', 'View: Toggle Split Editor', expect.any(Function));
+    expect(window.registerCommand).toHaveBeenCalledWith('view.openCurrentInSplit', 'View: Open Current File in Split', expect.any(Function));
     expect(window.registerCommand).toHaveBeenCalledTimes(2);
   });
 
@@ -76,18 +78,18 @@ describe('split editor file and pane lifecycle', () => {
     const draft = createModel('unsaved untitled draft');
     window.tabManager.tabs.set('untitled:1', { model: draft });
     window.tabManager.activeTabPath = 'untitled:1';
-    expect(await command('view.split.toggle')()).toBe(true);
+    expect(await command('view.splitEditor')()).toBe(true);
     expect(model().getValue()).toBe('unsaved untitled draft');
     expect(secondEditor.updateOptions).toHaveBeenLastCalledWith({ readOnly: true, domReadOnly: true });
     expect(invoke).not.toHaveBeenCalled();
-    expect(await command('view.split.toggle')()).toBe(true);
+    expect(await command('view.splitEditor')()).toBe(true);
     expect(split.isActive()).toBe(false);
     expect(draft.dispose).not.toHaveBeenCalled();
   });
 
   test('split commands notify without opening a pane when there is no current buffer', async () => {
-    expect(await command('view.split.toggle')()).toBe(false);
-    expect(await command('view.split.openCurrent')()).toBe(false);
+    expect(await command('view.splitEditor')()).toBe(false);
+    expect(await command('view.openCurrentInSplit')()).toBe(false);
     expect(split.isActive()).toBe(false);
     expect(document.getElementById('editor-pane-2')).toBeNull();
     expect(window.showNotification).toHaveBeenCalledWith(expect.stringContaining('Open a file or draft'), 'info');
@@ -95,7 +97,7 @@ describe('split editor file and pane lifecycle', () => {
 
   test('open current command loads the current path when no tab manager buffer owns it', async () => {
     window.currentFilePath = '/current.md';
-    expect(await command('view.split.openCurrent')()).toBe(true);
+    expect(await command('view.openCurrentInSplit')()).toBe(true);
     expect(invoke).toHaveBeenCalledWith('read-file', '/current.md');
     expect(model().getValue()).toBe('content:/current.md');
   });

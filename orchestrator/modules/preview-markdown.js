@@ -8,6 +8,16 @@
         return null;
     }
 
+    function getContentSecurity() {
+        if (typeof window !== 'undefined' && window.NightOwlContentSecurity) {
+            return window.NightOwlContentSecurity;
+        }
+        if (typeof module !== 'undefined' && module.exports) {
+            return require('../../services/contentSecurity');
+        }
+        return null;
+    }
+
     function slugify(text) {
         if (!text) return '';
         return text.toString().toLowerCase()
@@ -53,111 +63,27 @@
                     return `<h${depth} id="${id}">${headingHtml}</h${depth}>\n`;
                 },
                 image({ href, title, text }) {
-                    const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-                    const src = resolvePreviewImageSource(href, { baseDir });
-                    const titleAttr = title ? ` title="${escapeAttribute(title)}"` : '';
-                    return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(text || '')}"${titleAttr} />`;
+                    const hrefStr = String(href || '');
+                    if (
+                        hrefStr &&
+                        !hrefStr.startsWith('http') &&
+                        !hrefStr.startsWith('/') &&
+                        !hrefStr.startsWith('file://') &&
+                        !hrefStr.startsWith('data:')
+                    ) {
+                        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+                        const normalizedHref = hrefStr.replace(/^\.\//, '');
+                        const fullPath = `file://${baseDir}/${normalizedHref}`;
+                        const titleAttr = title ? ` title="${title}"` : '';
+                        return `<img src="${fullPath}" alt="${text || ''}"${titleAttr} />`;
+                    }
+                    const titleAttr = title ? ` title="${title}"` : '';
+                    return `<img src="${hrefStr}" alt="${text || ''}"${titleAttr} />`;
                 }
             },
             gfm: true,
             breaks: true
         });
-    }
-
-    function escapeAttribute(value) {
-        return String(value == null ? '' : value)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-    }
-
-    const ABSOLUTE_IMAGE_SOURCE = /^(?:[a-z][a-z0-9+.-]*:|#)/i;
-    const WINDOWS_DRIVE_PATH = /^[a-zA-Z]:[\\/]/;
-
-    function isAbsoluteFilesystemPath(value) {
-        const str = String(value || '');
-        return str.startsWith('/') || WINDOWS_DRIVE_PATH.test(str);
-    }
-
-    // Percent-encode one path segment so characters such as spaces, '#', '?' and '%'
-    // survive inside a file:// URL. Already-encoded segments are decoded first so that
-    // they are not encoded twice.
-    function encodePathSegment(segment) {
-        if (segment === '' || segment === '.' || segment === '..') return segment;
-        let decoded = segment;
-        try {
-            decoded = decodeURIComponent(segment);
-        } catch {
-            decoded = segment;
-        }
-        return encodeURIComponent(decoded);
-    }
-
-    function encodeFilesystemPath(path) {
-        return String(path || '')
-            .replace(/\\/g, '/')
-            .split('/')
-            .map(encodePathSegment)
-            .join('/');
-    }
-
-    function toFileUrl(path) {
-        const normalized = String(path || '').replace(/\\/g, '/');
-        if (WINDOWS_DRIVE_PATH.test(normalized)) {
-            return `file:///${normalized.slice(0, 2)}${encodeFilesystemPath(normalized.slice(2))}`;
-        }
-        const encoded = encodeFilesystemPath(normalized);
-        return `file://${encoded.startsWith('/') ? '' : '/'}${encoded}`;
-    }
-
-    /**
-     * Resolve an image reference from markdown or raw HTML to a URL the preview can load.
-     *
-     * - Absolute URLs (http, https, data, blob, file) and fragments are returned unchanged.
-     * - Absolute filesystem paths become percent-encoded file:// URLs.
-     * - Relative paths are joined to baseDir (the directory of the open file) and
-     *   percent-encoded so spaces and '#' in folder or file names still resolve.
-     * - Without a baseDir the (normalised) relative path is returned as-is.
-     */
-    function resolvePreviewImageSource(href, { baseDir } = {}) {
-        const value = String(href == null ? '' : href).trim();
-        if (!value) return value;
-        if (isAbsoluteFilesystemPath(value)) return toFileUrl(value);
-        if (ABSOLUTE_IMAGE_SOURCE.test(value)) return value;
-
-        const relative = value.replace(/^\.\//, '');
-        const base = String(baseDir || '').replace(/[\\/]+$/, '');
-        if (!base) return relative;
-        if (/^file:\/\//i.test(base)) {
-            return `${base}/${encodeFilesystemPath(relative)}`;
-        }
-        if (isAbsoluteFilesystemPath(base)) {
-            return toFileUrl(`${base}/${relative}`);
-        }
-        return `${base}/${relative}`;
-    }
-
-    function currentPreviewBaseDir() {
-        if (typeof window === 'undefined') return '';
-        return window.currentFileDirectory || window.appSettings?.workingDirectory || '';
-    }
-
-    // Raw <img> tags written directly in markdown are not seen by the marked image
-    // renderer, so resolve their relative sources here against the open file's folder.
-    function resolvePreviewImages(root, { baseDir } = {}) {
-        if (!root || typeof root.querySelectorAll !== 'function') return 0;
-        const base = baseDir == null ? currentPreviewBaseDir() : baseDir;
-        let changed = 0;
-        root.querySelectorAll('img[src]').forEach((img) => {
-            const original = img.getAttribute('src') || '';
-            const resolved = resolvePreviewImageSource(original, { baseDir: base });
-            if (resolved && resolved !== original) {
-                img.setAttribute('src', resolved);
-                changed += 1;
-            }
-        });
-        return changed;
     }
 
     function renderFrontmatterHeaderFallback(yamlBlock) {
@@ -228,151 +154,16 @@
         return fixHeaderlessTables(processedContent);
     }
 
-    const BLOCKED_PREVIEW_TAGS = new Set([
-        'script',
-        'style',
-        'object',
-        'embed',
-        'link',
-        'meta',
-        'base',
-        'form',
-        'input',
-        'button',
-        'textarea',
-        'select',
-        'option'
-    ]);
-    const URI_ATTRIBUTES = new Set([
-        'href',
-        'src',
-        'xlink:href',
-        'poster',
-        'action',
-        'formaction'
-    ]);
-    const ALLOWED_IFRAME_HOSTS = new Set([
-        'www.youtube.com',
-        'youtube.com',
-        'www.youtube-nocookie.com',
-        'player.vimeo.com'
-    ]);
-
-    function isAllowedDataImage(value) {
-        return /^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(String(value || '').trim());
+    function sanitizePreviewHTML(html, options = {}) {
+        const security = getContentSecurity();
+        return security ? security.sanitizeRenderedHTML(html, options) : escapeHtml(html);
     }
 
-    function isAllowedPreviewUrl(value, tagName, attrName) {
-        const raw = String(value || '').trim();
-        if (!raw) return true;
-        if (raw.startsWith('#') || raw.startsWith('/') || raw.startsWith('./') || raw.startsWith('../')) {
-            return true;
-        }
-
-        let parsed;
-        try {
-            parsed = new URL(raw, 'file:///');
-        } catch {
-            return false;
-        }
-
-        const protocol = parsed.protocol.toLowerCase();
-        if (attrName === 'href' && (protocol === 'http:' || protocol === 'https:' || protocol === 'file:' || protocol === 'mailto:')) {
-            return true;
-        }
-        if (tagName === 'img' && attrName === 'src') {
-            return protocol === 'http:' || protocol === 'https:' || protocol === 'file:' || isAllowedDataImage(raw);
-        }
-        if (tagName === 'iframe' && attrName === 'src') {
-            return protocol === 'https:' && (
-                ALLOWED_IFRAME_HOSTS.has(parsed.hostname) ||
-                parsed.hostname.endsWith('.zoom.us')
-            );
-        }
-
-        return protocol === 'http:' || protocol === 'https:' || protocol === 'file:';
-    }
-
-    function sanitizeStyleAttribute(element) {
-        const style = element.getAttribute('style');
-        if (!style) return;
-        if (/(?:url\s*\(|expression\s*\(|javascript:|vbscript:)/i.test(style)) {
-            element.removeAttribute('style');
-        }
-    }
-
-    function sanitizePreviewHTML(html) {
-        if (typeof document === 'undefined') {
-            return String(html || '');
-        }
-
-        const template = document.createElement('template');
-        template.innerHTML = String(html || '');
-
-        const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
-        const blocked = [];
-
-        while (walker.nextNode()) {
-            const element = walker.currentNode;
-            const tagName = element.tagName.toLowerCase();
-
-            if (BLOCKED_PREVIEW_TAGS.has(tagName)) {
-                blocked.push(element);
-                continue;
-            }
-
-            if (tagName === 'iframe') {
-                const src = element.getAttribute('src') || '';
-                if (!src || !isAllowedPreviewUrl(src, tagName, 'src')) {
-                    blocked.push(element);
-                    continue;
-                }
-                element.removeAttribute('srcdoc');
-                element.setAttribute('sandbox', element.getAttribute('sandbox') || 'allow-same-origin allow-scripts allow-popups');
-                element.setAttribute('referrerpolicy', element.getAttribute('referrerpolicy') || 'no-referrer');
-            }
-
-            for (const attr of Array.from(element.attributes)) {
-                const attrName = attr.name.toLowerCase();
-                if (attrName.startsWith('on') || attrName === 'srcdoc') {
-                    element.removeAttribute(attr.name);
-                    continue;
-                }
-
-                if (URI_ATTRIBUTES.has(attrName) && !isAllowedPreviewUrl(attr.value, tagName, attrName)) {
-                    element.removeAttribute(attr.name);
-                    continue;
-                }
-
-                if (attrName === 'style') {
-                    sanitizeStyleAttribute(element);
-                }
-            }
-
-            if (tagName === 'a' && element.getAttribute('target') === '_blank') {
-                element.setAttribute('rel', 'noopener noreferrer');
-            }
-        }
-
-        blocked.forEach((element) => element.remove());
-        return template.innerHTML;
-    }
-
-    function setSanitizedHTML(element, html, { baseDir } = {}) {
-        if (!element) return '';
-        const sanitized = sanitizePreviewHTML(html);
-        const template = document.createElement('template');
-        template.innerHTML = sanitized;
-        resolvePreviewImages(template.content, { baseDir });
-        if (typeof element.replaceChildren === 'function') {
-            element.replaceChildren(template.content.cloneNode(true));
-        } else {
-            while (element.firstChild) {
-                element.removeChild(element.firstChild);
-            }
-            element.appendChild(template.content.cloneNode(true));
-        }
-        return sanitized;
+    function setSanitizedHTML(element, html, options = {}) {
+        const security = getContentSecurity();
+        if (security) return security.setSanitizedHTML(element, html, options);
+        if (element) element.textContent = String(html || '');
+        return escapeHtml(html);
     }
 
     const api = {
@@ -381,9 +172,7 @@
         fixHeaderlessTables,
         processMarkdownContent,
         sanitizePreviewHTML,
-        setSanitizedHTML,
-        resolvePreviewImageSource,
-        resolvePreviewImages
+        setSanitizedHTML
     };
 
     if (typeof window !== 'undefined') {

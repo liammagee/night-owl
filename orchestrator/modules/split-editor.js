@@ -53,7 +53,7 @@
             throw new Error('This file is also open in the main editor. Your split edits are preserved; close the main tab before retrying this save.');
           }
           const content = file.model.getValue();
-          const result = await window.electronAPI.invoke('perform-save-with-path', content, file.path, {
+          const result = await window.electronAPI.files.performSaveWithPath(content, file.path, {
             expectedContent: file.savedContent
           });
           if (!result?.success) throw new Error(result?.error || 'Save was not confirmed');
@@ -200,7 +200,7 @@
 
   async function openInSplit(filePath) {
     const request = ++openRequest;
-    if (typeof filePath !== 'string' || !filePath || !window.electronAPI?.invoke) return false;
+    if (typeof filePath !== 'string' || !filePath || !window.electronAPI?.files?.readFile) return false;
     if (currentFile?.path === filePath) {
       secondEditor?.focus?.();
       return true;
@@ -213,7 +213,7 @@
       let content = sourceTab?.model.getValue();
       if (!sourceTab) {
         // Failed reads must not create a blank pane or replace an existing file.
-        const result = await window.electronAPI.invoke('read-file', filePath);
+        const result = await window.electronAPI.files.readFile(filePath);
         if (request !== openRequest) return false;
         sourceTab = getPrimaryTab(filePath);
         content = sourceTab ? sourceTab.model.getValue()
@@ -280,7 +280,7 @@
     filePath = filePath.toLowerCase();
     if (filePath.endsWith('.js')) return 'javascript';
     if (filePath.endsWith('.ts')) return 'typescript';
-    if (filePath.endsWith('.json')) return 'json';
+    if (filePath.endsWith('.json') || filePath.endsWith('.jsonl')) return 'json';
     if (filePath.endsWith('.html') || filePath.endsWith('.htm')) return 'html';
     if (filePath.endsWith('.css')) return 'css';
     if (filePath.endsWith('.md')) return 'markdown';
@@ -338,7 +338,6 @@
     };
   }
 
-  // Register command palette commands
   function init() {
     if (typeof window.registerCommand !== 'function') return;
     const openCurrent = () => {
@@ -350,9 +349,9 @@
       }
       return openInSplit(filePath);
     };
-    window.registerCommand('view.split.toggle', 'View: Toggle Split Editor',
+    window.registerCommand('view.splitEditor', 'View: Toggle Split Editor',
       () => splitActive ? deactivateSplit() : openCurrent());
-    window.registerCommand('view.split.openCurrent', 'View: Open Current File in Split', openCurrent);
+    window.registerCommand('view.openCurrentInSplit', 'View: Open Current File in Split', openCurrent);
   }
 
   // Expose public API

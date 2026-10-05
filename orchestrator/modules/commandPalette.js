@@ -2,40 +2,63 @@
 // Provides a command palette interface for quick access to all application functions
 // Supports keyboard navigation, fuzzy search, and keyboard shortcuts
 
-(function () {
-'use strict';
-
-// --- Command Registry ---
-let commandRegistry = new Map();
+// --- Shared Action Registry ---
+const actionRegistry = window.NightOwlActions;
+const actionRegistryModule = window.NightOwlActionRegistryModule;
 let commandPalette = null;
 let selectedIndex = 0;
-let initialized = false;
-let previousFocus = null;
+let commandPalettePreviousFocus = null;
+let commandPalettePreviouslyFocusedEditor = false;
+
+function invokePresentationTool(method, options = {}) {
+    window.switchToMode?.('presentation');
+    return new Promise(resolve => {
+        let attempts = 0;
+        const invoke = () => {
+            const tools = window.NightOwlPresentationTools;
+            if (tools?.[method]) {
+                if (options.startDelivery) tools.startPresentation?.();
+                tools[method]();
+                resolve(true);
+                return;
+            }
+            attempts += 1;
+            if (attempts < 40) {
+                setTimeout(invoke, 50);
+                return;
+            }
+            window.showNotification?.('Presentation tools are not ready yet', 'warning');
+            resolve(false);
+        };
+        invoke();
+    });
+}
 
 // --- Command Registration ---
-function registerCommand(id, label, action, shortcut = null) {
-    commandRegistry.set(id, {
-        id,
-        label,
-        action,
-        shortcut,
-        searchText: label.toLowerCase()
+function registerCoreAction(id, label, action, shortcut = null, options = {}) {
+    if (!actionRegistry || typeof window.registerCommand !== 'function') {
+        throw new Error('NightOwl action registry is unavailable.');
+    }
+    return window.registerCommand(id, label, action, shortcut, {
+        owner: 'core',
+        replace: true,
+        ...options
     });
 }
 
 async function openFileFromPalette() {
-    const selection = await window.electronAPI.invoke('dialog-open-file');
+    const selection = await window.electronAPI.files.dialogOpenFile();
     if (!selection?.success) {
         if (selection?.error) throw new Error(selection.error);
         return;
     }
-    const result = await window.electronAPI.invoke('read-file', selection.filePath);
-    if (!result?.success) throw new Error(result?.error || 'Could not read file');
-    await window.openFileInEditor(result.filePath, result.content);
+    return window.openFilePathInEditor(selection.filePath, {
+        source: 'command-palette', refreshExistingTabContent: false
+    });
 }
 
 async function openFolderFromPalette() {
-    const result = await window.electronAPI.invoke('change-working-directory');
+    const result = await window.electronAPI.workspace.changeWorkingDirectory();
     if (!result?.success && result?.error) throw new Error(result.error);
 }
 
@@ -51,28 +74,81 @@ function selectBoundaryFile(index) {
 
 // --- Initialize Command Palette ---
 function initializeCommandPalette() {
-    if (initialized) return;
-    initialized = true;
+    // Keep this alias function-local so a classic-script declaration cannot
+    // replace the shared window.registerCommand API used by feature modules.
+    const registerCommand = registerCoreAction;
+    registerCommand(
+        'app.commandPalette',
+        'Application: Show Command Palette',
+        () => showCommandPalette(),
+        null,
+        { category: 'Application', allowInInput: true }
+    );
+    registerCommand(
+        'file.quickOpen',
+        'File: Quick Open',
+        () => window.showQuickOpen?.(),
+        null,
+        { allowInInput: true }
+    );
+    registerCommand(
+        'app.keyboardShortcuts',
+        'Application: Show Keyboard Shortcuts',
+        () => showKeyboardShortcuts(),
+        null,
+        { category: 'Application', allowInInput: true }
+    );
+
     // File Operations
     registerCommand('file.new', 'File: New File', () => window.newFile(), 'Cmd+N');
     registerCommand('file.open', 'File: Open File', openFileFromPalette, 'Cmd+O');
     registerCommand('file.save', 'File: Save', () => window.saveFile(), 'Cmd+S');
     registerCommand('file.saveAs', 'File: Save As...', () => window.saveAsFile(), 'Cmd+Shift+S');
-    registerCommand('file.openFolder', 'File: Open Folder', openFolderFromPalette);
+    registerCommand('file.closeTab', 'File: Close Tab', async () => {
+        const tabManager = window.tabManager;
+        if (tabManager?.activeTabPath && tabManager.tabs.has(tabManager.activeTabPath)) {
+            await tabManager.closeTab(tabManager.activeTabPath);
+        } else {
+            window.close();
+        }
+    }, 'Cmd+W');
+    registerCommand('file.openFolder', 'File: Open Folder', openFolderFromPalette, 'Cmd+Alt+O');
     registerCommand('file.newFolder', 'File: New Folder', () => window.showNewFolderModal());
+    registerCommand('file.duplicateFolder', 'File: Duplicate Selected Folder', () => window.duplicateSelectedFolder?.());
     
     // Edit Operations
-    registerCommand('edit.find', 'Edit: Find and Replace', () => window.showFindReplaceDialog(), 'Cmd+F');
+    registerCommand('edit.find', 'Edit: Find', () => window.showFindReplaceDialog(false), 'Cmd+F');
+    registerCommand('edit.replace', 'Edit: Find and Replace', () => window.showFindReplaceDialog(true), 'Cmd+H');
     registerCommand('edit.findGlobal', 'Edit: Global Search', () => window.showPane('search'), 'Cmd+Shift+F');
     registerCommand('edit.undo', 'Edit: Undo', () => window.editor?.trigger('source', 'undo'), 'Cmd+Z');
     registerCommand('edit.redo', 'Edit: Redo', () => window.editor?.trigger('source', 'redo'), 'Cmd+Shift+Z');
     
     // View Operations
-    registerCommand('view.togglePreview', 'View: Toggle Preview', () => window.togglePreview(), 'Cmd+Shift+V');
+    registerCommand('view.togglePreview', 'View: Toggle Preview', () => window.togglePreview(), 'Cmd+Shift+M');
     registerCommand('view.toggleStructure', 'View: Show Structure Panel', () => showSidebarView('structure'));
     registerCommand('view.toggleFiles', 'View: Show File Explorer', () => showSidebarView('file'));
+    registerCommand('view.visualMarkdown', 'View: Toggle Visual Markdown', () => {
+        const enabled = !Boolean(window.appSettings?.editor?.visualMarkdown);
+        window.setVisualMarkdownEnabled?.(enabled);
+    }, 'Cmd+Shift+V');
+    registerCommand('view.writingStats', 'View: Show Writing Stats', () => {
+        if (typeof window.toggleGamificationPanel === 'function') {
+            window.toggleGamificationPanel();
+        } else if (typeof window.switchStructureView === 'function') {
+            window.switchStructureView('statistics');
+        }
+    }, 'Cmd+Shift+G');
+    registerCommand('presentation.start', 'Presentation: Start Presentation', () => (
+        invokePresentationTool('startPresentation')
+    ), 'F5');
+    registerCommand('presentation.preflight', 'Presentation: Run Preflight', () => (
+        invokePresentationTool('openPreflight')
+    ));
+    registerCommand('presentation.presenterConsole', 'Presentation: Open Presenter Console', () => (
+        invokePresentationTool('openPresenterConsole', { startDelivery: true })
+    ));
     registerCommand('view.editorMode', 'View: Editor Mode', () => window.switchToMode('editor'), 'Cmd+1');
-    registerCommand('view.presentationTab', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
+    registerCommand('view.presentationMode', 'View: Presentation Mode', () => window.switchToMode('presentation'), 'Cmd+2');
     registerCommand('view.networkMode', 'View: Network Mode', () => window.switchToMode('network'), 'Cmd+3');
     registerCommand('view.circleMode', 'View: Circle Mode', () => window.switchToMode('circle'), 'Cmd+4');
     registerCommand('view.libraryMode', 'View: Library Maze Mode', () => window.switchToMode('library'), 'Cmd+5');
@@ -95,8 +171,12 @@ function initializeCommandPalette() {
             } else {
                 window.editor.updateOptions({ wordWrap });
             }
+            if (window.appSettings?.editor) {
+                window.appSettings.editor.wordWrap = wordWrap;
+                window.electronAPI?.settings?.setSettings?.(window.appSettings).catch(() => {});
+            }
             if (window.showNotification) {
-                window.showNotification(`Word wrap ${wrapOn ? 'off' : 'on'}`, 'info');
+                window.showNotification(`Word wrap ${wordWrap}`, 'info');
             }
         }
     }, 'Alt+Z');
@@ -108,15 +188,15 @@ function initializeCommandPalette() {
     registerCommand('format.bold', 'Format: Bold', () => window.formatText('**', '**', 'bold text'), 'Cmd+B');
     registerCommand('format.italic', 'Format: Italic', () => window.formatText('*', '*', 'italic text'), 'Cmd+I');
     registerCommand('format.code', 'Format: Inline Code', () => window.formatText('`', '`', 'code'), 'Cmd+`');
-    registerCommand('format.strikethrough', 'Format: Strikethrough', () => window.formatText('~~', '~~', 'strikethrough'));
-    registerCommand('format.heading1', 'Format: Heading 1', () => window.formatHeading(1));
-    registerCommand('format.heading2', 'Format: Heading 2', () => window.formatHeading(2));
-    registerCommand('format.heading3', 'Format: Heading 3', () => window.formatHeading(3));
-    registerCommand('format.bulletList', 'Format: Bullet List', () => window.formatList('-'));
-    registerCommand('format.numberedList', 'Format: Numbered List', () => window.formatList('1.'));
+    registerCommand('format.strikethrough', 'Format: Strikethrough', () => window.formatText('~~', '~~', 'strikethrough'), 'Cmd+Shift+X');
+    registerCommand('format.heading1', 'Format: Heading 1', () => window.formatHeading(1), 'Cmd+Alt+1');
+    registerCommand('format.heading2', 'Format: Heading 2', () => window.formatHeading(2), 'Cmd+Alt+2');
+    registerCommand('format.heading3', 'Format: Heading 3', () => window.formatHeading(3), 'Cmd+Alt+3');
+    registerCommand('format.bulletList', 'Format: Bullet List', () => window.formatList('-'), 'Cmd+Shift+8');
+    registerCommand('format.numberedList', 'Format: Numbered List', () => window.formatList('1.'), 'Cmd+Shift+7');
     registerCommand('format.insertLink', 'Format: Insert Link', () => window.insertLink(), 'Cmd+K');
-    registerCommand('format.insertImage', 'Format: Insert Image', () => window.insertImage());
-    registerCommand('format.blockquote', 'Format: Blockquote', () => window.formatBlockquote());
+    registerCommand('format.insertImage', 'Format: Insert Image', () => window.insertImage(), 'Cmd+Shift+I');
+    registerCommand('format.blockquote', 'Format: Blockquote', () => window.formatBlockquote(), 'Cmd+Shift+.');
     registerCommand('format.inlineMath', 'Format: Inline Math ($...$)', async () => await window.formatText('$', '$', 'math'));
     registerCommand('format.displayMath', 'Format: Display Math ($$...$$)', async () => await window.formatDisplayMath());
     registerCommand('format.table', 'Format: Insert Table', () => window.insertTable());
@@ -131,12 +211,12 @@ function initializeCommandPalette() {
     // Navigation
     registerCommand('nav.back', 'Navigate: Back', () => window.navigateBack());
     registerCommand('nav.forward', 'Navigate: Forward', () => window.navigateForward());
-    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.editor?.getAction('editor.action.gotoLine')?.run(), 'Ctrl+G');
-    registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1), '↑');
-    registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1), '↓');
-    registerCommand('nav.firstFile', 'Navigate: First File', () => selectBoundaryFile(0), 'Home');
-    registerCommand('nav.lastFile', 'Navigate: Last File', () => selectBoundaryFile(-1), 'End');
-    registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile(), 'Enter');
+    registerCommand('nav.gotoLine', 'Navigate: Go to Line', () => window.editor?.getAction('editor.action.gotoLine')?.run(), 'Cmd+G');
+    registerCommand('nav.fileUp', 'Navigate: Previous File', () => window.moveFileSelection(-1));
+    registerCommand('nav.fileDown', 'Navigate: Next File', () => window.moveFileSelection(1));
+    registerCommand('nav.firstFile', 'Navigate: First File', () => selectBoundaryFile(0));
+    registerCommand('nav.lastFile', 'Navigate: Last File', () => selectBoundaryFile(-1));
+    registerCommand('nav.openSelectedFile', 'Navigate: Open Selected File', () => window.openSelectedFile());
     
     // Folding
     registerCommand('fold.all', 'Fold: Fold All', () => window.foldAll());
@@ -156,11 +236,6 @@ function initializeCommandPalette() {
     
     // AI Operations
     registerCommand('ai.chat', 'Assistant: Show Terminal', () => window.showPane('chat'));
-    registerCommand('terminal.toggle', 'Terminal: Toggle Integrated Terminal', () => window.terminalPanel.toggle(), 'Ctrl+`');
-    registerCommand('terminal.shell', 'Terminal: Spawn Interactive Shell', () => {
-        window.terminalPanel.show();
-        return window.terminalPanel.spawnShell();
-    });
     registerCommand('ai.todoSuggestions', 'AI: Get TODO Suggestions', () => {
         const gamification = window.gamificationInstance;
         if (gamification && gamification.todoGamification) {
@@ -212,39 +287,33 @@ function initializeCommandPalette() {
     
     // Settings
     registerCommand('settings.open', 'Settings: Open Preferences', () => window.openSettingsDialog(), 'Cmd+,');
-    registerCommand('settings.theme.toggle', 'Settings: Toggle Light/Dark Theme', () => {
-        window.techneThemeManager.applyTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark');
-    });
+    registerCommand('settings.theme.toggle', 'Settings: Toggle Light/Dark Theme', () => window.techneThemeManager.applyTheme(document.body.classList.contains('dark-mode') ? 'light' : 'dark'));
     registerCommand('settings.linkPreview.toggle', 'Settings: Toggle Link Previews', async () => await window.toggleLinkPreview());
     
     // Speaker Notes
     registerCommand('speaker.toggle', 'Speaker Notes: Show View', () => window.showPane('speaker-notes'));
     registerCommand('speaker.add', 'Speaker Notes: Add Note', () => window.insertSpeakerNotesTemplate());
     
-    console.log(`[CommandPalette] Registered ${commandRegistry.size} commands`);
-    
-    // Set up keyboard shortcut to show command palette
-    // Use capture phase to ensure this runs before other handlers
-    document.addEventListener('keydown', (e) => {
-        if (e.defaultPrevented || e.isComposing || e.repeat || e.altKey) return;
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
-            e.preventDefault();
-            e.stopPropagation();
-            showCommandPalette();
-        }
-    }, true); // Use capture phase
-    document.getElementById('command-palette-btn')?.addEventListener('click', showCommandPalette);
+    console.log(`[CommandPalette] ${actionRegistry.list().length} actions available`);
+
+    window.__nightOwlActionShortcutCleanup?.();
+    window.__nightOwlActionShortcutCleanup = actionRegistry.installShortcutHandler(document, {
+        contextProvider: () => ({
+            editor: window.editor,
+            mode: window.NightOwlUIState?.getState?.().mode
+        })
+    });
 }
 
 // --- Command Palette UI ---
 function showCommandPalette() {
-    initializeCommandPalette();
     if (commandPalette) {
         commandPalette.querySelector('.command-palette-input')?.focus();
         return;
     }
-    previousFocus = document.activeElement;
-    
+    commandPalettePreviousFocus = document.activeElement;
+    commandPalettePreviouslyFocusedEditor = Boolean(window.editor?.hasTextFocus?.());
+
     // Create command palette overlay
     commandPalette = document.createElement('div');
     commandPalette.className = 'command-palette-overlay';
@@ -252,7 +321,10 @@ function showCommandPalette() {
         <div class="command-palette">
             <div class="command-palette-input-container">
                 <input type="text" class="command-palette-input" placeholder="Type a command..." autocomplete="off" spellcheck="false">
-                <div class="command-palette-shortcut">Ctrl+Shift+P</div>
+                <div class="command-palette-shortcut">${actionRegistryModule.formatShortcut(
+                    actionRegistryModule.getShortcutForAction('app.commandPalette'),
+                    navigator.platform
+                )}</div>
             </div>
             <div class="command-palette-results" id="command-results"></div>
         </div>
@@ -263,7 +335,8 @@ function showCommandPalette() {
     const input = commandPalette.querySelector('.command-palette-input');
     const results = commandPalette.querySelector('.command-palette-results');
     
-    // Focus synchronously: a delayed focus can steal focus from a command dialog.
+    // Restore and transfer focus synchronously. Delayed callbacks can steal
+    // focus from a command-owned dialog after the palette has closed.
     input.focus();
     
     // Show all commands initially
@@ -307,10 +380,14 @@ function showCommandPalette() {
                 e.stopPropagation();
                 if (e.repeat || !commandPalette) return;
                 const selectedItem = items[selectedIndex];
-                // Hide before execution so command-owned dialogs keep their focus.
-                hideCommandPalette();
                 if (selectedItem) {
-                    await executeCommand(selectedItem.dataset.commandId);
+                    const commandId = selectedItem.dataset.commandId;
+                    // Close immediately so a slow/asynchronous command cannot
+                    // leave a full-screen overlay intercepting later actions.
+                    hideCommandPalette();
+                    await executeCommand(commandId);
+                } else {
+                    hideCommandPalette();
                 }
                 break;
         }
@@ -328,9 +405,13 @@ function hideCommandPalette() {
     if (!commandPalette) return;
     commandPalette.remove();
     commandPalette = null;
-    const focusTarget = previousFocus;
-    previousFocus = null;
-    if (focusTarget?.isConnected && focusTarget !== document.body) {
+    const focusTarget = commandPalettePreviousFocus;
+    const focusEditor = commandPalettePreviouslyFocusedEditor;
+    commandPalettePreviousFocus = null;
+    commandPalettePreviouslyFocusedEditor = false;
+    if (focusEditor) {
+        window.editor?.focus?.();
+    } else if (focusTarget?.isConnected && focusTarget !== document.body) {
         focusTarget.focus();
     } else {
         window.editor?.focus?.();
@@ -338,52 +419,51 @@ function hideCommandPalette() {
 }
 
 function updateCommandResults(query, resultsContainer) {
-    const filteredCommands = Array.from(commandRegistry.values())
-        .filter(cmd => cmd.searchText.includes(query.toLowerCase()))
-        .slice(0, 50);
+    const filteredCommands = actionRegistry.search(query, {
+        includeUnavailable: false,
+        context: { editor: window.editor, mode: window.NightOwlUIState?.getState?.().mode }
+    }).slice(0, 50);
 
-    resultsContainer.replaceChildren();
+    resultsContainer.innerHTML = filteredCommands.map((cmd, index) => `
+        <div class="command-item ${index === 0 ? 'selected' : ''}" data-command-id="${cmd.id}">
+            <div class="command-label">${highlightMatch(cmd.label, query)}</div>
+            ${cmd.shortcut ? `<div class="command-shortcut">${actionRegistryModule.formatShortcut(cmd.shortcut, navigator.platform)}</div>` : ''}
+        </div>
+    `).join('');
+
     if (!filteredCommands.length) {
-        const empty = document.createElement('div');
-        empty.className = 'command-palette-no-results';
-        empty.textContent = 'No matching commands';
-        resultsContainer.appendChild(empty);
-        return;
+        resultsContainer.innerHTML = '<div class="command-palette-no-results">No matching commands</div>';
     }
-    filteredCommands.forEach((command, index) => {
-        const item = document.createElement('div');
-        item.className = `command-item${index === 0 ? ' selected' : ''}`;
-        item.dataset.commandId = command.id;
-        const label = document.createElement('div');
-        label.className = 'command-label';
-        appendHighlightedText(label, command.label, query);
-        item.appendChild(label);
-        if (command.shortcut) {
-            const shortcut = document.createElement('div');
-            shortcut.className = 'command-shortcut';
-            shortcut.textContent = command.shortcut;
-            item.appendChild(shortcut);
-        }
+
+    // Add click handlers
+    resultsContainer.querySelectorAll('.command-item').forEach(item => {
         item.addEventListener('click', async () => {
             if (!commandPalette) return;
+            const commandId = item.dataset.commandId;
             hideCommandPalette();
-            await executeCommand(command.id);
+            await executeCommand(commandId);
         });
-        resultsContainer.appendChild(item);
     });
 }
 
-function appendHighlightedText(container, text, query) {
-    const index = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
-    if (index < 0) {
-        container.textContent = text;
-        return;
-    }
-    container.appendChild(document.createTextNode(text.slice(0, index)));
-    const mark = document.createElement('mark');
-    mark.textContent = text.slice(index, index + query.length);
-    container.appendChild(mark);
-    container.appendChild(document.createTextNode(text.slice(index + query.length)));
+function highlightMatch(text, query) {
+    const value = String(text || '');
+    const needle = String(query || '');
+    if (!needle) return escapeHtml(value);
+    const lowerValue = value.toLowerCase();
+    const lowerNeedle = needle.toLowerCase();
+    const index = lowerValue.indexOf(lowerNeedle);
+    if (index < 0) return escapeHtml(value);
+    return `${escapeHtml(value.slice(0, index))}<mark>${escapeHtml(value.slice(index, index + needle.length))}</mark>${escapeHtml(value.slice(index + needle.length))}`;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function updateSelection(items, selectedIndex) {
@@ -403,11 +483,14 @@ function updateSelection(items, selectedIndex) {
 }
 
 async function executeCommand(commandId) {
-    const command = commandRegistry.get(commandId);
+    const command = actionRegistry.get(commandId);
     if (command) {
         console.log(`[CommandPalette] Executing command: ${command.label}`);
         try {
-            await command.action();
+            await actionRegistry.execute(commandId, {
+                editor: window.editor,
+                mode: window.NightOwlUIState?.getState?.().mode
+            });
         } catch (error) {
             console.error(`[CommandPalette] Error executing command ${commandId}:`, error);
             if (window.showNotification) {
@@ -417,10 +500,47 @@ async function executeCommand(commandId) {
     }
 }
 
+function showKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    const content = document.getElementById('keyboard-shortcuts-content');
+    if (!overlay || !content) return;
+
+    const grouped = new Map();
+    actionRegistry.list().filter(action => action.shortcut).forEach(action => {
+        const category = action.category || 'Other';
+        if (!grouped.has(category)) grouped.set(category, []);
+        grouped.get(category).push(action);
+    });
+
+    content.innerHTML = Array.from(grouped.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([category, actions]) => `
+            <div class="shortcuts-section">
+                <h4>${escapeHtml(category)}</h4>
+                ${actions.map(action => `
+                    <div class="shortcut-item" data-action-id="${escapeHtml(action.id)}">
+                        <span class="shortcut-description">${escapeHtml(action.label)}</span>
+                        <div class="shortcut-keys">
+                            ${actionRegistryModule.formatShortcut(action.shortcut, navigator.platform)
+                                .split('+')
+                                .map(key => `<span class="shortcut-key">${escapeHtml(key)}</span>`)
+                                .join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    overlay.style.display = 'flex';
+}
+
+function hideKeyboardShortcuts() {
+    const overlay = document.getElementById('keyboard-shortcuts-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
 // --- Export Functions for Global Access ---
 window.showCommandPalette = showCommandPalette;
 window.hideCommandPalette = hideCommandPalette;
 window.initializeCommandPalette = initializeCommandPalette;
-window.registerCommand = registerCommand;
-
-})();
+window.showKeyboardShortcuts = showKeyboardShortcuts;
+window.hideKeyboardShortcuts = hideKeyboardShortcuts;

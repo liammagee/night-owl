@@ -166,6 +166,19 @@ class GraphView {
                 return;
             }
 
+            const indexedGraph = await window.electronAPI.search?.workspaceIndexGraph?.({
+                paths: files.map(fileItem => (
+                    typeof fileItem === 'string'
+                        ? fileItem
+                        : fileItem.path || fileItem.filePath
+                )).filter(Boolean)
+            });
+            if (indexedGraph?.success) {
+                this.loadIndexedGraph(indexedGraph);
+                console.log(`[GraphView] Loaded ${this.nodes.length} shared-index nodes and ${this.links.length} links`);
+                return;
+            }
+
             // Clear existing data
             this.nodes = [];
             this.links = [];
@@ -218,6 +231,29 @@ class GraphView {
         }
     }
 
+    loadIndexedGraph(indexedGraph) {
+        this.nodes = indexedGraph.nodes.map(node => ({
+            ...node,
+            radius: node.type === 'file'
+                ? 12
+                : node.type === 'heading'
+                    ? Math.max(6, 12 - (node.level || 1) * 1.5)
+                    : 8,
+            color: this.getNodeColor(node)
+        }));
+        this.links = indexedGraph.edges.map(edge => ({
+            ...edge,
+            type: edge.type === 'tag' ? 'tagged' : edge.type,
+            strength: edge.type === 'reference' ? 0.7 : edge.type === 'contains' ? 0.5 : 0.4
+        }));
+        this.nodeMap = new Map(this.nodes.map(node => [node.id, node]));
+        this.allFiles = new Map(this.nodes
+            .filter(node => node.type === 'file' && node.filePath)
+            .map(node => [node.filePath, null]));
+        this.pendingLinks = [];
+        this.unresolvedLinks = indexedGraph.unresolved || [];
+    }
+
     /**
      * Process a single markdown file to extract graph elements
      * Creates nodes for the file, its headings, and tags
@@ -230,7 +266,7 @@ class GraphView {
     async processFile(filePath) {
         try {
             console.log(`[GraphView] Processing file: ${filePath}`);
-            const content = await window.electronAPI.invoke('read-file-content', filePath);
+            const content = await window.electronAPI.files.readFileContent(filePath);
             
             if (!content || !content.success || !content.content) {
                 console.warn(`[GraphView] Failed to read content for ${filePath}:`, content?.error);
@@ -702,11 +738,11 @@ class GraphView {
         if (node.type === 'file') {
             // Open the file in editor
             console.log(`[GraphView] Opening file: ${node.filePath}`);
-            window.electronAPI.invoke('open-file', node.filePath);
+            window.electronAPI.files.openFile(node.filePath);
         } else if (node.type === 'heading') {
             // Open file and scroll to heading
             console.log(`[GraphView] Opening file at heading: ${node.filePath} - ${node.name}`);
-            window.electronAPI.invoke('open-file', node.filePath).then(() => {
+            window.electronAPI.files.openFile(node.filePath).then(() => {
                 // Wait for file to load, then navigate to heading
                 setTimeout(() => {
                     this.navigateToHeading(node.name, node.level);

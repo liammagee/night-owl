@@ -70,7 +70,7 @@ class CitationManager {
             console.log('[Citation Manager] Initializing...');
             
             // Initialize the backend service
-            const result = await window.electronAPI.invoke('citations-initialize');
+            const result = await window.electronAPI.citations.initialize();
             if (!result.success) {
                 throw new Error(result.error);
             }
@@ -528,18 +528,18 @@ class CitationManager {
 
         this.externalCaptureBridgeBound = true;
 
-        if (typeof window.electronAPI.on === 'function') {
-            window.electronAPI.on('citation-capture-request', (payload) => {
+        if (typeof window.electronAPI.events?.citationCaptureRequest === 'function') {
+            window.electronAPI.events.citationCaptureRequest((payload) => {
                 this.enqueueExternalCapture(payload);
             });
         }
 
-        if (typeof window.electronAPI.send === 'function') {
-            window.electronAPI.send('citations-capture-ready');
+        if (typeof window.electronAPI.signals?.citationsCaptureReady === 'function') {
+            window.electronAPI.signals.citationsCaptureReady();
         }
 
-        if (typeof window.electronAPI.invoke === 'function') {
-            window.electronAPI.invoke('citations-get-pending-captures')
+        if (typeof window.electronAPI.citations?.getPendingCaptures === 'function') {
+            window.electronAPI.citations.getPendingCaptures()
                 .then((response) => {
                     if (!response?.success || !Array.isArray(response.captures)) {
                         return;
@@ -698,8 +698,8 @@ class CitationManager {
 
     async readDroppedCitationFile(file) {
         try {
-            if (file?.path && window.electronAPI?.invoke) {
-                const result = await window.electronAPI.invoke('read-file', file.path);
+            if (file?.path && window.electronAPI?.files?.readFile) {
+                const result = await window.electronAPI.files.readFile(file.path);
                 if (result?.success && typeof result.content === 'string') {
                     return result.content;
                 }
@@ -731,7 +731,7 @@ class CitationManager {
         this.setQuickStatus('Analyzing citation text…');
 
         try {
-            const response = await window.electronAPI.invoke('citations-import-text', cleaned);
+            const response = await window.electronAPI.citations.importText(cleaned);
 
             if (!response || !response.success) {
                 throw new Error(response?.error || 'Unable to create citation from text.');
@@ -1033,7 +1033,7 @@ class CitationManager {
         try {
             this.showLoading();
             
-            const result = await window.electronAPI.invoke('citations-get', this.currentFilters);
+            const result = await window.electronAPI.citations.get(this.currentFilters);
             if (!result.success) {
                 throw new Error(result.error);
             }
@@ -1056,7 +1056,7 @@ class CitationManager {
     // Load projects for filter dropdown
     async loadProjects() {
         try {
-            const result = await window.electronAPI.invoke('citations-projects-get');
+            const result = await window.electronAPI.citations.projectsGet();
             if (result.success) {
                 this.projects = result.projects;
                 this.updateProjectFilter();
@@ -1140,7 +1140,7 @@ class CitationManager {
             if (!yearFilter) return;
 
             // Get all citations to extract years (use fresh API call for accurate data)
-            const result = await window.electronAPI.invoke('citations-get', {});
+            const result = await window.electronAPI.citations.get({});
             if (!result.success) return;
 
             const years = new Set();
@@ -1204,7 +1204,7 @@ class CitationManager {
             // Get all citations (no filters for complete sync) - but only if we don't have current citations
             let citationsToSync;
             if (!this.citations || this.citations.length === 0) {
-                const result = await window.electronAPI.invoke('citations-get', {});
+                const result = await window.electronAPI.citations.get({});
                 if (!result.success || !result.citations.length) {
                     console.log('[Citation Manager] No citations to sync to citations.bib');
                     return;
@@ -1216,8 +1216,7 @@ class CitationManager {
             }
 
             // Export to citations.bib in working directory
-            const exportResult = await window.electronAPI.invoke('citations-export-to-file', 
-                citationsToSync.map(c => c.id), 
+            const exportResult = await window.electronAPI.citations.exportToFile(citationsToSync.map(c => c.id),
                 'bibtex'
             );
 
@@ -1644,7 +1643,7 @@ class CitationManager {
     async viewCitationByKey(key) {
         try {
             // 1. Try the citation database first
-            const result = await window.electronAPI.invoke('citations-get-by-key', key);
+            const result = await window.electronAPI.citations.getByKey(key);
             if (result.success && result.citation) {
                 this.viewCitation(result.citation.id);
                 return;
@@ -1692,7 +1691,7 @@ class CitationManager {
     // View citation details
     async viewCitation(id) {
         try {
-            const result = await window.electronAPI.invoke('citations-get-by-id', id);
+            const result = await window.electronAPI.citations.getById(id);
             if (result.success) {
                 this.currentEditingId = id;
                 // Preserve the existing source when editing
@@ -1716,7 +1715,7 @@ class CitationManager {
     // Copy citation to clipboard
     async copyCitation(id) {
         try {
-            const result = await window.electronAPI.invoke('citations-format', id, 'APA');
+            const result = await window.electronAPI.citations.format(id, 'APA');
             if (result.success) {
                 navigator.clipboard.writeText(result.formatted);
                 this.showSuccess('Citation copied to clipboard');
@@ -1740,7 +1739,7 @@ class CitationManager {
         }))) return;
 
         try {
-            const result = await window.electronAPI.invoke('citations-delete', id);
+            const result = await window.electronAPI.citations.delete(id);
             if (result.success) {
                 this.showSuccess('Citation deleted');
                 await this.refreshCitationsWithSync(true); // Skip nightowl sync to prevent app reload
@@ -1887,10 +1886,10 @@ class CitationManager {
             let result;
             if (this.currentEditingId) {
                 // Update existing citation
-                result = await window.electronAPI.invoke('citations-update', this.currentEditingId, citationData);
+                result = await window.electronAPI.citations.update(this.currentEditingId, citationData);
             } else {
                 // Add new citation
-                result = await window.electronAPI.invoke('citations-add', citationData);
+                result = await window.electronAPI.citations.add(citationData);
             }
 
             if (result.success) {
@@ -1915,7 +1914,7 @@ class CitationManager {
     // Browse for file
     async browseFile() {
         try {
-            const result = await window.electronAPI.invoke('dialog-open-file', {
+            const result = await window.electronAPI.files.dialogOpenFile({
                 title: 'Select Citation File',
                 filters: [
                     { name: 'All Files', extensions: ['*'] },
@@ -1949,7 +1948,7 @@ class CitationManager {
         }
 
         try {
-            const result = await window.electronAPI.invoke('citations-import-text', textValue);
+            const result = await window.electronAPI.citations.importText(textValue);
             if (!result?.success) {
                 throw new Error(result?.error || 'Smart import failed');
             }
@@ -2035,7 +2034,7 @@ class CitationManager {
         }
 
         try {
-            const response = await window.electronAPI.invoke('citations-get-capture-tools');
+            const response = await window.electronAPI.citations.getCaptureTools();
             if (!response?.success || !response.bookmarklet) {
                 throw new Error(response?.error || 'Capture tools are unavailable');
             }
@@ -2050,7 +2049,7 @@ class CitationManager {
 
     async exportBrowserCaptureBundles() {
         try {
-            const response = await window.electronAPI.invoke('citations-export-browser-capture-bundles');
+            const response = await window.electronAPI.citations.exportBrowserCaptureBundles();
             if (!response?.success || !response.bundleDirectory) {
                 throw new Error(response?.error || 'Could not export browser capture bundles');
             }
@@ -2073,7 +2072,7 @@ class CitationManager {
                 }
             }
 
-            await window.electronAPI.invoke('open-folder-in-finder', response.bundleDirectory);
+            await window.electronAPI.navigation.openFolderInFinder(response.bundleDirectory);
         } catch (error) {
             console.error('[Citation Manager] Failed to export browser bundles:', error);
             this.showError('Failed to export browser bundles: ' + error.message);
@@ -2164,7 +2163,7 @@ class CitationManager {
             this.showCollectionsLoading(true);
 
             // Fetch collections from Zotero
-            const result = await window.electronAPI.invoke('citations-fetch-zotero-collections', apiKey, userId);
+            const result = await window.electronAPI.citations.fetchZoteroCollections(apiKey, userId);
             
             this.showCollectionsLoading(false);
 
@@ -2339,7 +2338,7 @@ class CitationManager {
         if (!apiKey || !userId) return;
 
         try {
-            const result = await window.electronAPI.invoke('citations-fetch-zotero-collections', apiKey, userId);
+            const result = await window.electronAPI.citations.fetchZoteroCollections(apiKey, userId);
             
             if (result.success) {
                 this.populateQuickCollectionSelector(result.collections);
@@ -2508,7 +2507,7 @@ class CitationManager {
 
             this.showLoading(`Exporting ${selectedIds.length} citations to Zotero...`);
 
-            const result = await window.electronAPI.invoke('citations-export-to-zotero', selectedIds, apiKey, userId, collectionId);
+            const result = await window.electronAPI.citations.exportToZotero(selectedIds, apiKey, userId, collectionId);
             
             if (result.success) {
                 this.hideLoading();
@@ -2547,7 +2546,7 @@ class CitationManager {
 
             this.showLoading('Performing live sync with Zotero...');
 
-            const result = await window.electronAPI.invoke('citations-zotero-live-sync', apiKey, userId, collectionId);
+            const result = await window.electronAPI.citations.zoteroLiveSync(apiKey, userId, collectionId);
             
             if (result.success) {
                 this.hideLoading();
@@ -2632,7 +2631,7 @@ class CitationManager {
 
             for (const id of selectedIds) {
                 try {
-                    const result = await window.electronAPI.invoke('citations-delete', id);
+                    const result = await window.electronAPI.citations.delete(id);
                     if (result.success) {
                         successCount++;
                     } else {
@@ -2698,7 +2697,7 @@ class CitationManager {
                     // Get current citation data
                     const citation = this.citations.find(c => c.id === id);
                     if (citation) {
-                        const result = await window.electronAPI.invoke('citations-update', id, {
+                        const result = await window.electronAPI.citations.update(id, {
                             ...citation,
                             project: projectName
                         });
@@ -2818,7 +2817,7 @@ class CitationManager {
             this.showLoading('Scanning for duplicate citations...');
 
             // Get all citations
-            const result = await window.electronAPI.invoke('citations-get', {});
+            const result = await window.electronAPI.citations.get({});
             if (!result.success) {
                 throw new Error(result.error);
             }
@@ -3006,7 +3005,7 @@ class CitationManager {
         let successCount = 0;
         for (const id of toDelete) {
             try {
-                const result = await window.electronAPI.invoke('citations-delete', id);
+                const result = await window.electronAPI.citations.delete(id);
                 if (result.success) successCount++;
             } catch (error) {
                 console.error(`[Citation Manager] Error deleting citation ${id}:`, error);
@@ -3059,7 +3058,7 @@ class CitationManager {
             const collectionField = document.getElementById('zotero-collection');
             const collectionId = collectionField?.value?.trim() || null;
             
-            const result = await window.electronAPI.invoke('citations-zotero-live-sync', apiKey, userId, collectionId);
+            const result = await window.electronAPI.citations.zoteroLiveSync(apiKey, userId, collectionId);
             if (result.success) {
                 this.hideModal('zotero-modal-overlay');
                 this.showSuccess('Zotero sync completed successfully');
@@ -3089,7 +3088,7 @@ class CitationManager {
             // Get citation IDs based on selection
             let citationIds = [];
             if (selection === 'all') {
-                const allCitations = await window.electronAPI.invoke('citations-get', {});
+                const allCitations = await window.electronAPI.citations.get({});
                 if (allCitations.success) {
                     citationIds = allCitations.citations.map(c => c.id);
                 }
@@ -3111,7 +3110,7 @@ class CitationManager {
 
             // Get preview (first 3 citations)
             const previewIds = citationIds.slice(0, 3);
-            const result = await window.electronAPI.invoke('citations-export', previewIds, format);
+            const result = await window.electronAPI.citations.export(previewIds, format);
             
             if (result.success) {
                 const previewDiv = document.getElementById('export-preview');
@@ -3141,7 +3140,7 @@ class CitationManager {
             // Get citation IDs based on selection
             let citationIds = [];
             if (selection === 'all') {
-                const allCitations = await window.electronAPI.invoke('citations-get', {});
+                const allCitations = await window.electronAPI.citations.get({});
                 if (allCitations.success) {
                     citationIds = allCitations.citations.map(c => c.id);
                 }
@@ -3165,10 +3164,10 @@ class CitationManager {
             let result;
             if (destination === 'project') {
                 // Save to project directory
-                result = await window.electronAPI.invoke('citations-export-to-file', citationIds, format);
+                result = await window.electronAPI.citations.exportToFile(citationIds, format);
             } else {
                 // Download to browser
-                result = await window.electronAPI.invoke('citations-export', citationIds, format);
+                result = await window.electronAPI.citations.export(citationIds, format);
             }
             
             if (result.success) {
@@ -3235,7 +3234,7 @@ class CitationManager {
         try {
             this.showLoading('Executing SQL query...');
             
-            const result = await window.electronAPI.invoke('citations-execute-sql', query);
+            const result = await window.electronAPI.citations.executeSql(query);
             
             this.hideLoading();
             
@@ -3433,7 +3432,7 @@ class CitationManager {
         try {
             if (window.showNotification) window.showNotification('Syncing with BibTeX file...', 'info');
 
-            const result = await window.electronAPI.invoke('citations-bib-sync', filePath || null);
+            const result = await window.electronAPI.citations.bibSync(filePath || null);
             if (!result.success) {
                 if (result.cancelled) return;
                 throw new Error(result.error);
@@ -3460,7 +3459,7 @@ class CitationManager {
         try {
             if (window.showNotification) window.showNotification('Exporting citations to BibTeX...', 'info');
 
-            const result = await window.electronAPI.invoke('citations-bib-export-to-file', null);
+            const result = await window.electronAPI.citations.bibExportToFile(null);
             if (!result.success) {
                 if (result.cancelled) return;
                 throw new Error(result.error);
@@ -3482,7 +3481,7 @@ class CitationManager {
         try {
             if (window.showNotification) window.showNotification('Importing from BibTeX file...', 'info');
 
-            const result = await window.electronAPI.invoke('citations-bib-import-from-file', null);
+            const result = await window.electronAPI.citations.bibImportFromFile(null);
             if (!result.success) {
                 if (result.cancelled) return;
                 throw new Error(result.error);
@@ -3515,7 +3514,7 @@ class CitationManager {
             }
 
             // 1. Fetch all citations
-            const result = await window.electronAPI.invoke('citations-get-all', {});
+            const result = await window.electronAPI.citations.get({});
             if (!result.success || !result.citations) {
                 throw new Error(result.error || 'Failed to load citations');
             }
@@ -3592,7 +3591,7 @@ Rules:
                 window.showNotification('Asking AI to review citations...', 'info');
             }
 
-            const aiResult = await window.electronAPI.invoke('ai-chat', {
+            const aiResult = await window.electronAPI.ai.aiChat({
                 message: prompt,
                 options: { temperature: 0.2, maxTokens: 4000 }
             });
@@ -3836,7 +3835,7 @@ Rules:
         try {
             if (action.type === 'merge') {
                 // Delete the duplicate, keeping the better record
-                await window.electronAPI.invoke('citations-delete', action.removeId);
+                await window.electronAPI.citations.delete(action.removeId);
                 console.log(`[Citation Scanner] Merged: removed ID ${action.removeId}, kept ID ${action.keepId}`);
             } else if (action.type === 'update') {
                 const updateData = {};
@@ -3846,7 +3845,7 @@ Rules:
                 } else {
                     updateData[action.field] = action.value;
                 }
-                await window.electronAPI.invoke('citations-update', action.id, updateData);
+                await window.electronAPI.citations.update(action.id, updateData);
                 console.log(`[Citation Scanner] Updated ID ${action.id}: ${action.field} = ${action.value}`);
             }
         } catch (err) {

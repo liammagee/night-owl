@@ -1,13 +1,15 @@
 describe('app confirmation helper', () => {
+  let showConfirmDialog;
   beforeEach(() => {
     jest.resetModules();
     document.body.innerHTML = '';
-    window.electronAPI = { invoke: jest.fn() };
+    showConfirmDialog = jest.fn();
+    window.electronAPI = { app: { showConfirmDialog } };
     require('../../../orchestrator/modules/app-confirm.js');
   });
 
   test('uses native Electron confirmation when available', async () => {
-    window.electronAPI.invoke.mockResolvedValue({
+    showConfirmDialog.mockResolvedValue({
       success: true,
       confirmed: true
     });
@@ -20,8 +22,7 @@ describe('app confirmation helper', () => {
       variant: 'danger'
     })).resolves.toBe(true);
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith(
-      'show-confirm-dialog',
+    expect(showConfirmDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Delete File',
         paths: ['/workspace/file.md'],
@@ -31,7 +32,7 @@ describe('app confirmation helper', () => {
   });
 
   test('falls back to an in-app modal with exact paths', async () => {
-    window.electronAPI.invoke.mockRejectedValue(new Error('native unavailable'));
+    showConfirmDialog.mockRejectedValue(new Error('native unavailable'));
 
     const promise = window.showAppConfirm({
       title: 'Remove Workspace Folder',

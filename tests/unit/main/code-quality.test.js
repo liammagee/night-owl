@@ -57,6 +57,71 @@ describe('Code quality guardrails', () => {
     expect(duplicates).toEqual([]);
   });
 
+  test('actions use the shared registry without legacy command arrays or duplicate file palettes', () => {
+    const appRoots = [
+      path.join(__dirname, '../../../orchestrator'),
+      path.join(__dirname, '../../../plugins')
+    ];
+    const appSources = appRoots
+      .flatMap(rootPath => collectJavaScriptFiles(rootPath))
+      .map(filePath => fs.readFileSync(filePath, 'utf8'));
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const paletteSource = fs.readFileSync(
+      path.join(__dirname, '../../../orchestrator/modules/commandPalette.js'),
+      'utf8'
+    );
+
+    expect(indexSource).toContain('orchestrator/modules/action-registry.js');
+    expect(indexSource).not.toContain('id="command-palette-overlay"');
+    expect(rendererSource).not.toContain('Command Palette (VS Code-style Cmd+P) Implementation');
+    expect(appSources.some(source => source.includes('window.commandPaletteCommands'))).toBe(false);
+    expect(paletteSource).not.toContain('function registerCommand(');
+    expect(paletteSource).toContain('const registerCommand = registerCoreAction;');
+    expect(mainSource).toContain("getElectronAccelerator('file.quickOpen')");
+    expect(mainSource).toContain("getElectronAccelerator('view.togglePreview')");
+    expect(mainSource).toContain("webContents.send('show-keyboard-shortcuts')");
+    expect(mainSource).not.toContain('• Cmd/Ctrl+P: Toggle presentation mode');
+    expect(mainSource).not.toMatch(/accelerator:\s*['\"]CmdOrCtrl/);
+  });
+
+  test('publishing profiles use fixed IPC capabilities and direct command vectors', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const serviceSource = fs.readFileSync(path.join(__dirname, '../../../services/publishingProfiles.js'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/publishing-workflows.js');
+    expect(indexSource).toContain('orchestrator/modules/publishing-workflows.css');
+    expect(mainSource).toContain("webContents.send('open-publishing-workflows')");
+    expect(serviceSource).toContain('execFile(executable, args');
+    expect(serviceSource).not.toContain('execSync(');
+    expect(serviceSource).not.toMatch(/shell:\s*true/);
+  });
+
+  test('unsafe collaboration prototype is retired behind an explicit boundary', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const ipcIndexSource = fs.readFileSync(path.join(__dirname, '../../../ipc/index.js'), 'utf8');
+    const preloadSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
+    const boundarySource = fs.readFileSync(path.join(__dirname, '../../../services/collaborationBoundary.js'), 'utf8');
+    const boundaryDocs = fs.readFileSync(path.join(__dirname, '../../../docs/development/COLLABORATION_BOUNDARY.md'), 'utf8');
+
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/collaboration.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/collaborationIndicators.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../ipc/collaborationHandlers.js'))).toBe(false);
+    expect(indexSource).not.toMatch(/collaboration(?:Indicators)?\.js/);
+    expect(rendererSource).not.toContain('CollaborationIndicators');
+    expect(ipcIndexSource).not.toContain('collaborationHandlers');
+    expect(preloadSource).not.toMatch(/['"]collab-/);
+    expect(preloadSource).not.toContain("'collaboration'");
+    expect(boundarySource).toContain("status: 'retired'");
+    expect(boundarySource).toContain("transport: 'none'");
+    expect(boundarySource).toContain("mutationAllowed: false");
+    expect(boundaryDocs).toContain('Requirements for reintroduction');
+    expect(boundaryDocs).toContain('must not overwrite');
+  });
+
   test('file tree rendering batches DOM writes and hydrates tags off the initial paint', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
@@ -114,7 +179,7 @@ describe('Code quality guardrails', () => {
     // Image paths are resolved (and percent-encoded) in one shared place.
     expect(rendererSource).not.toContain('file://${baseDir}');
     expect(pluginSource).toContain('resolvePreviewImageSource');
-    expect(pluginSource).toContain('setSanitizedHTML(previewElement, html, { baseDir: _currentBaseDir })');
+    expect(pluginSource).toContain('setSanitizedHTML(previewElement, html, { baseDir })');
 
     // Toasts go through the notification center, which routes routine messages to the status bar.
     expect(rendererSource).toContain('window.NightOwlNotifications?.center');
@@ -122,7 +187,7 @@ describe('Code quality guardrails', () => {
 
     // Horizontal scrolling: wrap-aware Monaco scrollbar and source view wrapping.
     expect(rendererSource).toContain('editorOptionsForWordWrap');
-    expect(rendererSource).toContain('applyWordWrap(window.editor, newValue, previewSourceEl)');
+    expect(rendererSource).toContain('syncSourceViewWrap(settings.editor.wordWrap, previewSourceEl)');
     expect(styleSource).toContain('.preview-source-view.preview-source-nowrap');
     expect(styleSource).toMatch(/#mode-switcher\s*\{[^}]*overflow-x:\s*auto/);
   });
@@ -144,7 +209,7 @@ describe('Code quality guardrails', () => {
     const rendererPath = path.join(__dirname, '../../../orchestrator/renderer.js');
     const source = fs.readFileSync(rendererPath, 'utf8');
 
-    expect(source).toContain('scheduleBibliographyRefresh(window.currentFilePath, markdownContent)');
+    expect(source).toContain('scheduleBibliographyRefresh(options.currentFilePath, markdownContent)');
     expect(source).not.toContain('await refreshBibliographyFromContent(window.currentFilePath, markdownContent)');
   });
 
@@ -176,30 +241,95 @@ describe('Code quality guardrails', () => {
     expect(indexSource).toContain('https://www.youtube-nocookie.com');
     expect(indexSource).toContain('https://player.vimeo.com');
     expect(indexSource).toContain('https://*.zoom.us');
-    expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(previewContent, headerHtml + htmlContent)');
+    expect(rendererSource).toContain('previewMarkdown.setSanitizedHTML(targetElement, headerHtml + htmlContent)');
+    expect(rendererSource).toContain('previewContent.replaceChildren(...Array.from(staging.childNodes))');
     expect(rendererSource).toContain('pre.textContent = markdownContent');
     expect(rendererSource).not.toContain("previewContent.innerHTML = '<pre>' + markdownContent + '</pre>'");
     expect(rendererSource).not.toContain('previewContent.innerHTML = headerHtml + htmlContent');
     expect(techneRenderer).toContain('window.NightOwlPreviewMarkdown?.setSanitizedHTML');
   });
 
-  test('preload bridge only exposes allowlisted IPC channels', () => {
+  test('preload bridge exposes fixed capability methods with guarded main-process senders', () => {
     const rootPreload = fs.readFileSync(path.join(__dirname, '../../../preload.js'), 'utf8');
     const orchestratorPreload = fs.readFileSync(path.join(__dirname, '../../../orchestrator/preload.js'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
     const guardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
 
-    expect(rootPreload).toContain('createGuardedIpcBridge');
-    expect(orchestratorPreload).toContain('createGuardedIpcBridge');
+    const ipcSecuritySource = fs.readFileSync(path.join(__dirname, '../../../services/ipcSecurity.js'), 'utf8');
+
+    expect(rootPreload).toContain('createCapabilityApi');
+    expect(orchestratorPreload).toContain('createCapabilityApi');
     expect(mainSource).toContain('sandbox: false');
     expect(packageJson.build.files).toContain('preload-ipc-guard.js');
     expect(guardSource).toContain('ALLOWED_INVOKE_CHANNELS');
-    expect(guardSource).toContain('assertAllowedChannel');
-    expect(rootPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
-    expect(orchestratorPreload).not.toContain('invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args)');
-    expect(rootPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
-    expect(orchestratorPreload).not.toContain('send: (channel, ...args) => ipcRenderer.send(channel, ...args)');
+    expect(guardSource).toContain('CAPABILITY_CHANNELS');
+    expect(guardSource).toContain('ARGUMENT_VALIDATORS');
+    expect(ipcSecuritySource).toContain('event.senderFrame !== sender.mainFrame');
+    expect(mainSource).toContain('installIpcMainGuard(ipcMain');
+    expect(rootPreload).not.toMatch(/\binvoke\s*:/);
+    expect(orchestratorPreload).not.toMatch(/\binvoke\s*:/);
+    expect(rootPreload).not.toMatch(/\bon\s*:/);
+    expect(rootPreload).not.toMatch(/\bsend\s*:/);
+    expect(packageJson.dependencies?.['@electron/remote']).toBeUndefined();
+    expect(mainSource).not.toContain('@electron/remote');
+
+    const rendererFiles = ['js', 'orchestrator', 'plugins']
+      .flatMap(directory => collectJavaScriptFiles(path.join(__dirname, '../../..', directory)));
+    const genericDispatchers = rendererFiles.filter(file => (
+      /electronAPI(?:\?\.|\.)(?:invoke|on|send)\b/.test(fs.readFileSync(file, 'utf8'))
+    ));
+    expect(genericDispatchers).toEqual([]);
+
+    const bridgeMutations = rendererFiles.filter(file => (
+      /electronAPI(?:\?\.|\.)[A-Za-z_$][\w$]*\s*=(?!=)/.test(fs.readFileSync(file, 'utf8'))
+    ));
+    expect(bridgeMutations).toEqual([]);
+  });
+
+  test('dynamic resources have explicit owners and app shutdown cleanup', () => {
+    const lifecycleSource = fs.readFileSync(path.join(__dirname, '../../../services/resourceLifecycle.js'), 'utf8');
+    const featureLoaderSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/feature-loader.js'), 'utf8');
+    const feedSource = fs.readFileSync(path.join(__dirname, '../../../ipc/feedHandlers.js'), 'utf8');
+    const ipcSource = fs.readFileSync(path.join(__dirname, '../../../ipc/index.js'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+
+    expect(indexSource).toContain('services/resourceLifecycle.js');
+    expect(lifecycleSource).toContain('function createRegistry');
+    expect(featureLoaderSource).toContain('disposeFeatureLifecycle');
+    expect(featureLoaderSource).toContain('disposeAllFeatures');
+    expect(feedSource).toContain("name: 'main:research-feed'");
+    expect(feedSource).toContain('pollLifecycle.interval');
+    expect(feedSource).toContain('pollLifecycle.timeout');
+    expect(ipcSource).toContain('fileHandlers.cleanup()');
+    expect(ipcSource).toContain('terminalHandlers.cleanup()');
+    expect(mainSource).toContain('ipcHandlers.cleanupHandlers()');
+  });
+
+  test('transition failures use structured redacted diagnostics and local recovery actions', () => {
+    const diagnosticsSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/diagnostics.js'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const modeSource = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
+    const transitionSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-transition-coordinator.js'), 'utf8');
+    const previewSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/preview-router.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+
+    expect(indexSource).toContain('orchestrator/modules/diagnostics.js');
+    expect(indexSource).toContain('css/diagnostics.css');
+    expect(diagnosticsSource).toContain('SENSITIVE_KEY_RE');
+    expect(diagnosticsSource).toContain('PATH_KEY_RE');
+    expect(diagnosticsSource).toContain('Copy redacted diagnostics');
+    expect(transitionSource).toContain('correlationId');
+    expect(previewSource).not.toContain('onError({ filePath, content,');
+    expect(rendererSource).toContain("recordViewFailure('file', 'NO-FILE-OPEN'");
+    expect(rendererSource).toContain("recordViewFailure('preview', 'NO-PREVIEW-RENDER'");
+    expect(rendererSource).toContain("'Reset View'");
+    expect(modeSource).toContain('recordPresentationFailure');
+    expect(modeSource).toContain('presentation-load-reset');
+    expect(mainSource).toContain("label: 'Diagnostics...'");
+    expect(mainSource).toContain("send('open-diagnostics')");
   });
 
   test('NightOwl command-line installer is reachable from the app menu and packaged build', () => {
@@ -295,6 +425,7 @@ describe('Code quality guardrails', () => {
     const performanceE2E = fs.readFileSync(path.join(__dirname, '../../../tests/e2e/performance.e2e.js'), 'utf8');
 
     expect(packageJson.scripts['quality:trace']).toBe('node scripts/compare-chromium-traces.js');
+    expect(packageJson.scripts['benchmark:performance']).toContain('playwright.performance.config.js');
     expect(traceScript).toContain('summarizeTrace');
     expect(traceScript).toContain('traceEvents');
     expect(runbook).toContain('Large-file editing');
@@ -303,7 +434,8 @@ describe('Code quality guardrails', () => {
     expect(runbook).toContain('Presentation view');
     expect(performanceE2E).toContain('waitForNightOwlReady');
     expect(performanceE2E).toContain('collectAppDiagnostics');
-    expect(performanceE2E).toContain('performance.mark');
+    expect(performanceE2E).toContain('getReadinessRecords');
+    expect(performanceE2E).toContain('summarizeSamples');
     expect(performanceE2E).not.toContain('Date.now()');
     expect(performanceE2E).not.toContain('waitForTimeout');
   });
@@ -379,13 +511,62 @@ describe('Code quality guardrails', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const modelFallbackIndex = rendererSource.indexOf("currentModel.setValue(content)");
     const deferredSyncIndex = rendererSource.indexOf("await setCurrentFilePathState(filePath, { syncMain: true });", modelFallbackIndex);
-    const previewIndex = rendererSource.indexOf("await updatePreviewAndStructure(content);", deferredSyncIndex);
+    const previewIndex = rendererSource.indexOf("const previewResult = await updatePreviewAndStructure(content, {", deferredSyncIndex);
 
-    expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isImageFile');
+    expect(rendererSource).toContain('const shouldDeferCurrentFileSync = !options.isInternalLinkPreview && !isPDF && !isPPTX && !isImageFile');
     expect(rendererSource).toContain('syncCurrentFileAfterModel: shouldDeferCurrentFileSync');
     expect(modelFallbackIndex).toBeGreaterThan(-1);
     expect(deferredSyncIndex).toBeGreaterThan(modelFallbackIndex);
     expect(previewIndex).toBeGreaterThan(deferredSyncIndex);
+  });
+
+  test('file opens use a latest-wins transition before asynchronous reads', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const coordinatorSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-transition-coordinator.js'), 'utf8');
+    const fileOpenSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-open-controller.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const beginIndex = fileOpenSource.indexOf("const transition = begin(filePath");
+    const readIndex = fileOpenSource.indexOf('const result = await readPath(filePath, requestOptions)');
+
+    expect(indexSource.indexOf('orchestrator/modules/file-transition-coordinator.js'))
+      .toBeLessThan(indexSource.indexOf('orchestrator/modules/file-open-controller.js'));
+    expect(indexSource.indexOf('orchestrator/modules/file-open-controller.js'))
+      .toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
+    expect(beginIndex).toBeGreaterThan(-1);
+    expect(readIndex).toBeGreaterThan(beginIndex);
+    expect(coordinatorSource).toContain("supersede(channel, reason = 'newer-transition')");
+    expect(coordinatorSource).toContain('commit(callback)');
+    expect(fileOpenSource).toContain('refreshExistingTabContent: requestOptions.refreshExistingTabContent !== false');
+    expect(rendererSource).toContain('fileOpenController.openPath(filePath, options)');
+    expect(rendererSource).toContain('fileOpenController.openContent(filePath, content, options)');
+    expect(rendererSource).toContain("if (!tab?.isDirty && tab?.model && typeof tab.model.setValue === 'function')");
+    expect(rendererSource).toContain('tab.model.setValue(content);');
+    expect(rendererSource).toContain('tab.lastSavedContent = content;');
+    expect(rendererSource).toContain('window.openFilePathInEditor = openFilePathInEditor;');
+    expect(rendererSource).not.toContain('const _queuedOpenFileRequests = new Map();');
+    expect(rendererSource).not.toContain('if (_openingFilePath === filePath) return;');
+  });
+
+  test('renderer orchestration delegates to injected workflow controllers', () => {
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const controllerPaths = [
+      'orchestrator/modules/file-open-controller.js',
+      'orchestrator/modules/preview-router.js',
+      'orchestrator/modules/file-tree-controller.js',
+      'orchestrator/modules/pane-controller.js'
+    ];
+
+    for (const controllerPath of controllerPaths) {
+      expect(indexSource.indexOf(controllerPath)).toBeGreaterThan(-1);
+      expect(indexSource.indexOf(controllerPath)).toBeLessThan(indexSource.indexOf('orchestrator/renderer.js'));
+    }
+    expect(rendererSource).toContain('const outcome = await previewRouter.render(markdownContent, options);');
+    expect(rendererSource).toContain('return fileTreeController.render();');
+    expect(rendererSource).toContain("return paneController.show(paneType);");
+    expect(rendererSource).not.toContain('let fileTreeSignaturePollTimer');
+    expect(rendererSource).not.toContain('let _restoringPaneVisibility');
+    expect(rendererSource).not.toContain('function beginFileOpenTransition');
   });
 
   test('Mermaid fullscreen controls clean up transient listeners', () => {
@@ -453,18 +634,113 @@ describe('Code quality guardrails', () => {
 
   test('presentation runtime handles React 18 and later root APIs consistently', () => {
     const modeSwitcher = fs.readFileSync(path.join(__dirname, '../../../js/mode-switcher.js'), 'utf8');
+    const renderer = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
     const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
     const presentationPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/package.json'), 'utf8'));
 
     expect(modeSwitcher).toContain('function getPresentationReactRuntime');
     expect(modeSwitcher).toContain('function renderPresentationComponent');
     expect(modeSwitcher).toContain('runtime.reactDOM.createRoot(container)');
+    expect(modeSwitcher).toContain('class PresentationErrorBoundary');
+    expect(modeSwitcher).toContain('NO-PRES-CONTENT');
     expect(modeSwitcher).not.toContain('window.ReactDOM.render(window.React.createElement(window.MarkdownPreziApp), presentationRoot)');
+    expect(renderer).toContain('window.updateSpeakerNotesDisplay?.();');
+    expect(renderer).not.toMatch(/\n\s+updateSpeakerNotesDisplay\(\);/);
     expect(presentationPlugin).toContain('const getReactRuntime = () =>');
     expect(presentationPlugin).toContain('runtime.reactDOM.createRoot(container)');
     expect(presentationPlugin).toContain('runtime.reactDOM.render(element, container)');
     expect(presentationPackage.peerDependencies.react).toBe('>=18 <20');
     expect(presentationPackage.peerDependencies['react-dom']).toBe('>=18 <20');
+  });
+
+  test('presentation authoring and delivery runtimes fit one complete slide without canvas leakage', () => {
+    const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
+    const presentationSource = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/src/MarkdownPreziApp.jsx'), 'utf8');
+    const presentationRuntime = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/MarkdownPreziApp.js'), 'utf8');
+    const presentationCss = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'), 'utf8');
+
+    expect(presentationPlugin).toContain('`${BASE}/presentation-viewport.js`');
+    expect(presentationPlugin.indexOf('`${BASE}/presentation-viewport.js`'))
+      .toBeLessThan(presentationPlugin.indexOf('`${BASE}/touch-gestures.js`'));
+
+    for (const componentSource of [presentationSource, presentationRuntime]) {
+      expect(componentSource).toContain('NightOwlPresentationViewport');
+      expect(componentSource).toContain('presentation-current-slide');
+      expect(componentSource).toContain('presentation-stage');
+      expect(componentSource).toContain('slide-content-frame');
+      expect(componentSource).toContain('slide-content-delivery');
+      expect(componentSource).toContain('calculateAuthoringFocus');
+      expect(componentSource).toContain('refitAuthoringView');
+      const navigationStart = componentSource.indexOf('goToSlide = useCallback');
+      const deliveryGate = componentSource.indexOf('if (!isPresenting)', navigationStart);
+      const canvasGate = componentSource.indexOf('if (!canvas)', navigationStart);
+      const reconciliationStart = componentSource.indexOf('pendingContentSlideRef.current === null');
+      const reconciliationDeliveryGate = componentSource.indexOf('if (isPresenting) return;', reconciliationStart);
+      const reconciliationNavigation = componentSource.indexOf('goToSlide(slideIndex);', reconciliationStart);
+      const initialCenterStart = componentSource.indexOf('Center view on first slide when slides are initially loaded');
+      const initialCenterDeliveryGate = componentSource.indexOf('if (isPresenting || slides.length === 0', initialCenterStart);
+      const initialCenterCleanup = componentSource.indexOf('clearTimeout(timer)', initialCenterStart);
+      expect(navigationStart).toBeGreaterThan(-1);
+      expect(deliveryGate).toBeGreaterThan(navigationStart);
+      expect(canvasGate).toBeGreaterThan(deliveryGate);
+      expect(reconciliationStart).toBeGreaterThan(canvasGate);
+      expect(reconciliationDeliveryGate).toBeGreaterThan(reconciliationStart);
+      expect(reconciliationNavigation).toBeGreaterThan(reconciliationDeliveryGate);
+      expect(initialCenterStart).toBeGreaterThan(reconciliationNavigation);
+      expect(initialCenterDeliveryGate).toBeGreaterThan(initialCenterStart);
+      expect(initialCenterCleanup).toBeGreaterThan(initialCenterDeliveryGate);
+    }
+
+    expect(presentationSource).toContain('if (isPresenting && !isCurrent) return null');
+    expect(presentationSource).toContain('window.NightOwlPresentationPreflight?.splitSlides');
+    expect(presentationSource).not.toContain('const presentationPreflight =');
+    expect(presentationSource).toContain('{!isPresenting && (');
+    expect(presentationSource).toContain("data-fit-mode={isPresenting ? 'contain' : 'canvas'}");
+    expect(presentationSource).toContain('Math.min(frame.clientWidth, element.clientWidth)');
+    expect(presentationSource).toContain("transformOrigin: 'top left'");
+    expect(presentationSource).not.toContain('presentation-shell w-full h-screen');
+    expect(presentationCss).toContain('#presentation-root .presentation-stage > .presentation-canvas');
+    expect(presentationCss).toContain('body.is-presenting #presentation-root .presentation-stage .presentation-current-slide');
+    expect(presentationCss).toContain('body.is-presenting #presentation-root .slide-content-delivery');
+    expect(presentationCss).toContain('body:not(.is-presenting) #presentation-root .presentation-stage .presentation-canvas .slide');
+  });
+
+  test('presentation and feature assets have one canonical owner', () => {
+    const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
+    const presentationPlugin = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/plugin.js'), 'utf8');
+    const presentationCss = fs.readFileSync(path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'), 'utf8');
+
+    expect(indexSource).toContain(
+      'id="nightowl-presentations-preview-css" rel="stylesheet" href="plugins/techne-presentations/preview-presentation.css"'
+    );
+    expect(presentationPlugin).toContain("id: `${FEATURE_ID}-preview-css`");
+    expect(indexSource).not.toContain('href="css/preview-presentation.css"');
+    expect(indexSource).not.toContain('href="css/babel-maze.css"');
+    expect(indexSource).not.toContain('orchestrator/modules/unifiedNetwork.js');
+    expect(fs.existsSync(path.join(__dirname, '../../../css/preview-presentation.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../css/speaker-notes.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../css/babel-maze.css'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../orchestrator/modules/unifiedNetwork.js'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-maze/babel-maze.css'))).toBe(true);
+    expect(fs.existsSync(path.join(__dirname, '../../../plugins/techne-network-diagram/unified-network.js'))).toBe(true);
+    expect(presentationCss).toContain('#presentation-root .slide-content');
+    expect(presentationCss).toContain('#presentation-root .presentation-stage');
+    expect(presentationCss).not.toMatch(/^\s*\.slide(?:\s|:|\{|\.|\[)/m);
+  });
+
+  test('speaker notes window uses a packaged, sanitized HTML renderer', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const windowHtml = fs.readFileSync(path.join(__dirname, '../../../js/speaker-notes-window.html'), 'utf8');
+    const windowRenderer = fs.readFileSync(path.join(__dirname, '../../../js/speaker-notes-window.js'), 'utf8');
+
+    expect(mainSource).toContain("path.join(__dirname, 'js', 'speaker-notes-window.html')");
+    expect(mainSource).toContain('speakerNotesWindow.loadFile(speakerNotesHtmlPath)');
+    expect(mainSource).not.toContain('data:text/html;charset=utf-8');
+    expect(windowHtml).toContain('Content-Security-Policy');
+    expect(windowHtml).toContain('speaker-notes-window.js');
+    expect(windowRenderer).toContain('sanitizeNotesHTML');
+    expect(windowRenderer).toContain("contentElement.dataset.renderFormat = 'html'");
+    expect(windowRenderer).not.toContain('contentElement.innerHTML =');
   });
 
   test('file pane toolbar remains compact inside the activity sidebar', () => {
@@ -484,10 +760,21 @@ describe('Code quality guardrails', () => {
     expect(indexSource).toContain('aria-label="Add existing folder to workspace"');
     expect(indexSource).toContain('aria-label="Change the primary working directory"');
     expect(indexSource).toContain('aria-label="Create a new subfolder inside selected folder"');
+    expect(indexSource).toContain('aria-label="Duplicate selected folder"');
     expect(indexSource).not.toContain('pane-action-label');
     expect(indexSource).not.toContain('>Add Root</button>');
     expect(indexSource).not.toContain('>Primary</button>');
     expect(indexSource).not.toContain('>New Folder</button>');
+  });
+
+  test('native File menu exposes the guarded duplicate-folder action', () => {
+    const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+
+    expect(mainSource).toContain("label: 'Duplicate Folder'");
+    expect(mainSource).toContain("webContents.send('duplicate-selected-folder')");
+    expect(rendererSource).toContain('events.duplicateSelectedFolder');
+    expect(rendererSource).toContain('window.duplicateSelectedFolder?.()');
   });
 
   test('right pane assistant surface is terminal-first, not bespoke AI chat', () => {
@@ -566,7 +853,8 @@ describe('Code quality guardrails', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../package.json'), 'utf8'));
     const distCheckSource = fs.readFileSync(path.join(__dirname, '../../../scripts/check-distribution-readiness.js'), 'utf8');
 
-    expect(packageJson.scripts['dist:check']).toBe('node scripts/check-distribution-readiness.js');
+    expect(packageJson.scripts['dist:check']).toContain('npm run presentation:check');
+    expect(packageJson.scripts['dist:check']).toContain('node scripts/check-distribution-readiness.js');
     expect(packageJson.scripts.predist).toBe('npm run dist:check');
     expect(packageJson.build.mac.hardenedRuntime).toBe(true);
     expect(packageJson.build.mac.gatekeeperAssess).toBe(false);
@@ -597,13 +885,17 @@ describe('Code quality guardrails', () => {
 
   test('file tree has lightweight disk polling before expensive refreshes', () => {
     const rendererSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/renderer.js'), 'utf8');
+    const controllerSource = fs.readFileSync(path.join(__dirname, '../../../orchestrator/modules/file-tree-controller.js'), 'utf8');
     const fileHandlersSource = fs.readFileSync(path.join(__dirname, '../../../ipc/fileHandlers.js'), 'utf8');
     const preloadGuardSource = fs.readFileSync(path.join(__dirname, '../../../preload-ipc-guard.js'), 'utf8');
 
-    expect(rendererSource).toContain('FILE_TREE_SIGNATURE_POLL_MS');
+    expect(controllerSource).toContain('const pollMs = options.pollMs || 4000');
+    expect(controllerSource).toContain('async function pollOnce()');
+    expect(controllerSource).toContain('requestSignature()');
+    expect(controllerSource).toContain('onSignatureChanged');
     expect(rendererSource).toContain('pollFileTreeSignatureOnce');
     expect(rendererSource).toContain("window.currentStructureView === 'file'");
-    expect(rendererSource).toContain("document.visibilityState !== 'hidden'");
+    expect(rendererSource).toContain("document.visibilityState === 'hidden'");
     expect(fileHandlersSource).toContain("ipcMain.handle('get-file-tree-signature'");
     expect(fileHandlersSource).toContain('getWorkspaceTreeSignature');
     expect(preloadGuardSource).toContain("'get-file-tree-signature'");
@@ -612,12 +904,31 @@ describe('Code quality guardrails', () => {
   test('startup chrome keeps basic accessibility affordances', () => {
     const indexSource = fs.readFileSync(path.join(__dirname, '../../../index.html'), 'utf8');
     const mainSource = fs.readFileSync(path.join(__dirname, '../../../main.js'), 'utf8');
+    const accessibilityCss = fs.readFileSync(path.join(__dirname, '../../../css/accessibility.css'), 'utf8');
+    const presentationSource = fs.readFileSync(
+      path.join(__dirname, '../../../plugins/techne-presentations/src/MarkdownPreziApp.jsx'),
+      'utf8'
+    );
+    const presentationCss = fs.readFileSync(
+      path.join(__dirname, '../../../plugins/techne-presentations/preview-presentation.css'),
+      'utf8'
+    );
 
+    expect(indexSource).toContain('css/accessibility.css');
+    expect(indexSource).toContain("el.setAttribute('aria-label', title)");
+    expect(indexSource).toContain('role="group" aria-label="Application mode"');
     expect(indexSource).toContain('id="format-inline-math-btn"');
     expect(indexSource).toContain('aria-label="Inline Math"');
     expect(indexSource).toContain('id="format-display-math-btn"');
     expect(indexSource).toContain('aria-label="Display Math"');
     expect(indexSource).toContain('id="current-file-name"');
+    expect(indexSource).toContain('role="separator" aria-label="Resize speaker notes"');
+    expect(accessibilityCss).toContain(':focus-visible');
+    expect(presentationSource).toContain('aria-roledescription="slide"');
+    expect(presentationSource).toContain('aria-label="Slide navigation"');
+    expect(presentationSource).toContain('className="presentation-connection-lines');
+    expect(presentationCss).not.toMatch(/body\.is-presenting\s+svg\s*\{/);
+    expect(presentationCss).not.toMatch(/\.cursor-grab\s+svg/);
     expect(indexSource).not.toContain('id="current-file-name" class="breadcrumb-segment" style="color: var(--text-muted, #999);"');
     expect(mainSource).toContain("process.env.NIGHTOWL_OPEN_DEVTOOLS === '1'");
     expect(mainSource).not.toContain("accelerator: 'CmdOrCtrl+K CmdOrCtrl");
@@ -636,8 +947,9 @@ describe('Code quality guardrails', () => {
     expect(rendererSource).toContain('function initializeNativeThemeManager');
     expect(rendererSource).toContain('window.techneThemeManager._init(host)');
     expect(featureLoaderSource).not.toContain('techne-theme-manager');
-    expect(rendererSource).toContain('const MANAGED_THEME_FALLBACKS');
-    expect(rendererSource).toContain("'solarized-light'");
+    expect(rendererSource).toContain('function getManagedThemeFallback(themeId)');
+    expect(rendererSource).toContain('contract.validateTheme(themeId, theme)');
+    expect(rendererSource).not.toContain('const MANAGED_THEME_FALLBACKS');
     expect(rendererSource).toContain("body.setAttribute('data-techne-theme', preference)");
     expect(adapterSource).toContain('--primary-wcag: var(--techne-accent-active)');
     expect(adapterSource).toContain('--primary-500: var(--techne-accent)');

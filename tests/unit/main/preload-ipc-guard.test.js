@@ -2,8 +2,9 @@ const {
   ALLOWED_INVOKE_CHANNELS,
   ALLOWED_ON_CHANNELS,
   ALLOWED_SEND_CHANNELS,
-  createGuardedIpcBridge,
-  removeAllAllowedListeners
+  createCapabilityApi,
+  getInvokeContract,
+  validateInvokeArgs
 } = require('../../../preload-ipc-guard');
 
 describe('preload IPC guard', () => {
@@ -17,16 +18,24 @@ describe('preload IPC guard', () => {
     };
   }
 
-  test('allows known app channels and strips the event object from listeners', async () => {
+  test('exposes fixed capability methods and strips event objects from listeners', async () => {
     const ipcRenderer = createIpcRendererMock();
-    const bridge = createGuardedIpcBridge(ipcRenderer);
+    const bridge = createCapabilityApi(ipcRenderer, { platform: 'test' });
     const listener = jest.fn();
 
-    await expect(bridge.invoke('get-settings')).resolves.toEqual({ success: true });
-    const unsubscribe = bridge.on('settings-changed', listener);
-    bridge.send('save-layout', { width: 300 });
+    await expect(bridge.settings.getSettings()).resolves.toEqual({ success: true });
+    await expect(bridge.search.workspaceIndexSearch({
+      query: 'accept',
+      options: { maxResults: 10 }
+    })).resolves.toEqual({ success: true });
+    const unsubscribe = bridge.events.settingsChanged(listener);
+    bridge.signals.saveLayout({ width: 300 });
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('get-settings');
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('workspace-index-search', {
+      query: 'accept',
+      options: { maxResults: 10 }
+    });
     expect(ipcRenderer.on).toHaveBeenCalledWith('settings-changed', expect.any(Function));
     expect(ipcRenderer.send).toHaveBeenCalledWith('save-layout', { width: 300 });
 
@@ -38,33 +47,103 @@ describe('preload IPC guard', () => {
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith('settings-changed', subscription);
   });
 
-  test('blocks arbitrary invoke, on, and send channels', () => {
-    const bridge = createGuardedIpcBridge(createIpcRendererMock());
+  test('does not expose a string-based invoke, on, or send escape hatch', () => {
+    const bridge = createCapabilityApi(createIpcRendererMock());
 
-    expect(() => bridge.invoke('shell-run', 'rm -rf /')).toThrow(/Blocked invoke IPC channel/);
-    expect(() => bridge.on('untrusted-event', () => {})).toThrow(/Blocked on IPC channel/);
-    expect(() => bridge.send('untrusted-send')).toThrow(/Blocked send IPC channel/);
+    expect(bridge.invoke).toBeUndefined();
+    expect(bridge.on).toBeUndefined();
+    expect(bridge.send).toBeUndefined();
+    expect(bridge.git.status).toEqual(expect.any(Function));
+    expect(bridge.terminal.exec).toEqual(expect.any(Function));
+    expect(bridge.feed.setCredential).toEqual(expect.any(Function));
+    expect(bridge.pdfResearch.loadAnnotations).toEqual(expect.any(Function));
+    expect(Object.isFrozen(bridge)).toBe(true);
+  });
+
+  test('rejects malformed privileged payloads before they reach ipcRenderer', () => {
+    const ipcRenderer = createIpcRendererMock();
+    const bridge = createCapabilityApi(ipcRenderer);
+
+    expect(() => bridge.terminal.exec({ cwd: '/tmp' })).toThrow(/Invalid payload for terminal-exec/);
+    expect(() => bridge.git.stage({ repoRoot: '/repo', paths: 'all' })).toThrow(/request.paths/);
+    expect(() => bridge.files.saveFile({ filePath: '/tmp/a.md' })).toThrow(/file.content/);
+    expect(bridge.collaboration).toBeUndefined();
+    expect(() => bridge.pdfResearch.saveAnnotations({ filePath: '/tmp/paper.pdf', highlights: 'all', annotations: [] }))
+      .toThrow(/request.highlights/);
+    expect(() => bridge.publishing.preview({ files: [{ sourcePath: '/tmp/a.md' }], options: {} }))
+      .toThrow(/request.files\[0\].title/);
+    expect(ipcRenderer.invoke).not.toHaveBeenCalled();
   });
 
   test('keeps the expected channel sets explicit', () => {
     expect(ALLOWED_INVOKE_CHANNELS.has('perform-save-with-path')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('feed:list-sources')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('get-file-tree-signature')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('duplicate-folder')).toBe(true);
+    expect(getInvokeContract('duplicate-folder')).toEqual({
+      channel: 'duplicate-folder',
+      capability: 'files',
+      method: 'duplicateFolder'
+    });
+    expect(getInvokeContract('render-pptx-preview')).toEqual({
+      channel: 'render-pptx-preview',
+      capability: 'presentation',
+      method: 'renderPptxPreview'
+    });
+    expect(getInvokeContract('open-pptx-in-powerpoint')).toEqual({
+      channel: 'open-pptx-in-powerpoint',
+      capability: 'presentation',
+      method: 'openPptxInPowerpoint'
+    });
+    expect(ALLOWED_INVOKE_CHANNELS.has('get-tutor-core-status')).toBe(true);
     expect(ALLOWED_INVOKE_CHANNELS.has('terminal-resize')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('performance:get-resource-diagnostics')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('pdf-research-load-annotations')).toBe(true);
+    expect(ALLOWED_INVOKE_CHANNELS.has('collab-start-server')).toBe(false);
     expect(ALLOWED_INVOKE_CHANNELS.has('shell-run')).toBe(false);
     expect(ALLOWED_ON_CHANNELS.has('settings-changed')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('duplicate-selected-folder')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:items')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:scored')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('feed:source-error')).toBe(true);
     expect(ALLOWED_ON_CHANNELS.has('toggle-assistant-terminal')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('open-diagnostics')).toBe(true);
+    expect(ALLOWED_ON_CHANNELS.has('collab-remote-edit')).toBe(false);
     expect(ALLOWED_SEND_CHANNELS.has('save-layout')).toBe(true);
+    expect(getInvokeContract('git-stage')).toEqual({
+      channel: 'git-stage',
+      capability: 'git',
+      method: 'stage'
+    });
+    expect(getInvokeContract('read-file')).toEqual({
+      channel: 'read-file',
+      capability: 'files',
+      method: 'readFile'
+    });
+    expect(getInvokeContract('pdf-research-create-note')).toEqual({
+      channel: 'pdf-research-create-note',
+      capability: 'pdfResearch',
+      method: 'createNote'
+    });
+    expect(getInvokeContract('static-site-preview')).toEqual({
+      channel: 'static-site-preview',
+      capability: 'publishing',
+      method: 'preview'
+    });
   });
 
-  test('cleanup only removes allowlisted listener channels', () => {
-    const ipcRenderer = createIpcRendererMock();
-    removeAllAllowedListeners(ipcRenderer);
+  test('validates privileged payloads for the main-process boundary too', () => {
+    expect(() => validateInvokeArgs('terminal-write', [{ data: 'ls\n' }])).not.toThrow();
+    expect(() => validateInvokeArgs('terminal-write', [{ data: () => {} }])).toThrow(/unsupported function data/);
+    expect(() => validateInvokeArgs('shell-run', [])).toThrow(/Unknown invoke channel/);
+  });
 
-    expect(ipcRenderer.removeAllListeners).toHaveBeenCalledWith('settings-changed');
-    expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalledWith('shell-run');
+  test('accepts repeated serializable references but rejects actual cycles', () => {
+    const shared = { value: 'same object' };
+    expect(() => validateInvokeArgs('debug-log', [{ first: shared, second: shared }])).not.toThrow();
+
+    const circular = {};
+    circular.self = circular;
+    expect(() => validateInvokeArgs('debug-log', [circular])).toThrow(/circular reference/);
   });
 });

@@ -22,9 +22,9 @@
         '--bg-color': '#fdf6e3',
         '--bg-secondary': '#eee8d5',
         '--bg-tertiary': '#e0daca',
-        '--text-color': '#657b83',
-        '--text-secondary': '#586e75',
-        '--text-muted': '#93a1a1',
+        '--text-color': '#43565d',
+        '--text-secondary': '#43565d',
+        '--text-muted': '#52666d',
         '--border-color': '#d5cec0',
         '--primary': '#268bd2',
         '--primary-hover': '#2176b5',
@@ -44,9 +44,9 @@
         '--bg-color': '#002b36',
         '--bg-secondary': '#073642',
         '--bg-tertiary': '#0a4050',
-        '--text-color': '#839496',
-        '--text-secondary': '#93a1a1',
-        '--text-muted': '#586e75',
+        '--text-color': '#b4c5c5',
+        '--text-secondary': '#b4c5c5',
+        '--text-muted': '#9aabad',
         '--border-color': '#0a4050',
         '--primary': '#268bd2',
         '--primary-hover': '#2176b5',
@@ -625,24 +625,14 @@
   function init() {
     restoreTheme();
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'View: Open Theme Editor',
-        action: showThemeEditor
-      });
+    if (typeof window.registerCommand === 'function' && !window.NightOwlActions?.get('theme.open')) {
+      window.registerCommand('theme.open', 'View: Open Theme Editor', showThemeEditor);
 
-      // Quick-apply presets from command palette
       for (const [id, preset] of Object.entries(PRESETS)) {
-        window.commandPaletteCommands.push({
-          name: `Theme: Apply ${preset.name}`,
-          action: () => applyPreset(id)
-        });
+        window.registerCommand(`theme.apply.${id}`, `Theme: Apply ${preset.name}`, () => applyPreset(id));
       }
 
-      window.commandPaletteCommands.push({
-        name: 'Theme: Reset to Default',
-        action: resetToDefault
-      });
+      window.registerCommand('theme.reset', 'Theme: Reset to Default', resetToDefault);
     }
   }
 

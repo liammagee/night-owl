@@ -223,7 +223,7 @@ async function performAutoSaveNow(target) {
 
         // Pass the tab's path explicitly rather than relying on main-process
         // currentFilePath state, which has its own drift paths.
-        const result = await window.electronAPI.invoke('perform-save-with-path', content, savePath, {
+        const result = await window.electronAPI.files.performSaveWithPath(content, savePath, {
             expectedContent: activeTab.lastSavedContent
         });
 

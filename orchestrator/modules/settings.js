@@ -7,7 +7,7 @@ let currentSettings = null;
 async function openSettingsDialog(category = 'general') {
     try {
         // Load current settings
-        currentSettings = await window.electronAPI.invoke('get-settings');
+        currentSettings = await window.electronAPI.settings.getSettings();
         
         // Create dialog if it doesn't exist
         if (!settingsDialog) {
@@ -161,7 +161,7 @@ function createSettingsDialog() {
                 delete window.appSettings.plugins;
 
                 // Persist to settings file
-                await window.electronAPI?.invoke?.('set-settings', window.appSettings);
+                await window.electronAPI?.settings?.setSettings(window.appSettings);
 
                 // Update mode button visibility
                 if (window.updateModeButtonVisibility) {
@@ -384,6 +384,14 @@ function generateGeneralSettings() {
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Choose how internal links ([[filename]]) are displayed and behave in your documents.
                 </p>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Capability Health</h3>
+            <p>Check optional tools and providers before relying on export, AI, speech, or terminal-assistant features. Reports never include credential values or document contents.</p>
+            <div class="settings-group">
+                <button type="button" class="btn btn-primary" id="open-capability-health">Check Capabilities</button>
             </div>
         </div>
     `;
@@ -951,7 +959,9 @@ function generateAISettings() {
                 <div class="settings-group">
                     <label>
                         <select id="ash-provider" onchange="updateModelOptions('ash')">
-                            <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="auto" ${getAssistantProvider('ash') === 'auto' ? 'selected' : ''}>Auto (Codex CLI, then Claude CLI)</option>
+                            <option value="codex-cli" ${getAssistantProvider('ash') === 'codex-cli' ? 'selected' : ''}>Codex CLI (subscription)</option>
+                            <option value="claude-cli" ${getAssistantProvider('ash') === 'claude-cli' ? 'selected' : ''}>Claude CLI (subscription)</option>
                             <option value="openai" ${getAssistantProvider('ash') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('ash') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
                             <option value="gemini" ${getAssistantProvider('ash') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
@@ -997,7 +1007,9 @@ function generateAISettings() {
                 <div class="settings-group">
                     <label>
                         <select id="chen-provider" onchange="updateModelOptions('chen')">
-                            <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Use Available)</option>
+                            <option value="auto" ${getAssistantProvider('chen') === 'auto' ? 'selected' : ''}>Auto (Codex CLI, then Claude CLI)</option>
+                            <option value="codex-cli" ${getAssistantProvider('chen') === 'codex-cli' ? 'selected' : ''}>Codex CLI (subscription)</option>
+                            <option value="claude-cli" ${getAssistantProvider('chen') === 'claude-cli' ? 'selected' : ''}>Claude CLI (subscription)</option>
                             <option value="openai" ${getAssistantProvider('chen') === 'openai' ? 'selected' : ''}>OpenAI</option>
                             <option value="anthropic" ${getAssistantProvider('chen') === 'anthropic' ? 'selected' : ''}>Anthropic</option>
                             <option value="gemini" ${getAssistantProvider('chen') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
@@ -1034,6 +1046,35 @@ function generateAISettings() {
                             Customize Dr. Chen's personality and behavior. This prompt defines how Dr. Chen responds and engages in philosophical dialogue.
                         </div>
                     </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Provider Routing</h3>
+                <div class="settings-group">
+                    <p style="font-size: 12px; color: #666; margin: 0 0 8px;">
+                        Auto routing uses Codex CLI first and Claude CLI second. CLI subprocesses run without inherited API keys, without tool access, and in an isolated read-only workspace.
+                    </p>
+                    <label>
+                        <input type="checkbox" id="ai-allow-api-fallback" ${currentSettings.ai?.allowApiFallback === true ? 'checked' : ''}>
+                        <span>Allow automatic fallback to configured API providers</span>
+                    </label>
+                    <div style="font-size: 11px; color: #666; margin-left: 20px;">
+                        Off by default. Named API providers can still be selected explicitly; enabling fallback may incur API charges.
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Machinespirits Tutor Stub</h3>
+                <div class="settings-group">
+                    <label>
+                        <input type="text" id="tutor-stub-repository-path" value="${escapeSettingsHtml(currentSettings.ai?.tutorStub?.repositoryPath || '')}" placeholder="Auto-detect ../machinespirits-eval" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <span>Repository path</span>
+                    </label>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        Leave blank to auto-detect machinespirits-eval. Launch the stateful tutor from the Assistant terminal using the <strong>tutor</strong> button.
+                    </div>
                 </div>
             </div>
             
@@ -1101,6 +1142,13 @@ function generateAISettings() {
                     <input type="checkbox" id="ai-writing-companion-enabled" ${currentSettings.ai?.enableWritingCompanion !== false ? 'checked' : ''} onchange="toggleWritingCompanionOptions()">
                     <span>Enable AI Writing Companion</span>
                 </label>
+                <label>
+                    <input type="checkbox" id="ai-allow-remote-document-context" ${currentSettings.ai?.allowRemoteDocumentContext !== false ? 'checked' : ''}>
+                    <span>Allow remote providers to receive document context for AI edits</span>
+                </label>
+                <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
+                    When disabled, reviewable document edits remain available only with an explicitly configured local provider.
+                </div>
                 <div style="margin-left: 20px; font-size: 11px; color: #666; margin-top: 2px;">
                     Real-time flow detection, contextual feedback, and intelligent writing insights
                 </div>
@@ -1167,7 +1215,7 @@ function generateAISettings() {
         
         
         <div class="settings-section">
-            <p><strong>Note:</strong> API keys are configured via environment variables (.env file). See the .env.example file for details.</p>
+            <p><strong>Note:</strong> Codex and Claude CLI routing uses their existing signed-in sessions. API keys are only needed when an API provider is explicitly selected or API fallback is enabled.</p>
         </div>
     `;
 }
@@ -1353,6 +1401,15 @@ function generateTTSSettings() {
     const ttsSettings = currentSettings.tts || {};
     const lemonfoxSettings = ttsSettings.lemonfox || {};
     const webSpeechSettings = ttsSettings.webSpeech || {};
+    const lemonfoxVoices = [
+        'heart', 'bella', 'michael', 'alloy', 'aoede', 'kore', 'jessica', 'nicole', 'nova', 'river',
+        'sarah', 'sky', 'echo', 'eric', 'fenrir', 'liam', 'onyx', 'puck', 'adam', 'santa',
+        'alice', 'emma', 'isabella', 'lily', 'daniel', 'fable', 'george', 'lewis'
+    ];
+    const selectedVoice = lemonfoxSettings.voice || 'heart';
+    const voiceOptions = lemonfoxVoices.map(voice =>
+        `<option value="${voice}" ${selectedVoice === voice ? 'selected' : ''}>${voice.charAt(0).toUpperCase() + voice.slice(1)}</option>`
+    ).join('');
     
     return `
         <div class="settings-section">
@@ -1398,16 +1455,22 @@ function generateTTSSettings() {
         <div class="settings-section">
             <h3>Lemonfox.ai Settings</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
-                High-quality neural voices powered by Lemonfox.ai. Requires LEMONFOX_API_KEY environment variable.
+                High-quality neural voices powered by Lemonfox.ai. Keys are stored with the operating system's secure credential service, or may be supplied through LEMONFOX_API_KEY.
             </p>
             <div class="settings-group">
                 <label>
+                    <input type="password" id="tts-lemonfox-api-key" autocomplete="off" placeholder="Lemonfox API key">
+                    <span>API key (never shown after saving)</span>
+                </label>
+                <div class="settings-inline-actions">
+                    <button type="button" id="tts-lemonfox-save-key">Save key securely</button>
+                    <button type="button" id="tts-lemonfox-remove-key">Remove saved key</button>
+                    <button type="button" id="tts-lemonfox-test">Generate test phrase</button>
+                </div>
+                <p id="tts-lemonfox-status" role="status" aria-live="polite">Checking Lemonfox configuration…</p>
+                <label>
                     <select id="tts-lemonfox-voice">
-                        <option value="sarah" ${lemonfoxSettings.voice === 'sarah' ? 'selected' : ''}>Sarah (Female)</option>
-                        <option value="michael" ${lemonfoxSettings.voice === 'michael' ? 'selected' : ''}>Michael (Male)</option>
-                        <option value="alice" ${lemonfoxSettings.voice === 'alice' ? 'selected' : ''}>Alice (Female)</option>
-                        <option value="john" ${lemonfoxSettings.voice === 'john' ? 'selected' : ''}>John (Male)</option>
-                        <option value="emily" ${lemonfoxSettings.voice === 'emily' ? 'selected' : ''}>Emily (Female)</option>
+                        ${voiceOptions}
                     </select>
                     <span>Voice</span>
                 </label>
@@ -1424,6 +1487,13 @@ function generateTTSSettings() {
                         <option value="hi" ${lemonfoxSettings.language === 'hi' ? 'selected' : ''}>Hindi</option>
                     </select>
                     <span>Language</span>
+                </label>
+                <label>
+                    <select id="tts-lemonfox-region">
+                        <option value="global" ${lemonfoxSettings.region !== 'eu' ? 'selected' : ''}>Global API</option>
+                        <option value="eu" ${lemonfoxSettings.region === 'eu' ? 'selected' : ''}>European Union API</option>
+                    </select>
+                    <span>Processing region</span>
                 </label>
                 <label>
                     <input type="range" id="tts-lemonfox-speed" min="0.5" max="4.0" step="0.1" value="${lemonfoxSettings.speed || 1.0}">
@@ -1725,6 +1795,11 @@ function addSettingsEventListeners(category) {
     console.log(`[Settings] settings-content element:`, settingsContent);
     console.log(`[Settings] settings-content innerHTML length:`, settingsContent?.innerHTML?.length);
 
+    document.getElementById('open-capability-health')?.addEventListener('click', () => {
+        closeSettingsDialog();
+        window.NightOwlCapabilities?.open?.();
+    });
+
     // Notification preference preview (applies immediately in runtime; persists on Save).
     const disableNotificationsCheckbox = document.getElementById('disable-notifications');
     const disableAINotificationsCheckbox = document.getElementById('disable-ai-notifications');
@@ -1810,7 +1885,7 @@ function addSettingsEventListeners(category) {
             
             // Save settings
             try {
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 
                 // Update currentSettings to reflect the change
                 if (!currentSettings.linkPreview) currentSettings.linkPreview = {};
@@ -1867,7 +1942,7 @@ function addSettingsEventListeners(category) {
                 window.appSettings.theme = newTheme;
 
                 // Save settings
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
 
                 // Update currentSettings to reflect the change
                 currentSettings.theme = newTheme;
@@ -1919,7 +1994,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.accent = accent;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), accent };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1944,7 +2019,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.grid = grid;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), grid };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1969,7 +2044,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.noise = noise;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), noise };
 
                 if (window.appSettings.theme === 'techne') {
@@ -1994,7 +2069,7 @@ function addSettingsEventListeners(category) {
                 if (!window.appSettings.techne) window.appSettings.techne = {};
                 window.appSettings.techne.blurBloom = blurBloom;
 
-                await window.electronAPI.invoke('set-settings', window.appSettings);
+                await window.electronAPI.settings.setSettings(window.appSettings);
                 currentSettings.techne = { ...(currentSettings.techne || {}), blurBloom };
 
                 if (window.appSettings.theme === 'techne') {
@@ -2153,6 +2228,12 @@ function setupTTSEventListeners() {
     const lemonfoxSpeed = document.getElementById('tts-lemonfox-speed');
     const lemonfoxFormat = document.getElementById('tts-lemonfox-format');
     const lemonfoxTimestamps = document.getElementById('tts-lemonfox-timestamps');
+    const lemonfoxRegion = document.getElementById('tts-lemonfox-region');
+    const lemonfoxApiKey = document.getElementById('tts-lemonfox-api-key');
+    const lemonfoxSaveKey = document.getElementById('tts-lemonfox-save-key');
+    const lemonfoxRemoveKey = document.getElementById('tts-lemonfox-remove-key');
+    const lemonfoxTest = document.getElementById('tts-lemonfox-test');
+    const lemonfoxStatus = document.getElementById('tts-lemonfox-status');
     
     // Web Speech settings
     const webSpeechRate = document.getElementById('tts-webspeech-rate');
@@ -2162,7 +2243,7 @@ function setupTTSEventListeners() {
     // Helper function to save TTS settings
     async function saveTTSSettings(updates) {
         try {
-            await window.electronAPI.invoke('update-settings-category', 'tts', updates);
+            await window.electronAPI.settings.updateSettingsCategory('tts', updates);
             console.log('[Settings] TTS settings saved:', updates);
             
             // Update current settings to reflect changes
@@ -2257,6 +2338,80 @@ function setupTTSEventListeners() {
             saveTTSSettings({ lemonfox: { word_timestamps: e.target.checked } });
         });
     }
+
+    if (lemonfoxRegion) {
+        lemonfoxRegion.addEventListener('change', (e) => {
+            saveTTSSettings({ lemonfox: { region: e.target.value } });
+        });
+    }
+
+    async function refreshLemonfoxStatus(message = '') {
+        if (!lemonfoxStatus) return;
+        try {
+            const status = await window.electronAPI.speech.credentialStatus();
+            if (!status.success) throw new Error(status.error || 'Configuration check failed.');
+            const source = status.source === 'environment' ? 'launch environment' : 'secure storage';
+            lemonfoxStatus.textContent = message || (status.configured
+                ? `Lemonfox is configured through ${source}.`
+                : status.canStoreSecurely
+                    ? 'No Lemonfox key is configured.'
+                    : 'Secure credential storage is unavailable on this system.');
+            if (lemonfoxRemoveKey) lemonfoxRemoveKey.disabled = !status.configured || status.source === 'environment';
+        } catch (error) {
+            lemonfoxStatus.textContent = error.message;
+        }
+    }
+
+    if (lemonfoxSaveKey) {
+        lemonfoxSaveKey.addEventListener('click', async () => {
+            const apiKey = lemonfoxApiKey?.value || '';
+            lemonfoxSaveKey.disabled = true;
+            const result = await window.electronAPI.speech.setApiKey({ apiKey });
+            lemonfoxSaveKey.disabled = false;
+            if (result.success) {
+                if (lemonfoxApiKey) lemonfoxApiKey.value = '';
+                await refreshLemonfoxStatus('Lemonfox key saved securely.');
+                window.NightOwlCapabilities?.check?.({ force: true });
+            } else {
+                lemonfoxStatus.textContent = result.error || 'Could not save the Lemonfox key.';
+            }
+        });
+    }
+
+    if (lemonfoxRemoveKey) {
+        lemonfoxRemoveKey.addEventListener('click', async () => {
+            const result = await window.electronAPI.speech.deleteApiKey();
+            await refreshLemonfoxStatus(result.success ? 'Saved Lemonfox key removed.' : result.error);
+            window.NightOwlCapabilities?.check?.({ force: true });
+        });
+    }
+
+    if (lemonfoxTest) {
+        lemonfoxTest.addEventListener('click', async () => {
+            lemonfoxTest.disabled = true;
+            if (lemonfoxStatus) lemonfoxStatus.textContent = 'Generating a short test phrase…';
+            const result = await window.electronAPI.speech.testConnection({
+                voice: lemonfoxVoice?.value,
+                language: lemonfoxLanguage?.value,
+                speed: Number(lemonfoxSpeed?.value || 1),
+                region: lemonfoxRegion?.value
+            });
+            lemonfoxTest.disabled = false;
+            if (result.success) {
+                const audio = new Audio(`data:audio/mpeg;base64,${result.audioData}`);
+                try {
+                    await audio.play();
+                    if (lemonfoxStatus) lemonfoxStatus.textContent = result.message;
+                } catch (error) {
+                    if (lemonfoxStatus) lemonfoxStatus.textContent = `Test audio was generated but could not play: ${error.message}`;
+                }
+            } else if (lemonfoxStatus) {
+                lemonfoxStatus.textContent = result.error || 'Lemonfox test failed.';
+            }
+        });
+    }
+
+    refreshLemonfoxStatus();
     
     // Web Speech settings
     if (webSpeechRate) {
@@ -2353,7 +2508,7 @@ async function saveSettingsDialog() {
         const nextHideGeneratedArtifacts = updatedSettings?.navigation?.hideGeneratedArtifacts === true;
         
         // Update settings via IPC
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
         
         // Update global settings object
         window.appSettings = updatedSettings;
@@ -2372,7 +2527,7 @@ async function saveSettingsDialog() {
                 window.renderFileTree();
             }
             try {
-                await window.electronAPI.invoke('refresh-file-tree');
+                await window.electronAPI.files.refreshFileTree();
             } catch (error) {
                 console.warn('[Settings] Could not refresh file tree after artifact setting change:', error);
             }
@@ -2720,6 +2875,19 @@ function collectSettingsFromForm() {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.localAIUrl = localAIUrl;
     }
+
+    const allowApiFallback = document.getElementById('ai-allow-api-fallback')?.checked;
+    if (allowApiFallback !== undefined) {
+        updatedSettings.ai.allowApiFallback = allowApiFallback;
+        updatedSettings.ai.providerPriority = ['codex-cli', 'claude-cli'];
+        updatedSettings.ai.subscriptionOnly = true;
+    }
+
+    const tutorStubRepositoryPath = document.getElementById('tutor-stub-repository-path')?.value;
+    if (tutorStubRepositoryPath !== undefined) {
+        if (!updatedSettings.ai.tutorStub) updatedSettings.ai.tutorStub = {};
+        updatedSettings.ai.tutorStub.repositoryPath = tutorStubRepositoryPath.trim();
+    }
     
     
     // System prompt settings
@@ -2764,6 +2932,12 @@ function collectSettingsFromForm() {
     if (aiWritingCompanionEnabled !== undefined) {
         if (!updatedSettings.ai) updatedSettings.ai = {};
         updatedSettings.ai.enableWritingCompanion = aiWritingCompanionEnabled;
+    }
+
+    const aiAllowRemoteDocumentContext = document.getElementById('ai-allow-remote-document-context')?.checked;
+    if (aiAllowRemoteDocumentContext !== undefined) {
+        if (!updatedSettings.ai) updatedSettings.ai = {};
+        updatedSettings.ai.allowRemoteDocumentContext = aiAllowRemoteDocumentContext;
     }
     
     const aiCompanionContextScope = document.getElementById('ai-companion-context-scope')?.value;
@@ -2932,7 +3106,7 @@ async function testVisualizationFilters() {
         const excludePatterns = document.getElementById('viz-exclude-patterns')?.value.split('\n').filter(p => p.trim()) || [];
         
         // Get all files and test filters
-        const allFiles = await window.electronAPI.invoke('get-available-files');
+        const allFiles = await window.electronAPI.workspace.getAvailableFiles();
         const filteredFiles = filterVisualizationFiles(allFiles, includePatterns, excludePatterns);
 
         const formatFileItem = (fileItem) => {
@@ -2992,7 +3166,7 @@ async function testVisualizationFilters() {
 // Helper functions for dialog buttons
 async function changeWorkingDirectory() {
     try {
-        const result = await window.electronAPI.invoke('change-working-directory');
+        const result = await window.electronAPI.workspace.changeWorkingDirectory();
         if (result.success) {
             const input = document.getElementById('working-directory');
             if (input && result.directory) {
@@ -3011,7 +3185,7 @@ async function changeWorkingDirectory() {
 
 async function exportSettingsFromDialog() {
     try {
-        await window.electronAPI.invoke('export-settings');
+        await window.electronAPI.settings.exportSettings();
         showNotification('Settings exported successfully', 'success');
     } catch (error) {
         console.error('[Renderer] Error exporting settings:', error);
@@ -3021,7 +3195,7 @@ async function exportSettingsFromDialog() {
 
 async function importSettingsFromDialog() {
     try {
-        await window.electronAPI.invoke('import-settings');
+        await window.electronAPI.settings.importSettings();
         showNotification('Settings imported successfully', 'success');
     } catch (error) {
         console.error('[Renderer] Error importing settings:', error);
@@ -3215,7 +3389,7 @@ async function generateModelOptions(provider, selectedModel) {
         }
 
         // Get models from backend
-        const result = await window.electronAPI.invoke('get-provider-models', provider);
+        const result = await window.electronAPI.ai.getProviderModels(provider);
         if (!result || !result.models || !Array.isArray(result.models)) {
             console.warn(`[Settings] No models available for provider: ${provider}`);
             return '';
@@ -3314,7 +3488,7 @@ function toggleWritingCompanionOptions() {
 
 async function browseSystemPromptFile() {
     try {
-        const result = await window.electronAPI.invoke('browse-system-prompt-file');
+        const result = await window.electronAPI.settings.browseSystemPromptFile();
         if (result.success && result.filePath) {
             const input = document.getElementById('system-prompt-file');
             if (input) {
@@ -3411,7 +3585,7 @@ async function refreshAIProviders() {
         console.log('[Settings] Refreshing AI providers...');
 
         // Get fresh provider data from backend
-        const providerData = await window.electronAPI.invoke('get-available-ai-providers');
+        const providerData = await window.electronAPI.ai.getAvailableAiProviders();
         if (!providerData || !providerData.providers) {
             console.warn('[Settings] No provider data received');
             showNotification('No AI providers available', 'warning');

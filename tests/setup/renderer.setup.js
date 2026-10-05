@@ -6,12 +6,8 @@ if (!global.TextEncoder) global.TextEncoder = TextEncoder;
 if (!global.TextDecoder) global.TextDecoder = TextDecoder;
 
 // Mock Electron's renderer APIs
-global.electronAPI = {
-  invoke: jest.fn(),
-  on: jest.fn(),
-  removeListener: jest.fn(),
-  send: jest.fn()
-};
+const { createElectronApiMock } = require('../helpers/electron-api-mock');
+global.electronAPI = createElectronApiMock().api;
 
 // Mock Monaco Editor
 global.monaco = {

@@ -230,15 +230,15 @@
         // ------------- IPC wiring -------------
 
         wireIpcListeners() {
-            const u1 = this.api.on('feed:items', ({ sourceId, inserted } = {}) => {
+            const u1 = this.api.events.feedItems(({ sourceId, inserted } = {}) => {
                 this.unreadDelta += inserted || 0;
                 this.updateBadge();
                 if (this.paneEl.style.display !== 'none') this.refreshItems();
             });
-            const u2 = this.api.on('feed:scored', () => {
+            const u2 = this.api.events.feedScored(() => {
                 if (this.paneEl.style.display !== 'none') this.refreshItems();
             });
-            const u3 = this.api.on('feed:source-error', ({ sourceId, message }) => {
+            const u3 = this.api.events.feedSourceError(({ sourceId, message }) => {
                 if (window.DEBUG_VERBOSE) console.warn(`[research-feed] source ${sourceId} error: ${message}`);
                 this.flashHeader(`${sourceId}: ${message}`);
             });
@@ -261,7 +261,7 @@
 
         async refreshSources() {
             try {
-                const r = await this.api.invoke('feed:list-sources');
+                const r = await this.api.feed.listSources();
                 this.sources = r.success ? r.sources : [];
             } catch (_) { this.sources = []; }
             this.renderFilters();
@@ -269,7 +269,7 @@
 
         async refreshItems() {
             try {
-                const r = await this.api.invoke('feed:list', {
+                const r = await this.api.feed.list({
                     sourceId: this.activeFilter.sourceId || undefined,
                     minScore: this.activeFilter.minScore || undefined,
                     sort: this.activeFilter.sort,
@@ -282,7 +282,7 @@
 
         async refreshNow() {
             this.flashHeader('refreshing…');
-            try { await this.api.invoke('feed:refresh-now'); } catch (_) {}
+            try { await this.api.feed.refreshNow(); } catch (_) {}
             await this.refreshItems();
         }
 
@@ -290,7 +290,7 @@
             this.flashHeader('importing chrome tabs…');
             let r;
             try {
-                r = await this.api.invoke('feed:import-chrome-tabs', { aiGate: true });
+                r = await this.api.feed.importChromeTabs({ aiGate: true });
             } catch (e) {
                 this.flashHeader('Import error: ' + e.message);
                 return;
@@ -409,22 +409,22 @@
         openItem(it) {
             if (!it.url) return;
             // Open in external browser via shell.
-            if (window.electronAPI?.invoke) {
-                window.open(it.url, '_blank');
+            if (window.electronAPI?.navigation?.openExternal) {
+                window.electronAPI.navigation.openExternal(it.url);
             } else {
                 window.open(it.url, '_blank');
             }
         }
 
         async saveToCitations(it) {
-            const r = await this.api.invoke('feed:save-to-citations', { id: it.id });
+            const r = await this.api.feed.saveToCitations({ id: it.id });
             if (r.success) this.flashHeader(r.alreadyExisted ? 'Already in citations' : 'Saved ✓');
             else this.flashHeader('Save failed: ' + (r.error || 'unknown'));
             this.refreshItems();
         }
 
         async dismissItem(it) {
-            await this.api.invoke('feed:dismiss', { id: it.id, dismissed: !it.dismissed });
+            await this.api.feed.dismiss({ id: it.id, dismissed: !it.dismissed });
             this.refreshItems();
         }
 
@@ -443,7 +443,7 @@
         // ------------- Settings modal -------------
 
         async openSettingsModal() {
-            const credInfo = await this.api.invoke('feed:credential-info');
+            const credInfo = await this.api.feed.credentialInfo();
             const backdrop = el('div', { class: 'rf-modal-backdrop', onclick: (e) => { if (e.target === backdrop) backdrop.remove(); } });
             const modal = el('div', { class: 'rf-modal' });
 
@@ -459,7 +459,7 @@
             const sourcesContainer = el('div');
             const renderSourcesList = async () => {
                 sourcesContainer.innerHTML = '';
-                const r = await this.api.invoke('feed:list-sources');
+                const r = await this.api.feed.listSources();
                 const list = r.success ? r.sources : [];
                 if (list.length === 0) {
                     sourcesContainer.appendChild(el('div', { class: 'rf-empty', style: 'padding:14px;' }, 'No sources yet. Add one below.'));
@@ -492,14 +492,14 @@
                     el('button', {
                         class: 'rf-btn',
                         onclick: async () => {
-                            await this.api.invoke('feed:set-source-enabled', { id: source.id, enabled: !source.enabled });
+                            await this.api.feed.setSourceEnabled({ id: source.id, enabled: !source.enabled });
                             await onChange();
                         }
                     }, source.enabled ? 'Disable' : 'Enable'),
                     el('button', {
                         class: 'rf-btn',
                         onclick: async () => {
-                            const r = await this.api.invoke('feed:test-source', { sourceId: source.id });
+                            const r = await this.api.feed.testSource({ sourceId: source.id });
                             alert(r.success ? `Fetched ${r.count} items` : `Error: ${r.error}`);
                         }
                     }, 'Test'),
@@ -514,7 +514,7 @@
                                 variant: 'danger'
                             });
                             if (!confirmed) return;
-                            await this.api.invoke('feed:delete-source', { id: source.id });
+                            await this.api.feed.deleteSource({ id: source.id });
                             await onChange();
                         }
                     }, 'Delete')
@@ -558,7 +558,7 @@
                     class: 'rf-btn primary',
                     onclick: async () => {
                         if (!input.value) return;
-                        const r = await this.api.invoke('feed:set-credential', { sourceId, name, value: input.value });
+                        const r = await this.api.feed.setCredential({ sourceId, name, value: input.value });
                         input.value = '';
                         alert(r.success ? 'Saved' : 'Failed: ' + r.error);
                     }
@@ -566,7 +566,7 @@
                 el('button', {
                     class: 'rf-btn',
                     onclick: async () => {
-                        await this.api.invoke('feed:set-credential', { sourceId, name, value: '' });
+                        await this.api.feed.setCredential({ sourceId, name, value: '' });
                         alert('Cleared');
                     }
                 }, 'Clear')
@@ -577,7 +577,7 @@
         renderXSessionControls(sourceId, onChange) {
             const status = el('span', { style: 'font-size:11px;color:#888;' }, '(checking…)');
             const refreshStatus = async () => {
-                const r = await this.api.invoke('feed:x-status');
+                const r = await this.api.feed.xStatus();
                 status.textContent = r.success ? `state: ${r.state}` : `error: ${r.error}`;
             };
             refreshStatus();
@@ -586,7 +586,7 @@
                 status,
                 el('button', {
                     class: 'rf-btn primary',
-                    onclick: async () => { await this.api.invoke('feed:x-open-login'); refreshStatus(); }
+                    onclick: async () => { await this.api.feed.xOpenLogin(); refreshStatus(); }
                 }, 'Connect / re-login'),
                 el('button', {
                     class: 'rf-btn danger',
@@ -599,7 +599,7 @@
                             variant: 'danger'
                         });
                         if (!confirmed) return;
-                        await this.api.invoke('feed:x-clear-session');
+                        await this.api.feed.xClearSession();
                         refreshStatus();
                     }
                 }, 'Clear')
@@ -639,7 +639,7 @@
                     const id = idInput.value.trim();
                     if (!id) { alert('Need an id'); return; }
                     const intervalMs = Math.max(1, Number(intervalInput.value) || 15) * 60000;
-                    const r = await this.api.invoke('feed:upsert-source', {
+                    const r = await this.api.feed.upsertSource({
                         id, type: typeSelect.value, config, enabled: true, intervalMs
                     });
                     if (!r.success) { alert('Failed: ' + r.error); return; }

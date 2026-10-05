@@ -2,23 +2,47 @@
 // Using global React and ReactDOM instead of imports
 const React = window.React;
 const ReactDOM = window.ReactDOM;
-const { useState, useRef, useEffect, useCallback } = React;
+const { useState, useRef, useEffect, useLayoutEffect, useCallback } = React;
+const sanitizeRenderedHTML = (html) => {
+  const contentSecurity = window.NightOwlContentSecurity;
+  if (contentSecurity?.sanitizeRenderedHTML) {
+    return contentSecurity.sanitizeRenderedHTML(html, {
+      baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+    });
+  }
+  return String(html || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
+const setSanitizedHTML = (element, html) => {
+  if (!element) return '';
+  const contentSecurity = window.NightOwlContentSecurity;
+  if (contentSecurity?.setSanitizedHTML) {
+    return contentSecurity.setSanitizedHTML(element, html, {
+      baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory
+    });
+  }
+  element.textContent = String(html || '');
+  return element.textContent;
+};
 
 // Lucide React icons as simple SVG components
 const ChevronLeft = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="15,18 9,12 15,6"></polyline>
   </svg>
 );
 
 const ChevronRight = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="9,18 15,12 9,6"></polyline>
   </svg>
 );
 
 const Upload = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
     <polyline points="7,10 12,15 17,10"></polyline>
     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -26,7 +50,7 @@ const Upload = () => (
 );
 
 const ZoomIn = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.35-4.35"></path>
     <line x1="11" y1="8" x2="11" y2="14"></line>
@@ -35,34 +59,179 @@ const ZoomIn = () => (
 );
 
 const ZoomOut = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.35-4.35"></path>
     <line x1="8" y1="11" x2="14" y2="11"></line>
   </svg>
 );
 
-const SLIDE_WIDTH = 864;
-const SLIDE_HEIGHT = 486;
+const presentationViewport = window.NightOwlPresentationViewport;
+const SLIDE_WIDTH = presentationViewport?.SLIDE_WIDTH || 864;
+const SLIDE_HEIGHT = presentationViewport?.SLIDE_HEIGHT || 486;
 const SLIDE_HALF_WIDTH = SLIDE_WIDTH / 2;
 const SLIDE_HALF_HEIGHT = SLIDE_HEIGHT / 2;
 const SLIDE_SPACING = SLIDE_WIDTH + 240;
 
+const presentationSessionKey = (kind) => {
+  const identity = window.currentFilePath || 'untitled-presentation';
+  return `nightowl:presentation:${kind}:${identity}`;
+};
+
+const readStoredList = (key) => {
+  try {
+    const value = JSON.parse(window.localStorage?.getItem(key) || '[]');
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch (_) {
+    return [];
+  }
+};
+
+const writeStoredList = (key, values) => {
+  try {
+    window.localStorage?.setItem(key, JSON.stringify([...new Set(values)].sort()));
+  } catch (_) {
+    // Suppressions remain active for this mount when storage is unavailable.
+  }
+};
+
+const slideTextPreview = (slide) => String(slide?.cleanContent || '')
+  .replace(/<!--[^]*?-->/g, ' ')
+  .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/[`*_>#-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 240);
+
+const escapeSpeakerNotesText = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const speakerNotesHTML = (notes) => {
+  const noteText = String(notes || '').trim();
+  if (!noteText) return sanitizeRenderedHTML('<em>No speaker notes for this slide.</em>');
+  const rendered = typeof window.markdownToHtml === 'function'
+    ? window.markdownToHtml(noteText)
+    : `<p>${escapeSpeakerNotesText(noteText).replace(/\n/g, '<br>')}</p>`;
+  return sanitizeRenderedHTML(rendered);
+};
+
+const SpeakerNotesContent = ({ notes }) => (
+  <div
+    className="presentation-speaker-notes-html"
+    data-render-format="html"
+    onClick={(event) => window.handleInternalLinkClick?.(event)}
+    dangerouslySetInnerHTML={{ __html: speakerNotesHTML(notes) }}
+  />
+);
+
+const PresentationSlideContent = ({ html, isPresenting }) => {
+  const frameRef = useRef(null);
+  const contentRef = useRef(null);
+  const [contentScale, setContentScale] = useState(1);
+  const sanitizedHtml = sanitizeRenderedHTML(html);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const element = contentRef.current;
+    if (!frame || !element) return undefined;
+    const slideElement = element.closest('.slide');
+    let animationFrame = null;
+
+    const measure = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const availableWidth = Math.min(frame.clientWidth, element.clientWidth);
+        const availableHeight = Math.min(frame.clientHeight, element.clientHeight);
+        const descendants = Array.from(element.querySelectorAll('*'));
+        const contentWidth = descendants.reduce(
+          (maximum, child) => Math.max(maximum, child.scrollWidth || 0),
+          Math.max(availableWidth, element.scrollWidth)
+        );
+        const contentHeight = descendants.reduce(
+          (maximum, child) => Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0)),
+          Math.max(availableHeight, element.scrollHeight)
+        );
+        const nextScale = window.NightOwlPresentationViewport?.calculateContentScale?.({
+          availableWidth,
+          availableHeight,
+          contentWidth,
+          contentHeight
+        }) ?? 1;
+        const overflows = nextScale < 0.999;
+
+        if (slideElement) {
+          slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
+        }
+        setContentScale(previous => Math.abs(previous - nextScale) > 0.001 ? nextScale : previous);
+      });
+    };
+
+    measure();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(measure)
+      : null;
+    resizeObserver?.observe(frame);
+    resizeObserver?.observe(element);
+    const mutationObserver = new MutationObserver(measure);
+    mutationObserver.observe(element, { childList: true, subtree: true, characterData: true });
+    element.querySelectorAll('img').forEach(image => image.addEventListener('load', measure));
+    window.addEventListener('resize', measure);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+      element.querySelectorAll('img').forEach(image => image.removeEventListener('load', measure));
+      window.removeEventListener('resize', measure);
+      if (slideElement) delete slideElement.dataset.contentOverflow;
+    };
+  }, [sanitizedHtml, isPresenting]);
+
+  return (
+    <div
+      ref={frameRef}
+      className="slide-content-frame"
+      style={{ height: '100%', width: '100%', overflow: 'hidden' }}
+    >
+      <div
+        ref={contentRef}
+        className={`slide-content ${isPresenting ? 'slide-content-delivery' : 'slide-content-authoring'}`}
+        data-content-scale={contentScale.toFixed(4)}
+        style={{
+          height: '100%',
+          width: '100%',
+          transform: isPresenting ? `scale(${contentScale})` : 'none',
+          transformOrigin: 'top left'
+        }}
+        onClick={(event) => window.handleInternalLinkClick?.(event)}
+        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+      />
+    </div>
+  );
+};
+
 const Home = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
     <polyline points="9,22 9,12 15,12 15,22"></polyline>
   </svg>
 );
 
 const Play = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="5,3 19,12 5,21"></polygon>
   </svg>
 );
 
 const StickyNote = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 3v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3z"></path>
     <path d="M8 7h8"></path>
     <path d="M8 11h8"></path>
@@ -71,14 +240,14 @@ const StickyNote = () => (
 );
 
 const Eye = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
     <circle cx="12" cy="12" r="3"></circle>
   </svg>
 );
 
 const EyeOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
     <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"></path>
     <path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"></path>
@@ -87,67 +256,68 @@ const EyeOff = () => (
 );
 
 const Speaker = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
     <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
   </svg>
 );
 
 const SpeakerOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
     <line x1="23" y1="1" x2="1" y2="23"></line>
   </svg>
 );
 
 const LoadingSpinner = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin" style={{ display: 'inline-block' }}>
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin" style={{ display: 'inline-block' }}>
     <circle cx="12" cy="12" r="10" strokeOpacity="0.25"></circle>
     <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"></path>
   </svg>
 );
 
 const RecordIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
   </svg>
 );
 
 const StopIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
     <rect x="6" y="6" width="12" height="12"></rect>
   </svg>
 );
 
 const PauseIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="6" y="4" width="4" height="16"></rect>
     <rect x="14" y="4" width="4" height="16"></rect>
   </svg>
 );
 
-const MarkdownPreziApp = () => {
+const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) => {
   console.log('[Presentation] *** COMPONENT LOADING ***');
 
   // Set up the global handler immediately, not in useEffect
   if (!window.handleInternalLinkClick) {
     window.handleInternalLinkClick = function(event) {
+      const linkElement = event.target?.closest?.('.internal-link');
       console.log('[Internal Link] *** CLICK DETECTED *** Global handler called:', {
-        target: event.target,
-        tagName: event.target.tagName,
-        className: event.target.className,
+        target: linkElement || event.target,
+        tagName: linkElement?.tagName,
+        className: linkElement?.className,
         metaKey: event.metaKey,
         ctrlKey: event.ctrlKey,
-        hasInternalLinkClass: event.target.classList?.contains('internal-link')
+        hasInternalLinkClass: Boolean(linkElement)
       });
 
       // Check if this is a click on an internal link with Cmd/Ctrl modifier
-      if ((event.metaKey || event.ctrlKey) && event.target.classList?.contains('internal-link')) {
+      if ((event.metaKey || event.ctrlKey) && linkElement) {
         console.log('[Internal Link] *** CMD/CTRL+CLICK DETECTED ***');
         event.preventDefault();
         event.stopPropagation();
 
-        const linkPath = event.target.getAttribute('data-link');
+        const linkPath = linkElement.getAttribute('data-link');
         if (linkPath) {
           const decodedPath = decodeURIComponent(linkPath);
           console.log('[Internal Link] Opening:', decodedPath);
@@ -156,17 +326,17 @@ const MarkdownPreziApp = () => {
           if (window.openFile) {
             console.log('[Internal Link] Using window.openFile');
             window.openFile(decodedPath);
-          } else if (window.electronAPI && window.electronAPI.invoke) {
+          } else if (window.electronAPI?.files?.openFile) {
             // Fallback for Electron API
             console.log('[Internal Link] Using electronAPI');
-            window.electronAPI.invoke('open-file', decodedPath);
+            window.electronAPI.files.openFile(decodedPath);
           } else {
             console.warn('[Internal Link] No file opening API available');
           }
         } else {
           console.warn('[Internal Link] No data-link attribute found');
         }
-      } else if (event.target.classList?.contains('internal-link')) {
+      } else if (linkElement) {
         // Regular click on internal link - prevent default but don't open
         console.log('[Internal Link] Regular click on internal link - preventing default');
         event.preventDefault();
@@ -192,6 +362,21 @@ const MarkdownPreziApp = () => {
   const [focusedSlide, setFocusedSlide] = useState(null);
   const [speakerNotesVisible, setSpeakerNotesVisible] = useState(true);
   const [speakerNotesWindowVisible, setSpeakerNotesWindowVisible] = useState(false);
+  const [sourceMarkdown, setSourceMarkdown] = useState(markdown || '');
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  const [preflightRunning, setPreflightRunning] = useState(false);
+  const [preflightReport, setPreflightReport] = useState(null);
+  const [preflightSuppressions, setPreflightSuppressions] = useState(() => (
+    readStoredList(presentationSessionKey('preflight-suppressions'))
+  ));
+  const [presenterConsoleOpen, setPresenterConsoleOpen] = useState(() => {
+    try {
+      return window.sessionStorage?.getItem(presentationSessionKey('console')) === 'open';
+    } catch (_) {
+      return false;
+    }
+  });
+  const [presenterElapsed, setPresenterElapsed] = useState(0);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoadingTTS, setIsLoadingTTS] = useState(false);
@@ -213,9 +398,21 @@ const MarkdownPreziApp = () => {
   // Current slides and slide index state
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const stageRef = useRef(null);
+  const presentationControlsRef = useRef(null);
+  const navigationControlsRef = useRef(null);
+  const presenterConsoleRef = useRef(null);
+  const presenterStartedAtRef = useRef(null);
+  const previousFocusRef = useRef(null);
+  const currentSlideRef = useRef(currentSlide);
+  const pendingContentSlideRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
+  const authoringPreferredZoomRef = useRef(1.2);
+  const [presentationInsets, setPresentationInsets] = useState({ top: 16, right: 16, bottom: 16, left: 16 });
+  const [presentationFit, setPresentationFit] = useState({ scale: 1, pan: { x: 0, y: 0 } });
+  const [presentationFitReady, setPresentationFitReady] = useState(false);
 
   // Sample markdown content for demo
   const sampleMarkdown = `# SAMPLE CONTENT TEST
@@ -354,6 +551,142 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
+
+  useLayoutEffect(() => {
+    if (!isPresenting) {
+      setPresentationInsets({ top: 0, right: 0, bottom: 0, left: 0 });
+      return undefined;
+    }
+
+    const notesPanel = document.getElementById('speaker-notes-panel');
+    const observedElements = [
+      containerRef.current,
+      presentationControlsRef.current,
+      navigationControlsRef.current,
+      presenterConsoleRef.current,
+      notesPanel
+    ]
+      .filter(Boolean);
+    let animationFrame = null;
+
+    const measureChrome = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const controlsHeight = presentationControlsRef.current?.getBoundingClientRect?.().height || 0;
+        const navigationHeight = navigationControlsRef.current?.getBoundingClientRect?.().height || 0;
+        const notesStyle = notesPanel ? window.getComputedStyle(notesPanel) : null;
+        const notesHeight = notesPanel && notesStyle?.display !== 'none' && notesStyle?.visibility !== 'hidden'
+          ? notesPanel.getBoundingClientRect().height
+          : 0;
+        const consoleStyle = presenterConsoleRef.current
+          ? window.getComputedStyle(presenterConsoleRef.current)
+          : null;
+        const consoleWidth = presenterConsoleRef.current && consoleStyle?.display !== 'none' && consoleStyle?.visibility !== 'hidden'
+          ? presenterConsoleRef.current.getBoundingClientRect().width
+          : 0;
+        const next = {
+          top: controlsHeight > 0 ? controlsHeight + 28 : 16,
+          right: consoleWidth > 0 ? consoleWidth + 28 : 16,
+          bottom: Math.max(navigationHeight > 0 ? navigationHeight + 28 : 16, notesHeight > 0 ? notesHeight + 12 : 0),
+          left: 16
+        };
+        setPresentationInsets(previous => (
+          previous.top === next.top &&
+          previous.right === next.right &&
+          previous.bottom === next.bottom &&
+          previous.left === next.left
+        ) ? previous : next);
+      });
+    };
+
+    measureChrome();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(measureChrome)
+      : null;
+    observedElements.forEach(element => resizeObserver?.observe(element));
+    const mutationObserver = new MutationObserver(measureChrome);
+    mutationObserver.observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
+    if (notesPanel) {
+      mutationObserver.observe(notesPanel, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+    window.addEventListener('resize', measureChrome);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', measureChrome);
+    };
+  }, [isPresenting, speakerNotesWindowVisible, presenterConsoleOpen]);
+
+  useLayoutEffect(() => {
+    if (!isPresenting || slides.length === 0) {
+      setPresentationFitReady(false);
+      return undefined;
+    }
+    const stage = stageRef.current;
+    const slide = slides[currentSlide];
+    if (!stage || !slide) return undefined;
+    let animationFrame = null;
+    let readyFrame = null;
+    let readinessToken = null;
+
+    const updateFit = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'presentation-fit-recalculated' });
+      readinessToken = window.NightOwlPerformance?.readiness?.begin('presentation-fit', {
+        slideIndex: currentSlide,
+        viewportWidth: stage.clientWidth,
+        viewportHeight: stage.clientHeight
+      }) || null;
+      setPresentationFitReady(false);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        if (!stage.clientWidth || !stage.clientHeight) return;
+        const next = window.NightOwlPresentationViewport?.calculateFitTransform?.({
+          viewportWidth: stage.clientWidth,
+          viewportHeight: stage.clientHeight,
+          slideX: slide.position.x,
+          slideY: slide.position.y,
+          slideWidth: SLIDE_WIDTH,
+          slideHeight: SLIDE_HEIGHT,
+          padding: 12
+        });
+        if (!next) return;
+        setPresentationFit(previous => (
+          Math.abs(previous.scale - next.scale) < 0.0001 &&
+          Math.abs(previous.pan.x - next.pan.x) < 0.1 &&
+          Math.abs(previous.pan.y - next.pan.y) < 0.1
+        ) ? previous : { scale: next.scale, pan: next.pan });
+        readyFrame = requestAnimationFrame(() => {
+          readyFrame = null;
+          setPresentationFitReady(true);
+          window.NightOwlPerformance?.readiness?.complete(readinessToken, {
+            scale: next.scale,
+            slideIndex: currentSlide
+          });
+          readinessToken = null;
+        });
+      });
+    };
+
+    updateFit();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(updateFit)
+      : null;
+    resizeObserver?.observe(stage);
+    window.addEventListener('resize', updateFit);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (readyFrame) cancelAnimationFrame(readyFrame);
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'presentation-fit-unmounted' });
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateFit);
+    };
+  }, [isPresenting, slides, currentSlide, presentationInsets]);
 
   const markZoomInteraction = useCallback(() => {
     setIsZooming(true);
@@ -585,7 +918,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
         );
 
-        return html;
+        return sanitizeRenderedHTML(html);
       } catch (error) {
         console.warn('[MarkdownParser] marked.parse failed, using fallback:', error);
       }
@@ -686,7 +1019,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
       }
 
-      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}" onclick="handleInternalLinkClick(event)">${display}</a>`;
+      return `<a href="#" class="internal-link" data-link="${encodeURIComponent(filePath)}" data-original-link="${encodeURIComponent(cleanLink)}" title="Open ${display}">${display}</a>`;
     });
     
     // Regular markdown links
@@ -814,7 +1147,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       html = html.replace(placeholder, content);
     });
 
-    return html;
+    return sanitizeRenderedHTML(html);
   };
 
   // Extract speaker notes from slide content
@@ -851,17 +1184,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     let backgroundImage = null;
 
     if (match) {
-      let imagePath = match[1].trim();
-      // Resolve relative paths (same logic as inline image rendering)
-      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/') && !imagePath.startsWith('file://') && !imagePath.startsWith('data:')) {
-        const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
-        if (baseDir) {
-          imagePath = `file://${baseDir}/${imagePath}`;
-        }
-      } else if (imagePath.startsWith('/')) {
-        imagePath = `file://${imagePath}`;
-      }
-      backgroundImage = imagePath;
+      const imagePath = match[1].trim();
+      const baseDir = window.currentFileDirectory || window.appSettings?.workingDirectory;
+      backgroundImage = contentSecurity?.resolveImageUrl
+        ? contentSecurity.resolveImageUrl(imagePath, baseDir)
+        : null;
     }
 
     // Remove bg directive and all remaining HTML comments from visible content
@@ -872,23 +1199,145 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     return { cleanContent, backgroundImage };
   };
 
+  const calculateAuthoringFocus = useCallback((slide, preferredZoom = 1.2) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !slide || !canvas.clientWidth || !canvas.clientHeight) {
+      return null;
+    }
+
+    const containerBounds = container.getBoundingClientRect();
+    const topControls = Array.from(container.querySelectorAll(
+      '[aria-label="Presentation layout"], [aria-label="Presentation editor controls"]'
+    ));
+    const controlsBottom = topControls.reduce(
+      (maximum, element) => Math.max(maximum, element.getBoundingClientRect().bottom),
+      containerBounds.top
+    );
+    const navigationBounds = navigationControlsRef.current?.getBoundingClientRect?.();
+    const insets = {
+      top: Math.max(16, controlsBottom - containerBounds.top + 12),
+      right: 16,
+      bottom: navigationBounds
+        ? Math.max(16, containerBounds.bottom - navigationBounds.top + 12)
+        : 16,
+      left: 16
+    };
+    const fit = window.NightOwlPresentationViewport?.calculateFitTransform?.({
+      viewportWidth: canvas.clientWidth,
+      viewportHeight: canvas.clientHeight,
+      slideX: slide.position.x,
+      slideY: slide.position.y,
+      slideWidth: SLIDE_WIDTH,
+      slideHeight: SLIDE_HEIGHT,
+      padding: 12,
+      insets
+    });
+
+    if (!fit) {
+      const zoomLevel = Number(preferredZoom) || 1;
+      return {
+        zoom: zoomLevel,
+        pan: {
+          x: canvas.clientWidth / 2 - slide.position.x * zoomLevel,
+          y: canvas.clientHeight / 2 - slide.position.y * zoomLevel
+        }
+      };
+    }
+
+    const zoomLevel = Math.min(Number(preferredZoom) || fit.scale, fit.scale);
+    const center = {
+      x: fit.pan.x + slide.position.x * fit.scale,
+      y: fit.pan.y + slide.position.y * fit.scale
+    };
+    return {
+      zoom: zoomLevel,
+      pan: {
+        x: center.x - slide.position.x * zoomLevel,
+        y: center.y - slide.position.y * zoomLevel
+      }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isPresenting || slides.length === 0) return undefined;
+    const stage = stageRef.current;
+    const container = containerRef.current;
+    if (!stage || !container) return undefined;
+    let animationFrame = null;
+
+    const refitAuthoringView = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        const slideIndex = Math.min(currentSlideRef.current, slides.length - 1);
+        const focus = calculateAuthoringFocus(
+          slides[slideIndex],
+          authoringPreferredZoomRef.current
+        );
+        if (!focus) return;
+        zoomRef.current = focus.zoom;
+        panRef.current = focus.pan;
+        setZoom(previous => Math.abs(previous - focus.zoom) > 0.0001 ? focus.zoom : previous);
+        setPan(previous => (
+          Math.abs(previous.x - focus.pan.x) > 0.1 ||
+          Math.abs(previous.y - focus.pan.y) > 0.1
+        ) ? focus.pan : previous);
+      });
+    };
+
+    refitAuthoringView();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(refitAuthoringView)
+      : null;
+    resizeObserver?.observe(stage);
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', refitAuthoringView);
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', refitAuthoringView);
+    };
+  }, [isPresenting, slides, currentSlide, calculateAuthoringFocus]);
+
   // Parse markdown into slides
   const parseMarkdown = (markdown) => {
-    // Keep comments intact until after slide boundaries have been identified.
-    const slideTexts = window.NightOwlSlides.split(markdown).map(slide => slide.trim());
-    return slideTexts.map((text, index) => {
-      const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
-      const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
-      return {
-        id: index,
-        content: text,
-        cleanContent: cleanContent,
-        speakerNotes: speakerNotes,
-        backgroundImage: backgroundImage,
-        position: calculateSlidePosition(index, slideTexts.length),
-        parsed: parseMarkdownContent(cleanContent)
-      };
-    });
+    try {
+      // Strip trailing whitespace from the entire markdown content first
+      const trimmedMarkdown = markdown.replace(/[ \t]+$/gm, '');
+
+      // Preflight owns the canonical slide boundaries so rendering, source-line
+      // navigation, and diagnostics cannot disagree about front matter or
+      // CommonMark thematic breaks.
+      const sourceSlides = window.NightOwlPresentationPreflight?.splitSlides?.(trimmedMarkdown)
+        || window.NightOwlSlides.parse(trimmedMarkdown).map((slide, index) => ({
+          markdown: slide.content.trim(), startLine: slide.startLine, title: `Slide ${index + 1}`
+        }));
+      // Empty documents and frontmatter-only files have no slides.
+      const renderSlides = sourceSlides;
+      return renderSlides.map((sourceSlide, index) => {
+        const text = sourceSlide.markdown;
+        const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
+        const { cleanContent, backgroundImage } = extractSlideDirectives(afterNotes);
+        return {
+          id: index,
+          content: text,
+          cleanContent: cleanContent,
+          speakerNotes: speakerNotes,
+          backgroundImage: backgroundImage,
+          title: sourceSlide?.title || `Slide ${index + 1}`,
+          sourceLine: sourceSlide?.startLine || 1,
+          position: calculateSlidePosition(index, renderSlides.length),
+          parsed: parseMarkdownContent(cleanContent)
+        };
+      });
+    } catch (error) {
+      console.error('[Presentation] Failed to parse slide content:', error);
+      if (typeof onPresentationError === 'function') {
+        onPresentationError(error);
+      }
+      return [];
+    }
   };
 
   // Initialize - wait for content from editor or use sample as fallback
@@ -897,17 +1346,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     
     // Brief delay to allow content synchronization from editor
     const initTimeout = setTimeout(() => {
-      // Check if there's pending content from Generate Summary or fresh editor content
-      if (window.pendingPresentationContent) {
-        // Found pending content, using it
-        const pendingSlides = parseMarkdown(window.pendingPresentationContent);
-        setSlides(pendingSlides);
-        window.pendingPresentationContent = null; // Clear it after use
-      } else {
-        // No pending content, using sample content
-        const initialSlides = parseMarkdown(sampleMarkdown);
-        setSlides(initialSlides);
-      }
+      // Prefer the mount prop so a newly mounted component receives the current
+      // document exactly once. The pending global remains a compatibility path
+      // for older callers that do not supply a prop.
+      const initialContent = markdown || window.pendingPresentationContent || sampleMarkdown;
+      setSourceMarkdown(initialContent);
+      setSlides(parseMarkdown(initialContent));
+      window.pendingPresentationContent = null;
     }, 100); // Small delay to allow content synchronization
     
     return () => clearTimeout(initTimeout);
@@ -920,35 +1365,38 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     const MAX_RETRIES = 20;
     const slide = slides[slideIndex];
     const canvas = canvasRef.current;
-    if (!canvas) {
-      if (_retries < MAX_RETRIES) {
-        setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
-      }
-      return;
-    }
 
-    // Ensure canvas has proper dimensions
-    if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-      if (_retries < MAX_RETRIES) {
-        setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
-      }
-      return;
-    }
-
-    const targetZoom = isPresenting ? zoomRef.current || zoom : 1.2;
-    const targetPan = computeCenteredPan(slide, targetZoom, panRef.current);
-
-    console.log('[Presentation] Centering slide', slideIndex, 'at position:', targetPan);
-    
     if (!isPresenting) {
+      // The overview needs canvas geometry to calculate pan. Delivery mode
+      // does not: blocking its state transition on a hidden or resizing canvas
+      // makes presenter Next/Previous silently exhaust their retries.
+      if (!canvas) {
+        if (_retries < MAX_RETRIES) {
+          setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+        }
+        return;
+      }
+      if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+        if (_retries < MAX_RETRIES) {
+          setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+        }
+        return;
+      }
+      const focus = calculateAuthoringFocus(slide, 1.2);
+      if (!focus) return;
+      authoringPreferredZoomRef.current = 1.2;
+      const targetZoom = focus.zoom;
+      const targetPan = focus.pan;
+      console.log('[Presentation] Fitting slide', slideIndex, 'at position:', targetPan, 'zoom:', targetZoom);
       markZoomInteraction();
+      zoomRef.current = targetZoom;
+      panRef.current = targetPan;
+      setZoom(targetZoom);
+      setPan(targetPan);
     }
+    currentSlideRef.current = slideIndex;
     setCurrentSlide(slideIndex);
     setFocusedSlide(null);
-    zoomRef.current = targetZoom;
-    panRef.current = targetPan;
-    setZoom(targetZoom);
-    setPan(targetPan);
     
     // Mark slide transition in recording if recording is active
     if (isRecording && window.videoRecordingService) {
@@ -966,19 +1414,142 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.updateSpeakerNotes(slideIndex, currentContent);
       }, 50);
     }
-  }, [slides, isPresenting, isRecording, markZoomInteraction]);
+  }, [slides, isPresenting, isRecording, markZoomInteraction, calculateAuthoringFocus]);
 
-  // Center on first slide when presentation view becomes active
+  const runPreflight = useCallback(async () => {
+    const preflight = window.NightOwlPresentationPreflight;
+    if (!preflight?.run) {
+      const unavailable = { success: false, error: 'Presentation preflight engine is unavailable', warnings: [] };
+      setPreflightReport(unavailable);
+      return unavailable;
+    }
+    setPreflightRunning(true);
+    try {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const report = await preflight.run({
+        markdown: sourceMarkdown || slides.map(slide => slide.content).join('\n\n---\n\n'),
+        root: containerRef.current,
+        baseDir: window.currentFileDirectory || window.appSettings?.workingDirectory,
+        suppressions: preflightSuppressions,
+        assetExists: window.electronAPI?.files?.checkFileExists
+          ? filePath => window.electronAPI.files.checkFileExists(filePath)
+          : null
+      });
+      setPreflightReport(report);
+      return report;
+    } catch (error) {
+      const failure = { success: false, error: error.message || String(error), warnings: [] };
+      setPreflightReport(failure);
+      return failure;
+    } finally {
+      setPreflightRunning(false);
+    }
+  }, [sourceMarkdown, slides, preflightSuppressions]);
+
+  const suppressPreflightWarning = useCallback((warningId) => {
+    setPreflightSuppressions(previous => {
+      const next = [...new Set([...previous, warningId])];
+      writeStoredList(presentationSessionKey('preflight-suppressions'), next);
+      return next;
+    });
+  }, []);
+
+  const resetPreflightSuppressions = useCallback(() => {
+    writeStoredList(presentationSessionKey('preflight-suppressions'), []);
+    setPreflightSuppressions([]);
+  }, []);
+
+  const navigateToPreflightWarning = useCallback((item) => {
+    goToSlide(item.slideIndex);
+    setFocusedSlide(item.slideIndex);
+    if (item.sourceLine && window.editor?.setPosition) {
+      window.editor.setPosition({ lineNumber: item.sourceLine, column: 1 });
+      window.editor.revealLineInCenter?.(item.sourceLine);
+    }
+  }, [goToSlide]);
+
   useEffect(() => {
+    if (!preflightOpen) return undefined;
+    const timer = setTimeout(runPreflight, 50);
+    return () => clearTimeout(timer);
+  }, [preflightOpen, sourceMarkdown, slides.length, preflightSuppressions, runPreflight]);
+
+  useEffect(() => {
+    if (!isPresenting) {
+      presenterStartedAtRef.current = null;
+      setPresenterElapsed(0);
+      return undefined;
+    }
+    presenterStartedAtRef.current = Date.now();
+    const update = () => {
+      setPresenterElapsed(Math.max(0, Math.floor((Date.now() - presenterStartedAtRef.current) / 1000)));
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [isPresenting]);
+
+  useEffect(() => {
+    try {
+      if (presenterConsoleOpen) window.sessionStorage?.setItem(presentationSessionKey('console'), 'open');
+      else window.sessionStorage?.removeItem(presentationSessionKey('console'));
+    } catch (_) {
+      // Console state still survives content refreshes and viewport changes.
+    }
+  }, [presenterConsoleOpen]);
+
+  useEffect(() => {
+    const controller = Object.freeze({
+      runPreflight,
+      startPresentation: () => {
+        previousFocusRef.current = document.activeElement;
+        setIsPresenting(true);
+      },
+      openPreflight: () => setPreflightOpen(true),
+      closePreflight: () => setPreflightOpen(false),
+      openPresenterConsole: () => setPresenterConsoleOpen(true),
+      closePresenterConsole: () => setPresenterConsoleOpen(false),
+      getState: () => ({
+        currentSlide,
+        isPresenting,
+        preflightOpen,
+        preflightRunning,
+        preflightReport,
+        presenterConsoleOpen,
+        presenterElapsed,
+        slideCount: slides.length
+      })
+    });
+    window.NightOwlPresentationTools = controller;
+    return () => {
+      if (window.NightOwlPresentationTools === controller) delete window.NightOwlPresentationTools;
+    };
+  }, [
+    currentSlide,
+    isPresenting,
+    preflightOpen,
+    preflightReport,
+    preflightRunning,
+    presenterConsoleOpen,
+    presenterElapsed,
+    runPreflight,
+    slides.length
+  ]);
+
+  // Center the selected slide when the overview canvas becomes active.
+  useEffect(() => {
+    let centeringTimer = null;
     const checkIfPresentationActive = () => {
       const presentationContent = document.getElementById('presentation-content');
       if (presentationContent && presentationContent.classList.contains('active')) {
-        // Presentation view is now active, center on first slide if we haven't moved yet
-        if (slides.length > 0 && pan.x === 0 && pan.y === 0 && zoom === 1) {
-          console.log('[Presentation] Presentation view activated, centering on first slide');
-          setTimeout(() => {
+        // Delivery mode fits its own stage. Scheduling canvas navigation there
+        // can overwrite a presenter's Next/Previous action after live reload.
+        if (!isPresenting && slides.length > 0 && pan.x === 0 && pan.y === 0 && zoom === 1) {
+          console.log('[Presentation] Presentation view activated, centering selected slide');
+          clearTimeout(centeringTimer);
+          centeringTimer = setTimeout(() => {
             if (canvasRef.current && canvasRef.current.clientWidth > 0) {
-              goToSlide(0);
+              goToSlide(Math.min(currentSlideRef.current, slides.length - 1));
             }
           }, 150); // Slightly longer delay to ensure view is fully active
         }
@@ -1004,9 +1575,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Also check immediately in case it's already active
       checkIfPresentationActive();
 
-      return () => observer.disconnect();
+      return () => {
+        observer.disconnect();
+        clearTimeout(centeringTimer);
+      };
     }
-  }, [slides.length, pan.x, pan.y, zoom, goToSlide]);
+    return () => clearTimeout(centeringTimer);
+  }, [slides.length, pan.x, pan.y, zoom, isPresenting, goToSlide]);
 
   // Listen for content updates from the lecture summary generator
   useEffect(() => {
@@ -1017,22 +1592,22 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       if (newContent && newContent.trim()) {
         // Parsing new content into slides
         const newSlides = parseMarkdown(newContent);
+        const nextSlideIndex = Math.min(
+          currentSlideRef.current,
+          Math.max(0, newSlides.length - 1)
+        );
         
+        setSourceMarkdown(newContent);
         setSlides(newSlides);
-        setCurrentSlide(0);
+        currentSlideRef.current = nextSlideIndex;
+        pendingContentSlideRef.current = nextSlideIndex;
+        setCurrentSlide(nextSlideIndex);
+        authoringPreferredZoomRef.current = 1.2;
         zoomRef.current = 1;
         panRef.current = { x: 0, y: 0 };
         setZoom(1);
         setPan({ x: 0, y: 0 });
         setFocusedSlide(null);
-        
-        // Center first slide after state updates
-        setTimeout(() => {
-          if (canvasRef.current && newSlides.length > 0) {
-            console.log('[Presentation] Centering first slide after content update');
-            goToSlide(0);
-          }
-        }, 50);
         // Successfully updated slides
       } else {
         console.warn('[React Presentation] No valid content received');
@@ -1047,17 +1622,40 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     };
   }, []);
 
+  // Reconcile navigation only after React has committed the newly parsed deck.
+  // This avoids a stale delayed callback overwriting a presenter action taken
+  // immediately after a live content refresh.
+  useEffect(() => {
+    if (pendingContentSlideRef.current === null || slides.length === 0) return;
+    const slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
+    pendingContentSlideRef.current = null;
+    // Delivery mode has no overview canvas to reconcile. The state and ref were
+    // committed in handleContentUpdate; navigating again from this passive
+    // effect can race a presenter Next/Previous action after live reload.
+    if (isPresenting) return;
+    goToSlide(slideIndex);
+  }, [slides, isPresenting, goToSlide]);
+
+  useEffect(() => {
+    if (slides.length === 0) return;
+    window.dispatchEvent(new CustomEvent('nightowl:presentation-content-ready', {
+      detail: { slides: slides.length }
+    }));
+  }, [slides]);
+
   // Set up Electron API listeners (only once)
   useEffect(() => {
-    if (isElectron && window.electronAPI) {
+    const unsubscribers = [];
+    if (isElectron && window.electronAPI?.events) {
       // File loading
-      window.electronAPI.loadPresentationFile((content, filePath, error) => {
+      unsubscribers.push(window.electronAPI.events.loadPresentationFile((content, filePath, error) => {
         if (error) {
           console.error('Error loading file:', error);
           return;
         }
         if (content) {
           const newSlides = parseMarkdown(content);
+          setSourceMarkdown(content);
           setSlides(newSlides);
           setCurrentSlide(0);
           // Ensure canvas is ready before centering first slide
@@ -1068,14 +1666,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             }
           }, 100); // Give more time for canvas to be ready
         }
-      });
+      }));
 
       // Presentation controls
-      window.electronAPI.onStartPresentation(() => {
+      unsubscribers.push(window.electronAPI.events.startPresentation(() => {
         setIsPresenting(true);
-      });
+      }));
 
-      window.electronAPI.onExitPresentation(() => {
+      unsubscribers.push(window.electronAPI.events.exitPresentation(() => {
         console.log('[PRESENTATION] External exit presentation triggered...');
         
         // Stop TTS audio
@@ -1088,57 +1686,49 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }
         
         setIsPresenting(false);
-      });
+      }));
 
-      window.electronAPI.onTogglePresentationMode(() => {
+      unsubscribers.push(window.electronAPI.events.togglePresentationMode(() => {
         // Switch to presentation mode
         switchToMode('presentation');
-      });
+      }));
 
       // Auto-generate and show statistics
-      window.electronAPI.onShowPresentationStatistics(() => {
+      unsubscribers.push(window.electronAPI.events.showPresentationStatistics(() => {
         console.log('[PRESENTATION] Auto-generating and showing statistics');
         // Auto-switch to statistics view and display immediately
         if (window.switchStructureView) {
           window.switchStructureView('statistics');
         }
-      });
+      }));
 
       // Zoom controls
-      window.electronAPI.onZoomIn(() => {
+      unsubscribers.push(window.electronAPI.events.zoomIn(() => {
         handleZoomIn();
-      });
+      }));
 
-      window.electronAPI.onZoomOut(() => {
+      unsubscribers.push(window.electronAPI.events.zoomOut(() => {
         handleZoomOut();
-      });
+      }));
 
-      window.electronAPI.onResetZoom(() => {
+      unsubscribers.push(window.electronAPI.events.resetZoom(() => {
         resetView();
-      });
+      }));
 
       // Layout changes
-      window.electronAPI.onChangeLayout((layout) => {
+      unsubscribers.push(window.electronAPI.events.changeLayout((layout) => {
         setLayoutType(layout);
-      });
+      }));
     }
 
     return () => {
-      if (isElectron && window.electronAPI) {
-        window.electronAPI.removeAllListeners();
-      }
+      unsubscribers.forEach(unsubscribe => unsubscribe?.());
     };
   }, []);
 
-  // Clean up any existing IPC navigation listeners to prevent conflicts
+  // Reset the legacy navigation flag without disturbing listeners owned by
+  // other renderer features.
   useEffect(() => {
-    if (isElectron && window.electronAPI && window.electronAPI.removeAllListeners) {
-      // Remove any existing navigation listeners that might be causing conflicts
-      window.electronAPI.removeAllListeners();
-      console.log('[Navigation] Cleaned up all existing IPC listeners to prevent conflicts');
-    }
-    
-    // Reset navigation setup flag so no stale listeners remain
     window.navigationListenersSetup = false;
   }, []); // Run once on mount
 
@@ -1155,19 +1745,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Center view on first slide when slides are initially loaded
   useEffect(() => {
-    if (slides.length > 0 && canvasRef.current) {
-      // Only center if we're at the initial position (haven't moved around yet)
-      if (pan.x === 0 && pan.y === 0 && zoom === 1 && currentSlide === 0) {
-        console.log('[Presentation] Initial slides loaded, centering on first slide');
-        // Small delay to ensure canvas is properly rendered
-        setTimeout(() => {
-          if (canvasRef.current && canvasRef.current.clientWidth > 0) {
-            goToSlide(0);
-          }
-        }, 100);
+    if (isPresenting || slides.length === 0 || !canvasRef.current) return undefined;
+    if (pan.x !== 0 || pan.y !== 0 || zoom !== 1 || currentSlide !== 0) return undefined;
+
+    console.log('[Presentation] Initial slides loaded, centering on first slide');
+    const timer = setTimeout(() => {
+      if (canvasRef.current && canvasRef.current.clientWidth > 0) {
+        goToSlide(0);
       }
-    }
-  }, [slides.length, pan.x, pan.y, zoom, currentSlide, goToSlide]);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [slides.length, pan.x, pan.y, zoom, currentSlide, isPresenting, goToSlide]);
 
   // Render math in slides whenever slides change or current slide changes
   useEffect(() => {
@@ -1274,10 +1862,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
 
     const baseSlideIndex = slides.length > 0 ? 0 : currentSlide;
-    const targetZoom = 1;
-    const centeredPan = computeCenteredPan(slides[baseSlideIndex], targetZoom, { x: 0, y: 0 });
+    const focus = calculateAuthoringFocus(slides[baseSlideIndex], 1);
+    const targetZoom = focus?.zoom || 1;
+    const centeredPan = focus?.pan || computeCenteredPan(slides[baseSlideIndex], targetZoom, { x: 0, y: 0 });
 
     markZoomInteraction();
+    authoringPreferredZoomRef.current = 1;
     zoomRef.current = targetZoom;
     panRef.current = centeredPan;
     setZoom(targetZoom);
@@ -1311,6 +1901,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       }
 
       e.preventDefault();
+      if (isPresenting) return;
       markZoomInteraction();
 
       const previousZoom = zoomRef.current || 1;
@@ -1346,18 +1937,23 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide]);
+  }, [markZoomInteraction, MAX_ZOOM, MIN_ZOOM, slides, currentSlide, isPresenting]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e) => {
       // Only handle keyboard events if we're in presentation view and not focused on an input element
-      const presentationContent = document.getElementById('presentation-content');
-      const isInPresentationView = presentationContent && presentationContent.classList.contains('active');
+      const isInPresentationView = Boolean(
+        document.body.classList.contains('presentation-mode') &&
+        containerRef.current?.isConnected
+      );
       const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+      const isInteractiveControl = Boolean(e.target.closest?.(
+        'button, a[href], select, [role="button"], [role="menuitem"], [role="option"]'
+      ));
       
-      if (!isInPresentationView || isInputFocused) {
-        return; // Don't handle keyboard events if not in presentation view or if an input is focused
+      if (!isInPresentationView || isInputFocused || isInteractiveControl) {
+        return; // Preserve native keyboard behavior for focused controls.
       }
       
       if (e.key === 'ArrowRight' || e.key === ' ') {
@@ -1369,6 +1965,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       } else if (e.key === 'Home') {
         e.preventDefault();
         goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(slides.length - 1);
       } else if (e.key === 'Escape') {
         console.log('[PRESENTATION] Escaping presentation mode...');
         
@@ -1387,19 +1986,20 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentSlide, goToSlide]);
+  }, [currentSlide, goToSlide, slides.length]);
 
 
   // Control body class for presenting mode
   useEffect(() => {
     if (isPresenting) {
+      if (!previousFocusRef.current) previousFocusRef.current = document.activeElement;
       document.body.classList.add('is-presenting');
       console.log('[Presentation] Added is-presenting class to body');
       
       // Focus the main window to ensure keyboard navigation works immediately (multiple attempts)
       const focusMainWindow = () => {
-        if (window.electronAPI && window.electronAPI.invoke) {
-          window.electronAPI.invoke('focus-main-window');
+        if (window.electronAPI?.presentation?.focusMainWindow) {
+          window.electronAPI.presentation.focusMainWindow();
           console.log('[Presentation] Focused main window for keyboard navigation');
         } else {
           // Fallback for non-Electron environments
@@ -1409,6 +2009,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       
       // Immediate focus
       focusMainWindow();
+      requestAnimationFrame(() => {
+        containerRef.current
+          ?.querySelector('[data-current-slide="true"]')
+          ?.focus({ preventScroll: true });
+      });
       
       // Additional focus attempts to override any focus stealing
       setTimeout(focusMainWindow, 100);
@@ -1479,8 +2084,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           console.log('[Presentation] React synced with legacy speaker notes window');
           
           // Focus main window after speaker notes window has opened and stolen focus
-          if (window.electronAPI && window.electronAPI.invoke) {
-            window.electronAPI.invoke('focus-main-window');
+          if (window.electronAPI?.presentation?.focusMainWindow) {
+            window.electronAPI.presentation.focusMainWindow();
             console.log('[Presentation] Re-focused main window after speaker notes window opened');
           } else {
             window.focus();
@@ -1488,15 +2093,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           
           // Add additional aggressive focus attempts
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Additional focus attempt at 1.5s');
             }
           }, 500); // 1.5 seconds total
           
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Final focus attempt at 2s');
             }
           }, 1000); // 2 seconds total
@@ -1514,6 +2119,17 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         delete el.dataset.hiddenByPresentation;
       });
       console.log('[Presentation] Restored content toolbar');
+
+      const previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previousFocus) {
+        requestAnimationFrame(() => {
+          const target = previousFocus.isConnected
+            ? previousFocus
+            : containerRef.current?.querySelector('.presentation-present-btn');
+          target?.focus({ preventScroll: true });
+        });
+      }
     }
   }, [isPresenting]);
 
@@ -1561,8 +2177,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       };
 
       // Set up listener for speaker notes window close event
-      if (window.electronAPI.on) {
-        const cleanup = window.electronAPI.on('speaker-notes-window-closed', handleSpeakerNotesWindowClosed);
+      if (window.electronAPI.events?.speakerNotesWindowClosed) {
+        const cleanup = window.electronAPI.events.speakerNotesWindowClosed(handleSpeakerNotesWindowClosed);
         return cleanup;
       }
     }
@@ -1666,7 +2282,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             formattedNotes = '<em>No speaker notes for this slide.</em>';
           }
           
-          await window.electronAPI.invoke('update-speaker-notes', {
+          await window.electronAPI.presentation.updateSpeakerNotes({
+            html: formattedNotes,
             notes: formattedNotes,
             slideNumber: currentSlide + 1
           });
@@ -1704,12 +2321,12 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (currentSlideNotes) {
             // Use HTML conversion for inline panel too
             if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
-              notesContent.innerHTML = window.markdownToHtml(currentSlideNotes);
+              setSanitizedHTML(notesContent, window.markdownToHtml(currentSlideNotes));
             } else {
-              notesContent.innerHTML = currentSlideNotes.replace(/\n/g, '<br>');
+              setSanitizedHTML(notesContent, currentSlideNotes.replace(/\n/g, '<br>'));
             }
           } else {
-            notesContent.innerHTML = '<em>No speaker notes for this slide.</em>';
+            setSanitizedHTML(notesContent, '<em>No speaker notes for this slide.</em>');
           }
         }
       } else {
@@ -2179,7 +2796,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         window.REACT_CONTROLLED_TOGGLE = true;
         
         // Close the separate window
-        await window.electronAPI.invoke('close-speaker-notes-window');
+        await window.electronAPI.presentation.closeSpeakerNotesWindow();
         setSpeakerNotesWindowVisible(false);
         // Clear the flag since we're now explicitly using inline panel
         window.explicitlySeparateWindow = false;
@@ -2211,9 +2828,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           if (notesContainer) {
             const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
             if (currentSlideNotes && window.markdownToHtml) {
-              notesContainer.innerHTML = window.markdownToHtml(currentSlideNotes);
+              setSanitizedHTML(notesContainer, window.markdownToHtml(currentSlideNotes));
             } else {
-              notesContainer.innerHTML = currentSlideNotes || '<em>No speaker notes for this slide.</em>';
+              setSanitizedHTML(notesContainer, currentSlideNotes || '<em>No speaker notes for this slide.</em>');
             }
           }
         }
@@ -2272,7 +2889,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             formattedNotes = '<em>No speaker notes for this slide.</em>';
           }
 
-          await window.electronAPI.invoke('open-speaker-notes-window', {
+          await window.electronAPI.presentation.openSpeakerNotesWindow({
+            html: formattedNotes,
             notes: formattedNotes,
             slideNumber: currentSlide + 1,
             allNotes: window.speakerNotesData.allNotes
@@ -2283,8 +2901,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
           // Focus main window after opening speaker notes window
           setTimeout(() => {
-            if (window.electronAPI && window.electronAPI.invoke) {
-              window.electronAPI.invoke('focus-main-window');
+            if (window.electronAPI?.presentation?.focusMainWindow) {
+              window.electronAPI.presentation.focusMainWindow();
             }
           }, 100); // Short delay to ensure window has opened
           // Clear inline panel flag
@@ -2335,7 +2953,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Mouse handlers for panning
   const handleMouseDown = (e) => {
-    // Allow panning from anywhere in the canvas, even during presentation
+    if (isPresenting) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setPanStart(pan);
@@ -2367,11 +2985,33 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     };
   }, []);
 
+  const activeZoom = isPresenting ? presentationFit.scale : zoom;
+  const activePan = isPresenting ? presentationFit.pan : pan;
+  const presentationStageStyle = isPresenting ? {
+    position: 'absolute',
+    top: `${presentationInsets.top}px`,
+    right: `${presentationInsets.right}px`,
+    bottom: `${presentationInsets.bottom}px`,
+    left: `${presentationInsets.left}px`,
+    overflow: 'hidden'
+  } : {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden'
+  };
+
   return (
     <div 
       ref={containerRef}
-      className="w-full h-screen relative overflow-hidden cursor-grab active:cursor-grabbing" 
-      style={{background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))'}}
+      className={`presentation-shell w-full h-full relative overflow-hidden ${isPresenting ? '' : 'cursor-grab active:cursor-grabbing'}`}
+      data-presentation-mode={isPresenting ? 'delivery' : 'authoring'}
+      role="region"
+      aria-label={isPresenting ? 'Presentation delivery' : 'Presentation editor'}
+      style={{
+        background: 'var(--presentation-bg-gradient, linear-gradient(135deg, var(--techne-bg, #fdf6e3) 0%, #f7f0de 48%, var(--techne-surface, #eee8d5) 100%))',
+        height: '100%',
+        minHeight: 0
+      }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -2379,10 +3019,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     >
       {/* Controls */}
       {!isPresenting && (
-        <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <div className="absolute top-4 left-4 z-10 flex gap-2" role="group" aria-label="Presentation layout">
           <select
             value={layoutType}
             onChange={(e) => setLayoutType(e.target.value)}
+            aria-label="Presentation layout"
             className="px-3 py-2 text-gray-900 rounded-lg border border-gray-300 focus:border-[#E63946] outline-none shadow-lg"
             style={{backgroundColor: '#fefdfb'}}
           >
@@ -2399,25 +3040,28 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
       {/* Zoom Controls */}
       {!isPresenting && (
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <div className="absolute top-4 right-4 z-10 flex gap-2" role="toolbar" aria-label="Presentation editor controls">
           <button
             onClick={handleZoomIn}
+            aria-label="Zoom in"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom In"
+            data-tooltip="Zoom in"
           >
             <ZoomIn />
           </button>
           <button
             onClick={handleZoomOut}
+            aria-label="Zoom out"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom Out"
+            data-tooltip="Zoom out"
           >
             <ZoomOut />
           </button>
           <button
             onClick={resetView}
+            aria-label="Reset presentation view"
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Reset View"
+            data-tooltip="Reset presentation view"
           >
             <Home />
           </button>
@@ -2428,13 +3072,27 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               }
             }}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Export as PNG"
+            aria-label="Export presentation as PNG"
+            data-tooltip="Export presentation as PNG"
           >
             📸
           </button>
 	          <button
-	            onClick={() => setIsPresenting(true)}
+	            onClick={() => setPreflightOpen(true)}
+	            className="presentation-control-btn presentation-preflight-btn px-3 py-2 rounded-lg transition-colors shadow-lg border"
+	            aria-label="Run presentation preflight"
+	            aria-expanded={preflightOpen}
+	            aria-controls={preflightOpen ? 'presentation-preflight-panel' : undefined}
+	          >
+	            Preflight{preflightReport?.warningCount ? ` · ${preflightReport.warningCount}` : ''}
+	          </button>
+	          <button
+	            onClick={() => {
+	              previousFocusRef.current = document.activeElement;
+	              setIsPresenting(true);
+	            }}
 	            className="presentation-control-btn presentation-present-btn flex items-center gap-2 px-3 py-2 rounded-lg transition-colors shadow-lg border"
+	            aria-label="Start presentation"
 	          >
 	            <Play />
 	            Present
@@ -2442,11 +3100,80 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         </div>
       )}
 
+      {!isPresenting && preflightOpen && (
+        <aside
+          id="presentation-preflight-panel"
+          className="presentation-preflight-panel"
+          role="region"
+          aria-label="Presentation preflight"
+          aria-busy={preflightRunning}
+        >
+          <header className="presentation-preflight-header">
+            <div>
+              <strong>Presentation preflight</strong>
+              <span>
+                {preflightRunning
+                  ? 'Checking every slide…'
+                  : preflightReport?.success
+                    ? `${preflightReport.slideCount} slides · ${preflightReport.warningCount} warnings`
+                    : 'Ready to check this deck'}
+              </span>
+            </div>
+            <button type="button" onClick={() => setPreflightOpen(false)} aria-label="Close presentation preflight">×</button>
+          </header>
+          <div className="presentation-preflight-actions">
+            <button type="button" onClick={runPreflight} disabled={preflightRunning}>
+              {preflightRunning ? 'Checking…' : 'Run again'}
+            </button>
+            {preflightReport?.suppressedCount > 0 && (
+              <button type="button" onClick={resetPreflightSuppressions}>
+                Restore {preflightReport.suppressedCount} suppressed
+              </button>
+            )}
+          </div>
+          {preflightReport?.error && <p className="presentation-preflight-error">{preflightReport.error}</p>}
+          {preflightReport?.success && preflightReport.warningCount === 0 && (
+            <p className="presentation-preflight-clear">No unsuppressed preflight warnings.</p>
+          )}
+          <ol className="presentation-preflight-list">
+            {(preflightReport?.warnings || []).map(item => (
+              <li key={item.id} data-warning-code={item.code} data-slide-index={item.slideIndex}>
+                <button
+                  type="button"
+                  className="presentation-preflight-warning"
+                  onClick={() => navigateToPreflightWarning(item)}
+                >
+                  <span className={`presentation-preflight-severity is-${item.severity}`}>{item.severity}</span>
+                  <strong>Slide {item.slideNumber}: {item.message}</strong>
+                  <span>{item.detail}</span>
+                  <small>Source line {item.sourceLine}</small>
+                </button>
+                {item.suppressible && (
+                  <button
+                    type="button"
+                    className="presentation-preflight-suppress"
+                    onClick={() => suppressPreflightWarning(item.id)}
+                    aria-label={`Suppress ${item.message} on slide ${item.slideNumber}`}
+                  >
+                    Suppress
+                  </button>
+                )}
+              </li>
+            ))}
+          </ol>
+        </aside>
+      )}
+
       {/* Navigation Controls */}
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4">
+      <nav
+        ref={navigationControlsRef}
+        className="presentation-navigation absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-4"
+        aria-label="Slide navigation"
+      >
         <button
           onClick={() => goToSlide(currentSlide - 1)}
           disabled={currentSlide === 0}
+          aria-label="Previous slide"
           className="p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg"
           style={{
             background: 'var(--techne-off-white, #fafafa)',
@@ -2460,6 +3187,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
         <div
           className="flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           style={{
             background: 'var(--techne-off-white, #fafafa)',
             color: 'var(--techne-black, #0a0a0a)',
@@ -2475,6 +3205,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         <button
           onClick={() => goToSlide(currentSlide + 1)}
           disabled={currentSlide === slides.length - 1}
+          aria-label="Next slide"
           className="p-3 disabled:opacity-50 rounded-lg transition-colors shadow-lg"
           style={{
             background: 'var(--techne-accent, #E63946)',
@@ -2485,32 +3216,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         >
           <ChevronRight />
         </button>
-      </div>
+      </nav>
 
       {/* Presentation Mode Controls */}
       {isPresenting && (
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-          <button
-            onClick={handleZoomIn}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom In"
-          >
-            <ZoomIn />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Zoom Out"
-          >
-            <ZoomOut />
-          </button>
-          <button
-            onClick={resetView}
-            className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Reset Zoom"
-          >
-            <Home />
-          </button>
+        <div ref={presentationControlsRef} className="presentation-toolbar absolute top-4 right-4 z-10 flex gap-2" role="toolbar" aria-label="Presentation delivery controls">
           <button
             onClick={() => {
               if (window.exportVisualizationAsPNG) {
@@ -2518,9 +3228,21 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               }
             }}
             className="p-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
-            title="Export as PNG"
+            aria-label="Export presentation as PNG"
+            data-tooltip="Export presentation as PNG"
           >
             📸
+          </button>
+          <button
+            onClick={() => setPresenterConsoleOpen(previous => !previous)}
+            className={`p-2 rounded-lg transition-colors shadow-lg border ${
+              presenterConsoleOpen ? 'bg-green-600 text-white border-green-700' : 'bg-cream hover:bg-gray-100 text-gray-900'
+            }`}
+            aria-label={presenterConsoleOpen ? 'Hide presenter console' : 'Show presenter console'}
+            aria-pressed={presenterConsoleOpen}
+            aria-controls={presenterConsoleOpen ? 'presentation-presenter-console' : undefined}
+          >
+            Presenter
           </button>
           <button
             onClick={() => toggleSpeakerNotesWindow()}
@@ -2529,7 +3251,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 ? 'bg-green-600 hover:bg-green-700 text-white border-green-700' 
                 : 'bg-cream hover:bg-gray-100 text-gray-900'
             }`}
-            title={speakerNotesWindowVisible ? "Switch to Bottom Panel" : "Switch to Separate Window"}
+            data-tooltip={speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window"}
+            aria-label={speakerNotesWindowVisible ? "Show speaker notes in bottom panel" : "Show speaker notes in separate window"}
+            aria-pressed={speakerNotesWindowVisible}
           >
             {speakerNotesWindowVisible ? <StickyNote /> : <Eye />}
             <span style={{fontSize: '8px', marginLeft: '2px'}}>{speakerNotesWindowVisible ? 'T' : 'F'}</span>
@@ -2550,7 +3274,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                   ? { background: 'var(--techne-accent, #E63946)', color: 'white', borderColor: 'var(--techne-black, #0a0a0a)' }
                   : {}
             }
-            title={isLoadingTTS ? "Loading audio..." : ttsEnabled ? "Disable Text-to-Speech" : "Enable Text-to-Speech"}
+            data-tooltip={isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration"}
+            aria-label={isLoadingTTS ? "Loading slide narration" : ttsEnabled ? "Disable slide narration" : "Enable slide narration"}
+            aria-pressed={ttsEnabled}
             disabled={isLoadingTTS}
           >
             {isLoadingTTS ? <LoadingSpinner /> : ttsEnabled ? <Speaker /> : <SpeakerOff />}
@@ -2560,8 +3286,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           <select
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value)}
+            aria-label="Narration voice"
             className="px-2 py-1 text-sm rounded-lg bg-cream hover:bg-gray-100 text-gray-900 border shadow-lg cursor-pointer"
-            title="Select TTS Voice"
+            data-tooltip="Select narration voice"
             style={{ maxWidth: '90px' }}
           >
             <option value="sarah">Sarah</option>
@@ -2574,8 +3301,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           {!isRecording ? (
             <button
               onClick={startRecording}
+              aria-label="Start presentation recording"
               className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg border border-red-700"
-              title="Start Recording"
+              data-tooltip="Start presentation recording"
             >
               <RecordIcon />
             </button>
@@ -2583,15 +3311,18 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             <div className="flex items-center gap-2">
               <button
                 onClick={togglePauseRecording}
+                aria-label={isPaused ? "Resume presentation recording" : "Pause presentation recording"}
+                aria-pressed={isPaused}
                 className="p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors shadow-lg border border-yellow-700"
-                title={isPaused ? "Resume Recording" : "Pause Recording"}
+                data-tooltip={isPaused ? "Resume presentation recording" : "Pause presentation recording"}
               >
                 {isPaused ? <RecordIcon /> : <PauseIcon />}
               </button>
               <button
                 onClick={stopRecording}
+                aria-label="Stop presentation recording"
                 className="p-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors shadow-lg border border-gray-700"
-                title="Stop Recording"
+                data-tooltip="Stop presentation recording"
               >
                 <StopIcon />
               </button>
@@ -2618,94 +3349,158 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
               setIsPresenting(false);
             }}
             className="px-4 py-2 bg-cream hover:bg-gray-100 rounded-lg transition-colors shadow-lg border text-gray-900"
+            aria-label="Exit presentation"
           >
             Exit Presentation
           </button>
         </div>
       )}
 
+      {isPresenting && presenterConsoleOpen && (
+        <aside
+          ref={presenterConsoleRef}
+          id="presentation-presenter-console"
+          className="presentation-presenter-console"
+          role="complementary"
+          aria-label="Presenter console"
+          data-current-slide={currentSlide}
+        >
+          <header>
+            <div>
+              <strong>Presenter console</strong>
+              <span role="timer" aria-label={`Elapsed time ${formatRecordingTime(presenterElapsed)}`}>
+                {formatRecordingTime(presenterElapsed)}
+              </span>
+            </div>
+            <button type="button" onClick={() => setPresenterConsoleOpen(false)} aria-label="Close presenter console">×</button>
+          </header>
+          <section aria-labelledby="presenter-current-title">
+            <small>Current · {currentSlide + 1} / {slides.length}</small>
+            <h2 id="presenter-current-title">{slides[currentSlide]?.title || `Slide ${currentSlide + 1}`}</h2>
+            <p>{slideTextPreview(slides[currentSlide]) || 'No visible slide text.'}</p>
+          </section>
+          <section aria-labelledby="presenter-next-title" className="presentation-presenter-next">
+            <small>Next</small>
+            <h2 id="presenter-next-title">
+              {slides[currentSlide + 1]?.title || (currentSlide + 1 < slides.length ? `Slide ${currentSlide + 2}` : 'End of deck')}
+            </h2>
+            <p>{slideTextPreview(slides[currentSlide + 1]) || 'No next slide.'}</p>
+          </section>
+          <section aria-labelledby="presenter-notes-title" className="presentation-presenter-notes">
+            <small id="presenter-notes-title">Speaker notes</small>
+            <SpeakerNotesContent notes={slides[currentSlide]?.speakerNotes} />
+          </section>
+          <nav aria-label="Presenter console navigation">
+            <button type="button" onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide === 0}>
+              Previous
+            </button>
+            <button type="button" onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide === slides.length - 1}>
+              Next
+            </button>
+          </nav>
+        </aside>
+      )}
 
-      {/* Canvas */}
       <div
-        ref={canvasRef}
-        className="w-full h-full"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: '0 0',
-          transition: (isDragging || isZooming)
-            ? 'none'
-            : isPresenting
-              ? 'transform 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)'
-              : 'transform 0.2s ease-out'
-        }}
+        ref={stageRef}
+        className="presentation-stage"
+        data-fit-mode={isPresenting ? 'contain' : 'canvas'}
+        data-fit-state={isPresenting ? (presentationFitReady ? 'ready' : 'measuring') : 'inactive'}
+        style={presentationStageStyle}
       >
-        <div className="relative w-full h-full flex items-center justify-center">
-          {/* Slides */}
-          {slides.map((slide, index) => {
-            const isFocused = index === focusedSlide;
-            const isCurrent = index === currentSlide;
-            
-            return (
-              <div
-                key={slide.id}
-                className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 cursor-pointer transform ${
-                  slide.backgroundImage ? 'slide-has-bg' : ''
-                } ${
-                  isFocused
-                    ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
-                    : isCurrent
-                      ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105'
-                      : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'
-                }`}
-                style={{
-                  left: `${slide.position.x}px`,
-                  top: `${slide.position.y}px`,
-                  width: `${SLIDE_WIDTH}px`,
-                  height: `${SLIDE_HEIGHT}px`,
-                  minHeight: `${SLIDE_HEIGHT}px`,
-                  transform: 'translate(-50%, -50%)',
-                  opacity: isPresenting && index !== currentSlide ? 0.1 : 1,
-                  zIndex: isFocused ? 1000 : isCurrent ? 999 : isPresenting && index !== currentSlide ? 0 : 1,
-                  position: 'absolute',
-                  boxSizing: 'border-box',
-                  overflow: 'hidden',
-                  ...(slide.backgroundImage ? {
-                    backgroundImage: `url('${slide.backgroundImage}')`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat'
-                  } : {})
-                }}
-                onDoubleClick={() => handleSlideDoubleClick(index)}
-              >
-                <div
-                  className="slide-content"
-                  style={{ height: '100%', width: '100%' }}
-                  dangerouslySetInnerHTML={{ __html: slide.parsed }}
-                />
-              </div>
-            );
-          })}
-
-          {/* Connection Lines */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ width: '200%', height: '200%' }}>
+        {/* Canvas */}
+        <div
+          ref={canvasRef}
+          className="presentation-canvas w-full h-full"
+          data-active-scale={activeZoom.toFixed(6)}
+          style={{
+            transform: `translate(${activePan.x}px, ${activePan.y}px) scale(${activeZoom})`,
+            transformOrigin: '0 0',
+            transition: (isDragging || isZooming)
+              ? 'none'
+              : isPresenting
+                ? 'transform 0.35s ease-out'
+                : 'transform 0.2s ease-out'
+          }}
+        >
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Slides */}
             {slides.map((slide, index) => {
-              if (index === slides.length - 1) return null;
-              const nextSlide = slides[index + 1];
+              const isFocused = index === focusedSlide;
+              const isCurrent = index === currentSlide;
+              if (isPresenting && !isCurrent) return null;
+
               return (
-                <line
-                  key={`line-${index}`}
-                  x1={slide.position.x + SLIDE_HALF_WIDTH}
-                  y1={slide.position.y + SLIDE_HALF_HEIGHT}
-                  x2={nextSlide.position.x + SLIDE_HALF_WIDTH}
-                  y2={nextSlide.position.y + SLIDE_HALF_HEIGHT}
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                />
+                <div
+                  key={slide.id}
+                  data-slide-index={index}
+                  data-current-slide={isCurrent ? 'true' : 'false'}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`Slide ${index + 1} of ${slides.length}`}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  tabIndex={isCurrent ? 0 : -1}
+                  className={`absolute slide rounded-xl shadow-2xl transition-all duration-500 transform ${
+                    slide.backgroundImage ? 'slide-has-bg' : ''
+                  } ${
+                    isPresenting
+                      ? 'presentation-current-slide'
+                      : isFocused
+                        ? 'ring-4 ring-purple-500 shadow-purple-500/50 animate-pulse'
+                        : isCurrent
+                          ? 'ring-4 ring-green-500 shadow-green-500/50 scale-105'
+                          : 'hover:shadow-3xl hover:scale-105 hover:ring-2 hover:ring-blue-400'
+                  }`}
+                  style={{
+                    '--slide-x': `${slide.position.x}px`,
+                    '--slide-y': `${slide.position.y}px`,
+                    left: `${slide.position.x}px`,
+                    top: `${slide.position.y}px`,
+                    width: `${SLIDE_WIDTH}px`,
+                    height: `${SLIDE_HEIGHT}px`,
+                    minHeight: `${SLIDE_HEIGHT}px`,
+                    transform: 'translate(-50%, -50%)',
+                    opacity: 1,
+                    zIndex: isFocused ? 1000 : isCurrent ? 999 : 1,
+                    position: 'absolute',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                    ...(slide.backgroundImage ? {
+                      backgroundImage: `url('${slide.backgroundImage}')`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    } : {})
+                  }}
+                  onDoubleClick={isPresenting ? undefined : () => handleSlideDoubleClick(index)}
+                >
+                  <PresentationSlideContent html={slide.parsed} isPresenting={isPresenting} />
+                </div>
               );
             })}
-          </svg>
+
+            {/* Connection Lines */}
+            {!isPresenting && (
+              <svg className="presentation-connection-lines absolute inset-0 pointer-events-none" aria-hidden="true" focusable="false" style={{ width: '200%', height: '200%' }}>
+                {slides.map((slide, index) => {
+                  if (index === slides.length - 1) return null;
+                  const nextSlide = slides[index + 1];
+                  return (
+                    <line
+                      key={`line-${index}`}
+                      x1={slide.position.x + SLIDE_HALF_WIDTH}
+                      y1={slide.position.y + SLIDE_HALF_HEIGHT}
+                      x2={nextSlide.position.x + SLIDE_HALF_WIDTH}
+                      y2={nextSlide.position.y + SLIDE_HALF_HEIGHT}
+                      stroke="rgba(255,255,255,0.1)"
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                    />
+                  );
+                })}
+              </svg>
+            )}
+          </div>
         </div>
       </div>
     </div>

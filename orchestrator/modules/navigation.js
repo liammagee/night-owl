@@ -82,7 +82,15 @@ function navigateForward() {
 
 async function openFileFromHistory(historyItem) {
     try {
-        const result = await window.electronAPI.invoke('open-file-path', historyItem.filePath);
+        if (typeof window.openFilePathInEditor === 'function') {
+            const outcome = await window.openFilePathInEditor(historyItem.filePath, { source: 'history' });
+            if (outcome?.status === 'committed') {
+                updateNavigationButtons();
+                updateCurrentFileName(historyItem.fileName);
+            }
+            return;
+        }
+        const result = await window.electronAPI.files.openFilePath(historyItem.filePath);
         if (result.success) {
             await window.openFileInEditor(result.filePath, result.content);
             updateNavigationButtons();
@@ -153,7 +161,7 @@ async function saveNavigationHistoryToSettings() {
             currentHistoryIndex: currentHistoryIndex
         };
         
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
     } catch (error) {
         console.error('[Navigation] Failed to save navigation history to settings:', error);
     }

@@ -1,11 +1,56 @@
 // Mode Switching Functions
 // Handles switching between editor, presentation, network, circle, and library modes
 
-// Global mode state
-let currentMode = 'editor';
+// Application mode is owned by the shared UI state store. CommonJS tests load
+// a fresh store; the packaged renderer receives the instance from index.html.
+const uiStateStore = (typeof module !== 'undefined' && module.exports)
+  ? require('../orchestrator/modules/ui-state-store').store
+  : window.NightOwlUIState;
+
+function getCurrentMode() {
+  return uiStateStore?.getState?.().mode || 'editor';
+}
+
 let presentationEditorContent = '';
 let presentationLoadNonce = 0;
+let presentationLoadController = null;
+let presentationReadinessToken = null;
+let presentationReadinessCleanup = null;
 const presentationReactRoots = new WeakMap();
+
+const PRESENTATION_DIAGNOSTICS = {
+  feature: 'NO-PRES-FEATURE',
+  runtime: 'NO-PRES-RUNTIME',
+  render: 'NO-PRES-RENDER',
+  content: 'NO-PRES-CONTENT'
+};
+
+function recordPresentationFailure(diagnosticId, correlationId, error, context = {}) {
+  if (window.NightOwlDiagnostics?.logger) {
+    return window.NightOwlDiagnostics.logger('presentation').error(
+      diagnosticId,
+      error,
+      context,
+      { correlationId, state: 'failed' }
+    );
+  }
+  console.error(`[Mode Switching] ${diagnosticId} [${correlationId}]:`, error);
+  return {
+    id: correlationId,
+    correlationId,
+    code: diagnosticId,
+    state: 'failed',
+    message: error?.message || String(error || 'Presentation failed')
+  };
+}
+
+function logPresentationWarning(code, error, context = {}) {
+  if (window.NightOwlDiagnostics?.logger) {
+    return window.NightOwlDiagnostics.logger('presentation').warn(code, error, context, { state: 'degraded' });
+  }
+  console.warn(`[Mode Switching] ${code}:`, error);
+  return null;
+}
 
 function getPresentationReactRuntime() {
   const react = window.React;
@@ -26,13 +71,45 @@ function getPresentationReactRuntime() {
   };
 }
 
-function renderPresentationComponent(container) {
+function createPresentationErrorBoundary(runtime, onError) {
+  if (typeof runtime.react.Component !== 'function') return null;
+
+  return class PresentationErrorBoundary extends runtime.react.Component {
+    constructor(props) {
+      super(props);
+      this.state = { failed: false };
+    }
+
+    static getDerivedStateFromError() {
+      return { failed: true };
+    }
+
+    componentDidCatch(error) {
+      onError(error, PRESENTATION_DIAGNOSTICS.render);
+    }
+
+    render() {
+      return this.state.failed ? null : this.props.children;
+    }
+  };
+}
+
+function renderPresentationComponent(container, options = {}) {
   const runtime = getPresentationReactRuntime();
   if (!runtime || !window.MarkdownPreziApp) {
     return false;
   }
 
-  const element = runtime.react.createElement(window.MarkdownPreziApp);
+  const onError = typeof options.onError === 'function' ? options.onError : () => {};
+  const presentationElement = runtime.react.createElement(window.MarkdownPreziApp, {
+    markdown: options.content || '',
+    onPresentationError: (error) => onError(error, PRESENTATION_DIAGNOSTICS.content)
+  });
+  const ErrorBoundary = createPresentationErrorBoundary(runtime, onError);
+  const element = ErrorBoundary
+    ? runtime.react.createElement(ErrorBoundary, null, presentationElement)
+    : presentationElement;
+
   if (runtime.canCreateRoot) {
     let root = presentationReactRoots.get(container);
     if (!root) {
@@ -47,12 +124,166 @@ function renderPresentationComponent(container) {
   return true;
 }
 
-function ensurePresentationsReady(timeoutMs = 8000) {
+function unmountPresentationComponent(container) {
+  const runtime = getPresentationReactRuntime();
+  const root = presentationReactRoots.get(container);
+  if (root) {
+    try {
+      root.unmount();
+    } catch (error) {
+      logPresentationWarning('NO-PRES-UNMOUNT', error);
+    }
+    presentationReactRoots.delete(container);
+    return;
+  }
+
+  if (runtime?.canLegacyRender) {
+    try {
+      runtime.reactDOM.unmountComponentAtNode?.(container);
+    } catch (error) {
+      logPresentationWarning('NO-PRES-LEGACY-UNMOUNT', error);
+    }
+  }
+}
+
+function renderPresentationLoadState(container, state, options = {}) {
+  container.dataset.presentationLoadState = state;
+  container.dataset.viewState = state;
+  if (options.incident?.correlationId) {
+    container.dataset.correlationId = options.incident.correlationId;
+  } else {
+    delete container.dataset.correlationId;
+  }
+  container.replaceChildren();
+
+  if (state === 'cancelled' || state === 'ready') return;
+
+  const panel = document.createElement('div');
+  panel.className = `presentation-load-state presentation-load-${state}`;
+  panel.setAttribute('role', state === 'failed' ? 'alert' : 'status');
+  panel.style.padding = '24px';
+  panel.style.maxWidth = '560px';
+
+  const title = document.createElement('strong');
+  title.textContent = state === 'loading'
+    ? 'Loading presentation…'
+    : 'Presentation could not be loaded';
+  panel.appendChild(title);
+
+  if (state === 'failed') {
+    const detail = document.createElement('p');
+    detail.textContent = options.message || 'The presentation renderer stopped unexpectedly.';
+    panel.appendChild(detail);
+
+    const diagnostic = document.createElement('code');
+    diagnostic.className = 'presentation-load-diagnostic';
+    diagnostic.textContent = [
+      `Diagnostic: ${options.diagnosticId || PRESENTATION_DIAGNOSTICS.render}`,
+      `Incident: ${options.incident?.correlationId || 'unavailable'}`
+    ].join(' · ');
+    panel.appendChild(diagnostic);
+
+    const actions = document.createElement('div');
+    actions.className = 'view-error-actions';
+    actions.style.display = 'flex';
+    actions.style.gap = '8px';
+    actions.style.marginTop = '16px';
+
+    const retryButton = document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'presentation-load-retry';
+    retryButton.textContent = 'Retry';
+    retryButton.addEventListener('click', () => options.onRetry?.());
+    actions.appendChild(retryButton);
+
+    const returnButton = document.createElement('button');
+    returnButton.type = 'button';
+    returnButton.className = 'presentation-load-return';
+    returnButton.textContent = 'Return to Editor';
+    returnButton.addEventListener('click', () => options.onReturn?.());
+    actions.appendChild(returnButton);
+
+    const resetButton = document.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'presentation-load-reset';
+    resetButton.textContent = 'Reset View';
+    resetButton.addEventListener('click', () => options.onReset?.());
+    actions.appendChild(resetButton);
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'presentation-load-copy';
+    copyButton.textContent = 'Copy diagnostics';
+    copyButton.addEventListener('click', async () => {
+      try {
+        const result = await window.NightOwlDiagnostics?.copyReport?.({ incidentId: options.incident?.id });
+        copyButton.textContent = result?.success ? 'Copied' : 'Copy unavailable';
+      } catch (_error) {
+        copyButton.textContent = 'Copy failed';
+      }
+    });
+    actions.appendChild(copyButton);
+
+    const detailsButton = document.createElement('button');
+    detailsButton.type = 'button';
+    detailsButton.className = 'presentation-load-details';
+    detailsButton.textContent = 'View diagnostics';
+    detailsButton.addEventListener('click', () => {
+      window.NightOwlDiagnostics?.open?.({ incidentId: options.incident?.id });
+    });
+    actions.appendChild(detailsButton);
+    panel.appendChild(actions);
+  }
+
+  container.appendChild(panel);
+}
+
+function cancelPresentationLoad(options = {}) {
+  presentationLoadNonce += 1;
+  presentationLoadController?.abort();
+  presentationLoadController = null;
+  presentationReadinessCleanup?.();
+  presentationReadinessCleanup = null;
+  window.NightOwlPerformance?.readiness?.cancel(presentationReadinessToken, {
+    reason: options.reason || 'presentation-load-cancelled'
+  });
+  presentationReadinessToken = null;
+
+  const container = options.container || document.getElementById('presentation-root');
+  if (options.markCancelled !== false && container?.dataset.presentationLoadState === 'loading') {
+    renderPresentationLoadState(container, 'cancelled');
+  }
+}
+
+function armPresentationContentReadiness(container, token, context = {}) {
+  if (!token) return;
+  presentationReadinessCleanup?.();
+  container.dataset.presentationContentState = 'rendering';
+
+  const onReady = event => {
+    cleanup();
+    container.dataset.presentationContentState = 'ready';
+    window.NightOwlPerformance?.readiness?.complete(token, {
+      ...context,
+      slides: event.detail?.slides ?? context.slides ?? null
+    });
+    if (presentationReadinessToken === token) presentationReadinessToken = null;
+  };
+  const cleanup = () => {
+    window.removeEventListener('nightowl:presentation-content-ready', onReady);
+    if (presentationReadinessCleanup === cleanup) presentationReadinessCleanup = null;
+  };
+  presentationReadinessCleanup = cleanup;
+  window.addEventListener('nightowl:presentation-content-ready', onReady, { once: true });
+}
+
+function ensurePresentationsReady(timeoutMs = 8000, options = {}) {
   const isReady = () =>
     Boolean(window.MarkdownPreziApp) &&
     typeof window.showSpeakerNotesPanel === 'function' &&
     typeof window.hideSpeakerNotesPanel === 'function';
 
+  if (options.signal?.aborted) return Promise.resolve(false);
   if (isReady()) return Promise.resolve(true);
 
   const startFeaturesBestEffort = async () => {
@@ -64,20 +295,25 @@ function ensurePresentationsReady(timeoutMs = 8000) {
         settings: window.appSettings?.features || null
       });
     } catch (error) {
-      console.warn('[Mode Switching] Failed to start NightOwl features:', error);
+      logPresentationWarning('NO-PRES-FEATURE-START', error);
     }
   };
 
   return new Promise((resolve) => {
     let finished = false;
     let unsubscribe = null;
+    let intervalId = null;
+    let timeoutId = null;
+
+    const onAbort = () => finish(false);
 
     const finish = (ok) => {
       if (finished) return;
       finished = true;
       if (unsubscribe) unsubscribe();
-      clearInterval(intervalId);
-      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
+      options.signal?.removeEventListener('abort', onAbort);
       resolve(ok);
     };
 
@@ -89,12 +325,179 @@ function ensurePresentationsReady(timeoutMs = 8000) {
       unsubscribe = window.NightOwlFeatures.on('presentations:ready', () => check());
     }
 
-    const intervalId = setInterval(check, 50);
-    const timeoutId = setTimeout(() => finish(isReady()), timeoutMs);
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    intervalId = setInterval(check, 50);
+    timeoutId = setTimeout(() => finish(isReady()), timeoutMs);
 
     startFeaturesBestEffort();
     check();
   });
+}
+
+function getPresentationSourceContent() {
+  let content = '';
+
+  if (typeof getCurrentEditorContent === 'function') {
+    try {
+      content = getCurrentEditorContent();
+    } catch (error) {
+      logPresentationWarning('NO-PRES-EDITOR-CONTENT', error);
+    }
+  }
+
+  if (!content && typeof window.editor?.getValue === 'function') {
+    try {
+      content = window.editor.getValue();
+    } catch (error) {
+      logPresentationWarning('NO-PRES-EDITOR-VALUE', error);
+    }
+  }
+
+  return content || window.pendingPresentationContent || presentationEditorContent || '';
+}
+
+function startPresentationLoad(container, options = {}) {
+  if (!container) return Promise.resolve('failed');
+
+  cancelPresentationLoad({ container, markCancelled: false });
+  unmountPresentationComponent(container);
+  const controller = new AbortController();
+  presentationLoadController = controller;
+  const nonce = presentationLoadNonce;
+  const correlationId = String(
+    options.correlationId ||
+    window.NightOwlDiagnostics?.createCorrelationId?.('presentation') ||
+    `NO-PRESENTATION-${Date.now().toString(36).toUpperCase()}-${nonce}`
+  );
+  const content = options.content ?? getPresentationSourceContent();
+  const readinessToken = window.NightOwlPerformance?.readiness?.begin('presentation-ready', {
+    characters: content.length,
+    slides: content.split(/^---\s*$/m).length,
+    loadNonce: nonce
+  }) || null;
+  presentationReadinessToken = readinessToken;
+  renderPresentationLoadState(container, 'loading');
+  let failureHandled = false;
+
+  const isCurrent = () =>
+    !controller.signal.aborted &&
+    nonce === presentationLoadNonce &&
+    getCurrentMode() === 'presentation';
+
+  const fail = (diagnosticId, error, message) => {
+    if (!isCurrent()) {
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'stale-presentation-load' });
+      return 'cancelled';
+    }
+    if (failureHandled) return 'failed';
+    failureHandled = true;
+    presentationLoadController = null;
+    presentationReadinessCleanup?.();
+    presentationReadinessCleanup = null;
+    if (presentationReadinessToken === readinessToken) presentationReadinessToken = null;
+    window.NightOwlPerformance?.readiness?.fail(readinessToken, error, {
+      diagnosticId,
+      loadNonce: nonce
+    });
+    const incident = recordPresentationFailure(diagnosticId, correlationId, error, {
+      diagnosticId,
+      loadNonce: nonce,
+      timeoutMs: options.timeoutMs ?? 8000
+    });
+    unmountPresentationComponent(container);
+    renderPresentationLoadState(container, 'failed', {
+      diagnosticId,
+      incident,
+      message,
+      onRetry: () => startPresentationLoad(container, {
+        content: getPresentationSourceContent(),
+        timeoutMs: options.timeoutMs
+      }),
+      onReturn: () => switchToMode('editor'),
+      onReset: () => {
+        cancelPresentationLoad({ container, markCancelled: false });
+        unmountPresentationComponent(container);
+        delete window.targetPresentationSlide;
+        renderPresentationLoadState(container, 'cancelled');
+        switchToMode('editor');
+      }
+    });
+    return 'failed';
+  };
+
+  const reportAsyncFailure = (error, diagnosticId) => {
+    Promise.resolve().then(() => {
+      fail(
+        diagnosticId,
+        error,
+        diagnosticId === PRESENTATION_DIAGNOSTICS.content
+          ? 'The slide content could not be parsed. Fix the source or retry after editing.'
+          : 'The presentation renderer stopped unexpectedly. Retry to remount it.'
+      );
+    });
+  };
+
+  return (async () => {
+    const ready = await ensurePresentationsReady(options.timeoutMs ?? 8000, {
+      signal: controller.signal
+    });
+
+    if (!isCurrent()) {
+      window.NightOwlPerformance?.readiness?.cancel(readinessToken, { reason: 'mode-changed' });
+      if (container.dataset.presentationLoadState === 'loading') {
+        renderPresentationLoadState(container, 'cancelled');
+      }
+      return 'cancelled';
+    }
+
+    if (!ready) {
+      return fail(
+        PRESENTATION_DIAGNOSTICS.feature,
+        new Error('Presentation feature readiness timed out'),
+        'The presentation feature did not finish loading. Check the feature settings and retry.'
+      );
+    }
+
+    if (!getPresentationReactRuntime() || !window.MarkdownPreziApp) {
+      return fail(
+        PRESENTATION_DIAGNOSTICS.runtime,
+        new Error('React presentation globals are unavailable'),
+        'The presentation runtime is unavailable. Retry to reload its assets.'
+      );
+    }
+
+    try {
+      armPresentationContentReadiness(container, readinessToken, {
+        loadNonce: nonce,
+        reused: false
+      });
+      const rendered = renderPresentationComponent(container, {
+        content,
+        onError: reportAsyncFailure
+      });
+      if (!rendered) {
+        return fail(
+          PRESENTATION_DIAGNOSTICS.runtime,
+          new Error('Presentation component was not mounted'),
+          'The presentation runtime is unavailable. Retry to reload its assets.'
+        );
+      }
+    } catch (error) {
+      return fail(
+        PRESENTATION_DIAGNOSTICS.render,
+        error,
+        'The presentation renderer stopped unexpectedly. Retry to remount it.'
+      );
+    }
+
+    if (!isCurrent()) return 'cancelled';
+    container.dataset.presentationLoadState = 'ready';
+    container.dataset.viewState = 'ready';
+    delete container.dataset.correlationId;
+    presentationLoadController = null;
+    window.showSpeakerNotesPanel?.(content);
+    return 'ready';
+  })();
 }
 
 function jumpToSlideInEditor(slideIndex) {
@@ -113,91 +516,36 @@ function calculateSlideFromCursor() {
 
 function restoreUIElementsAfterPresentation() {
   console.log('[Mode Switching] Restoring UI elements after presentation mode');
-  
-  // Force refresh of pane visibility and layout
-  if (window.refreshPaneVisibility) {
-    window.refreshPaneVisibility();
-  }
-  
-  // Reset any inline styles that might have been applied
-  const elementsToReset = [
-    '#left-sidebar', '#sidebar-resizer', '#editor-container', '#mode-switcher', 
-    '#editor-toolbar', '#right-pane', '#main-content'
-  ];
-  
-  elementsToReset.forEach(selector => {
-    const element = document.querySelector(selector);
-    if (element) {
-      // Remove any inline display styles that might override CSS
-      element.style.removeProperty('display');
-      element.style.removeProperty('width');
-      element.style.removeProperty('height');
-      element.style.removeProperty('flex');
-    }
-  });
-  
-  // Trigger a layout refresh
-  setTimeout(() => {
-    if (window.refreshEditorLayout) {
-      window.refreshEditorLayout();
-    }
-    
-    // Ensure editor is visible and focused
-    const editorContainer = document.getElementById('editor-container');
-    if (editorContainer) {
-      editorContainer.style.display = '';
-    }
-    
+  uiStateStore?.render?.();
+  uiStateStore?.afterTransition?.(() => {
+    window.editor?.focus?.();
     console.log('[Mode Switching] UI restoration completed');
-  }, 100);
+  });
 }
 
 function switchToMode(modeName) {
   console.log('[Mode Switching] Switching to:', modeName);
 
+  const previousMode = getCurrentMode();
+  const nextState = uiStateStore?.dispatch?.({ type: 'SET_MODE', mode: modeName });
+  if (!nextState || nextState.mode !== modeName) {
+    console.error('[Mode Switching] Ignoring unsupported mode:', modeName);
+    return false;
+  }
+
   // Cancel any in-flight presentation load when leaving presentation mode
   if (modeName !== 'presentation') {
-    presentationLoadNonce += 1;
-  }
-  
-  // Hide all content views
-  const contentViews = document.querySelectorAll('.content-view');
-  console.log('[Mode Switching] Found content views:', contentViews.length);
-  contentViews.forEach(view => {
-    console.log('[Mode Switching] Removing active from:', view.id);
-    view.classList.remove('active');
-  });
-
-  // Show selected content view
-  const targetView = document.getElementById(`${modeName}-content`);
-  console.log('[Mode Switching] Target view:', targetView);
-  if (targetView) {
-    targetView.classList.add('active');
-    console.log('[Mode Switching] Added active class to:', modeName + '-content');
-    console.log('[Mode Switching] Target view classes:', targetView.className);
-  } else {
-    console.error('[Mode Switching] Could not find target view:', modeName + '-content');
-  }
-
-  // Update mode buttons
-  const modeButtons = document.querySelectorAll('.mode-btn');
-  modeButtons.forEach(btn => btn.classList.remove('active'));
-  
-  const targetButton = document.getElementById(`${modeName}-mode-btn`);
-  if (targetButton) {
-    targetButton.classList.add('active');
+    cancelPresentationLoad();
   }
 
   // Handle mode-specific logic
   if (modeName === 'presentation') {
-    document.body.classList.add('presentation-mode');
-    
     // Calculate which slide to jump to based on cursor position if coming from editor
     let targetSlide = 0;
-    if (currentMode === 'editor') {
+    if (previousMode === 'editor') {
       targetSlide = calculateSlideFromCursor();
       console.log('[Mode Switching] Calculated target slide from cursor:', targetSlide);
-      console.log('[Mode Switching] Current mode was:', currentMode, ', switching to presentation with target slide:', targetSlide);
+      console.log('[Mode Switching] Current mode was:', previousMode, ', switching to presentation with target slide:', targetSlide);
     }
     
     // Store target slide for React component to pick up
@@ -206,112 +554,34 @@ function switchToMode(modeName) {
       console.log('[Mode Switching] Set window.targetPresentationSlide to:', targetSlide);
     }
     
-    // Ensure React component is rendered
+    const currentContent = getPresentationSourceContent();
+
+    // Ensure React component is rendered. A fresh mount receives the Markdown as
+    // a prop; an existing mount receives one update event. Keeping those paths
+    // separate prevents the same document from being parsed twice on entry.
     const presentationRoot = document.getElementById('presentation-root');
     if (presentationRoot) {
-      // Skip teardown+reload if React component is already mounted
-      const alreadyMounted = presentationRoot.querySelector('.slide, [data-reactroot]');
+      const alreadyMounted = presentationRoot.dataset.presentationLoadState === 'ready';
       if (alreadyMounted && window.MarkdownPreziApp) {
         console.log('[Mode Switching] Presentation component already mounted, reusing');
+        const reuseReadiness = window.NightOwlPerformance?.readiness?.begin('presentation-ready', {
+          characters: currentContent.length,
+          slides: currentContent.split(/^---\s*$/m).length,
+          reused: true
+        }) || null;
+        presentationReadinessToken = reuseReadiness;
+        armPresentationContentReadiness(presentationRoot, reuseReadiness, {
+          reused: true
+        });
+        if (currentContent) {
+          window.syncContentToPresentationImmediate?.(currentContent);
+        }
+        window.showSpeakerNotesPanel?.(currentContent);
       } else {
-        const nonce = ++presentationLoadNonce;
-        presentationRoot.innerHTML = '<div style="padding: 16px; opacity: 0.8;">Loading presentation…</div>';
-
-        (async () => {
-          const ok = await ensurePresentationsReady();
-          if (nonce !== presentationLoadNonce) return;
-
-          if (!ok) {
-            presentationRoot.innerHTML =
-              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation feature not ready. Please try again.</div>';
-            return;
-          }
-
-          if (!getPresentationReactRuntime() || !window.MarkdownPreziApp) {
-            presentationRoot.innerHTML =
-              '<div style="padding: 16px; color: #b91c1c; font-weight: 700;">Presentation runtime missing (React globals).</div>';
-            return;
-          }
-
-          console.log('[Mode Switching] Rendering React presentation component for presentation mode');
-          try {
-            renderPresentationComponent(presentationRoot);
-            console.log('[Mode Switching] React component rendered successfully');
-          } catch (error) {
-            console.error('[Mode Switching] Error rendering React component:', error);
-          }
-        })();
-      }
-    }
-    
-    // Always get the latest content from the editor when switching to presentation mode
-    console.log('[Mode Switching] Getting fresh content from editor for presentation mode');
-    let currentContent = '';
-    
-    // Priority 1: Try getCurrentEditorContent function (from renderer.js)
-    if (typeof getCurrentEditorContent === 'function') {
-      try {
-        currentContent = getCurrentEditorContent();
-        console.log('[Mode Switching] Retrieved fresh content from getCurrentEditorContent(), length:', currentContent.length);
-      } catch (error) {
-        console.warn('[Mode Switching] Error calling getCurrentEditorContent():', error);
-      }
-    }
-    
-    // Priority 2: Try getting content directly from editor global variable
-    if (!currentContent && window.editor && window.editor.getValue) {
-      try {
-        currentContent = window.editor.getValue();
-        console.log('[Mode Switching] Retrieved fresh content from window.editor, length:', currentContent.length);
-      } catch (error) {
-        console.warn('[Mode Switching] Error getting content from window.editor:', error);
-      }
-    }
-    
-    // Fallback: Use stored content if available
-    if (!currentContent && window.pendingPresentationContent) {
-      currentContent = window.pendingPresentationContent;
-      console.log('[Mode Switching] No editor content available, using pending presentation content, length:', currentContent.length);
-    }
-    
-    // Fallback 2: Use stored content as last resort
-    if (!currentContent && presentationEditorContent) {
-      currentContent = presentationEditorContent;
-      console.log('[Mode Switching] Using last resort stored presentation content, length:', currentContent.length);
-    }
-    
-    // Sync the content to presentation
-    if (currentContent) {
-      console.log('[Mode Switching] Syncing fresh content to presentation');
-
-      // User just switched into presentation mode — bypass the visibility gate
-      // and the trailing-edge debounce so the React component receives content
-      // immediately rather than 80ms later.
-      if (typeof window.syncContentToPresentationImmediate === 'function') {
-        window.syncContentToPresentationImmediate(currentContent);
-      } else if (window.syncContentToPresentation) {
-        window.syncContentToPresentation(currentContent);
-      }
-
-      // (Removed the redundant direct CustomEvent dispatch — the immediate
-      // sync above already fires it. Dispatching twice caused the React
-      // handler to parseMarkdown the same content twice on every mode switch.)
-      
-      // Also set it directly for immediate access
-      window.pendingPresentationContent = currentContent;
-      
-      // Show speaker notes panel and populate with notes
-      if (typeof window.showSpeakerNotesPanel === 'function') {
-        window.showSpeakerNotesPanel(currentContent);
-      }
-    } else {
-      console.warn('[Mode Switching] No content available to sync to presentation');
-      if (typeof window.showSpeakerNotesPanel === 'function') {
-        window.showSpeakerNotesPanel('');
+        startPresentationLoad(presentationRoot, { content: currentContent });
       }
     }
   } else if (modeName === 'network') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     
     // Initialize unified network visualization
@@ -327,7 +597,6 @@ function switchToMode(modeName) {
       }
     }
   } else if (modeName === 'circle') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     
     // Initialize circle visualization
@@ -337,7 +606,6 @@ function switchToMode(modeName) {
       window.initializeCircleVisualization();
     }
   } else if (modeName === 'library') {
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
 
     // Try to use the feature-provided maze mode first
@@ -383,19 +651,17 @@ function switchToMode(modeName) {
     }
   } else {
     // Default case (editor mode)
-    document.body.classList.remove('presentation-mode');
     window.hideSpeakerNotesPanel?.();
     restoreUIElementsAfterPresentation();
     
     // Jump to current slide position in editor if coming from presentation
-    if (currentMode === 'presentation' && typeof window.currentPresentationSlide === 'number') {
+    if (previousMode === 'presentation' && typeof window.currentPresentationSlide === 'number') {
       jumpToSlideInEditor(window.currentPresentationSlide);
     }
   }
 
-  // Update current mode
-  currentMode = modeName;
-  console.log('[Mode Switching] Mode switched to:', currentMode);
+  console.log('[Mode Switching] Mode switched to:', getCurrentMode());
+  return true;
 }
 
 function setupModeSwitching() {
@@ -477,7 +743,7 @@ function setupModeSwitching() {
 
     const _isPresentationVisible = () => {
       // Mode is presentation, OR the React app is mounted and the root is on-screen.
-      if (currentMode === 'presentation') return true;
+      if (getCurrentMode() === 'presentation') return true;
       const root = document.getElementById('presentation-root');
       if (!root) return false;
       const mounted = root.querySelector('.slide, [data-reactroot]');
@@ -601,7 +867,7 @@ function setupFeatureModeButtons() {
           'circle-mode-btn': 'circle'
         };
         const mode = modeMap[buttonId];
-        if (currentMode === mode) {
+        if (getCurrentMode() === mode) {
           switchToMode('editor');
         }
       }
@@ -617,9 +883,9 @@ function setupFeatureModeButtons() {
 
 // Wire up IPC events from menu keyboard shortcuts (Cmd+1/2/3)
 if (window.electronAPI) {
-  window.electronAPI.onSwitchToEditor?.(() => switchToMode('editor'));
-  window.electronAPI.onSwitchToPresentation?.(() => switchToMode('presentation'));
-  window.electronAPI.onSwitchToNetwork?.(() => switchToMode('network'));
+  window.electronAPI.events?.switchToEditor?.(() => switchToMode('editor'));
+  window.electronAPI.events?.switchToPresentation?.(() => switchToMode('presentation'));
+  window.electronAPI.events?.switchToNetwork?.(() => switchToMode('network'));
 }
 
 // Export functions to global scope for backward compatibility
@@ -627,5 +893,22 @@ window.switchToMode = switchToMode;
 window.setupModeSwitching = setupModeSwitching;
 window.restoreUIElementsAfterPresentation = restoreUIElementsAfterPresentation;
 window.updateModeButtonVisibility = updateModeButtonVisibility;
-window.currentMode = currentMode;
+Object.defineProperty(window, 'currentMode', {
+  configurable: true,
+  enumerable: true,
+  get: getCurrentMode,
+  set: (mode) => switchToMode(mode)
+});
 window.presentationEditorContent = presentationEditorContent;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    PRESENTATION_DIAGNOSTICS,
+    ensurePresentationsReady,
+    renderPresentationComponent,
+    renderPresentationLoadState,
+    startPresentationLoad,
+    cancelPresentationLoad,
+    switchToMode
+  };
+}

@@ -1,7 +1,7 @@
 (function () {
     const FEATURE_ID = 'nightowl-markdown-renderer';
     const BASE = 'plugins/techne-markdown-renderer';
-    const VERSION = '20260124a'; // Cache bust version
+    const VERSION = '20260808a'; // Cache bust version
 
     const register = () => {
         if (!window.NightOwlFeatures?.register) return;
@@ -32,7 +32,7 @@
                 // Auto-load bibliography files
                 if (window.TechneBibtexParser && !window.bibEntries?.length) {
                     const resolveBibPath = async (filename) => {
-                        if (!window.electronAPI?.invoke) {
+                        if (!window.electronAPI?.files?.listDirectoryFiles) {
                             return filename;
                         }
 
@@ -48,7 +48,7 @@
 
                         for (const dir of candidateDirs) {
                             try {
-                                const files = await window.electronAPI.invoke('list-directory-files', dir);
+                                const files = await window.electronAPI.files.listDirectoryFiles(dir);
                                 const match = files?.find(file => file.isFile && file.name === filename);
                                 if (match) {
                                     return match.path || (dir ? `${dir}/${filename}` : filename);

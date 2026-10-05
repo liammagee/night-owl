@@ -68,6 +68,43 @@ describe('aiHandlers context helpers', () => {
     });
   });
 
+  test('get-tutor-core-status separates local core readiness from optional providers', async () => {
+    const probeLocalRuntime = jest.fn(async () => ({
+      ok: true,
+      coreAvailable: true,
+      providerConfigured: false,
+      storageReady: true,
+      providers: [],
+      learnerId: 'local-writer',
+      runtimePaths: { dbPath: '/profile/tutor-core/tutor-core.db' },
+      error: null
+    }));
+
+    aiHandlers.register({
+      appSettings: { ai: {}, currentFile: '' },
+      tutorBridge: {
+        getAvailableProviders: jest.fn(() => []),
+        probeLocalRuntime,
+        isAvailable: jest.fn(() => true)
+      },
+      getCurrentFilePath: jest.fn(() => null),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace'),
+      buildSystemMessage: jest.fn(async () => 'system'),
+      cleanAIResponse: jest.fn(value => value)
+    });
+
+    const result = await getRegisteredHandler('get-tutor-core-status')();
+
+    expect(result).toMatchObject({
+      success: true,
+      coreAvailable: true,
+      providerConfigured: false,
+      storageReady: true,
+      providers: []
+    });
+    expect(probeLocalRuntime).toHaveBeenCalledTimes(1);
+  });
+
   test('get-file-context returns the current file plus sibling text files', async () => {
     readFileMock.mockImplementation(async (filePath) => `body:${filePath}`);
     readdirMock.mockResolvedValue([
@@ -172,5 +209,47 @@ describe('aiHandlers context helpers', () => {
       expect.stringContaining('### beta.md'),
       expect.any(Object)
     );
+  });
+
+  test('ai-chat applies the selected assistant prompt and preserves zero temperature', async () => {
+    const sendMessage = jest.fn(async () => ({
+      response: 'ok',
+      provider: 'codex-cli',
+      model: 'cli-default',
+      usage: null
+    }));
+
+    aiHandlers.register({
+      appSettings: {
+        ai: {
+          assistants: {
+            ash: {
+              systemPrompt: 'Ash-specific instructions',
+              aiSettings: { provider: 'auto', model: 'auto', temperature: 0, maxTokens: 200 }
+            }
+          }
+        }
+      },
+      tutorBridge: {
+        getAvailableProviders: jest.fn(() => ['codex-cli']),
+        sendMessage
+      },
+      buildSystemMessage: jest.fn(async () => 'generic system'),
+      cleanAIResponse: jest.fn(value => value)
+    });
+
+    const result = await getRegisteredHandler('ai-chat')({}, {
+      message: 'Review this',
+      options: { assistant: 'ash' }
+    });
+
+    expect(result.provider).toBe('codex-cli');
+    expect(sendMessage).toHaveBeenCalledWith('Review this', expect.objectContaining({
+      provider: 'auto',
+      model: 'auto',
+      temperature: 0,
+      maxTokens: 200,
+      systemMessage: 'Ash-specific instructions'
+    }));
   });
 });

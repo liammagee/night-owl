@@ -1,4 +1,5 @@
 const path = require('path');
+const { createElectronApiMock } = require('../../../helpers/electron-api-mock');
 
 const pluginEntryPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/plugin.js');
 const bibtexParserPath = path.resolve(__dirname, '../../../../plugins/techne-markdown-renderer/bibtexParser.js');
@@ -120,6 +121,21 @@ describe('nightowl-markdown-renderer plugin', () => {
     expect(window.currentSpeakerNotes[0].content).toBe('secret');
   });
 
+  test('can stage speaker notes without mutating the active preview notes', async () => {
+    require(pluginCorePath);
+    window.currentSpeakerNotes = [{ content: 'active notes' }];
+    const stagedNotes = [];
+
+    await window.TechneMarkdownRenderer.renderToHtml('```notes\nstaged notes\n```', {
+      speakerNotesSink: notes => stagedNotes.push(...notes)
+    });
+
+    expect(stagedNotes).toEqual([
+      expect.objectContaining({ content: 'staged notes', index: 0 })
+    ]);
+    expect(window.currentSpeakerNotes).toEqual([{ content: 'active notes' }]);
+  });
+
   test('renderPreview writes to the preview element', async () => {
     require(previewMarkdownPath);
     require(pluginCorePath);
@@ -165,11 +181,31 @@ describe('nightowl-markdown-renderer plugin', () => {
     expect(previewElement.textContent).toContain('bad');
   });
 
+  test('trusted publication rendering shares preview parsing, citations, and sanitization', async () => {
+    require(previewMarkdownPath);
+    require(pluginCorePath);
+    window.TechneCitationRenderer = {
+      renderCitations: jest.fn(html => `${html}<p class="bibliography">Rendered citation</p>`)
+    };
+
+    const result = await window.TechneMarkdownRenderer.renderTrustedHtml({
+      markdownContent: '# Shared contract\n<script>alert(1)</script>\n[@source]',
+      filePath: '/workspace/page.md',
+      baseDir: '/workspace',
+      previewZoom: null
+    });
+
+    expect(result.contract).toBe(window.TechneMarkdownRenderer.RENDER_CONTRACT);
+    expect(result.html).toContain('id="heading-shared-contract"');
+    expect(result.html).toContain('Rendered citation');
+    expect(result.html).not.toContain('<script');
+    expect(window.TechneCitationRenderer.renderCitations).toHaveBeenCalledTimes(1);
+  });
+
   test('BibTeX parser reads local files through Electron IPC instead of fetch', async () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;
-    window.electronAPI = {
-      invoke: jest.fn(async (channel, payload) => {
+    const bridge = createElectronApiMock(async (channel, payload) => {
         if (channel === 'get-working-directory') return '/workspace';
         if (channel === 'read-file') {
           return {
@@ -179,8 +215,8 @@ describe('nightowl-markdown-renderer plugin', () => {
           };
         }
         return null;
-      })
-    };
+    });
+    window.electronAPI = bridge.api;
 
     require(bibtexParserPath);
 
@@ -188,7 +224,7 @@ describe('nightowl-markdown-renderer plugin', () => {
 
     expect(entries).toHaveLength(1);
     expect(entries[0].key).toBe('hegel1807');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('read-file', '/workspace/references.bib');
+    expect(bridge.invoke).toHaveBeenCalledWith('read-file', '/workspace/references.bib');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -196,15 +232,13 @@ describe('nightowl-markdown-renderer plugin', () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;
     console.error = jest.fn();
-    window.electronAPI = {
-      invoke: jest.fn(async (channel) => {
+    window.electronAPI = createElectronApiMock(async (channel) => {
         if (channel === 'get-working-directory') return '/workspace';
         if (channel === 'read-file') {
           return { success: false, error: 'File not found' };
         }
         return null;
-      })
-    };
+    }).api;
 
     require(bibtexParserPath);
 
@@ -232,14 +266,12 @@ describe('nightowl-markdown-renderer plugin', () => {
     };
     window.bibEntries = [];
     window.appSettings = { workingDirectory: '/workspace' };
-    window.electronAPI = {
-      invoke: jest.fn(async (channel, dir) => {
+    window.electronAPI = createElectronApiMock(async (channel, dir) => {
         if (channel === 'list-directory-files' && dir === '') {
           return [{ isFile: true, name: 'references.bib', path: '/workspace/references.bib' }];
         }
         return [];
-      })
-    };
+    }).api;
 
     require(pluginEntryPath);
 

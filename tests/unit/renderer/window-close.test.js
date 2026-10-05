@@ -1,3 +1,4 @@
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 const { unsavedNames, saveBeforeClose } = require('../../../orchestrator/modules/window-close');
 
 function createTab(filePath, content, isDirty = true) {
@@ -34,9 +35,11 @@ function createHost(tabs = [], activeTabPath = tabs[0]?.filePath) {
       tab.lastSavedContent = savedContent;
     })
   };
+  const ipc = createElectronApiMock(async () => ({ success: true }));
   return {
     tabManager: manager,
-    electronAPI: { invoke: jest.fn().mockResolvedValue({ success: true }) },
+    electronAPI: ipc.api,
+    ipcInvoke: ipc.invoke,
     hasUnsavedChanges: Boolean(manager.tabs.get(activeTabPath)?.isDirty),
     _setLastSavedContent: jest.fn(),
     updateUnsavedIndicator: jest.fn()
@@ -45,7 +48,7 @@ function createHost(tabs = [], activeTabPath = tabs[0]?.filePath) {
 
 function pendingSave(host) {
   let complete;
-  host.electronAPI.invoke.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+  host.ipcInvoke.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
   const saving = saveBeforeClose(host);
   return { saving, complete: (result = { success: true }) => complete(result) };
 }
@@ -95,8 +98,8 @@ describe('window close save workflow', () => {
     const host = createHost([active, inactive]);
 
     expect(await saveBeforeClose(host)).toBe(true);
-    expect(host.electronAPI.invoke).toHaveBeenCalledTimes(1);
-    expect(host.electronAPI.invoke).toHaveBeenCalledWith('perform-save-with-path', 'inactive content', '/notes/inactive.md', { expectedContent: 'previously saved' });
+    expect(host.ipcInvoke).toHaveBeenCalledTimes(1);
+    expect(host.ipcInvoke).toHaveBeenCalledWith('perform-save-with-path', 'inactive content', '/notes/inactive.md', { expectedContent: 'previously saved' });
     expect(inactive.isDirty).toBe(false);
     expect(inactive.lastSavedContent).toBe('inactive content');
     expect(host.tabManager.activeTabPath).toBe('/notes/active.md');
@@ -119,10 +122,10 @@ describe('window close save workflow', () => {
   test('cancelling untitled Save As keeps its buffer and the window open', async () => {
     const untitled = createTab('untitled:1', 'new content');
     const host = createHost([untitled]);
-    host.electronAPI.invoke.mockResolvedValue({ success: false, cancelled: true });
+    host.ipcInvoke.mockResolvedValue({ success: false, cancelled: true });
 
     expect(await saveBeforeClose(host)).toBe(false);
-    expect(host.electronAPI.invoke).toHaveBeenCalledWith('perform-save-as', expect.objectContaining({ content: 'new content' }));
+    expect(host.ipcInvoke).toHaveBeenCalledWith('perform-save-as', expect.objectContaining({ content: 'new content' }));
     expect(host.tabManager.tabs.get('untitled:1')).toBe(untitled);
     expect(untitled.isDirty).toBe(true);
     expect(host.tabManager.rekeyTab).not.toHaveBeenCalled();
@@ -132,7 +135,7 @@ describe('window close save workflow', () => {
     const untitled = createTab('untitled:1', 'new content');
     const originalModel = untitled.model;
     const host = createHost([untitled]);
-    host.electronAPI.invoke.mockResolvedValue({ success: true, filePath: '/notes/saved.md' });
+    host.ipcInvoke.mockResolvedValue({ success: true, filePath: '/notes/saved.md' });
 
     expect(await saveBeforeClose(host)).toBe(true);
     expect(host.tabManager.tabs.has('untitled:1')).toBe(false);
@@ -146,10 +149,10 @@ describe('window close save workflow', () => {
     const first = createTab('/notes/first.md', 'first edits');
     const second = createTab('/notes/second.md', 'second edits');
     const host = createHost([first, second]);
-    host.electronAPI.invoke.mockResolvedValue({ success: false, code: 'FILE_MODIFIED_EXTERNALLY' });
+    host.ipcInvoke.mockResolvedValue({ success: false, code: 'FILE_MODIFIED_EXTERNALLY' });
 
     expect(await saveBeforeClose(host)).toBe(false);
-    expect(host.electronAPI.invoke).toHaveBeenCalledTimes(1);
+    expect(host.ipcInvoke).toHaveBeenCalledTimes(1);
     expect(first.isDirty).toBe(true);
     expect(second.isDirty).toBe(true);
     expect(first.lastSavedContent).toBe('previously saved');
@@ -209,7 +212,7 @@ describe('window close save workflow', () => {
   test('a rejected write leaves dirty state intact for the caller error handler', async () => {
     const tab = createTab('/notes/draft.md', 'unsaved work');
     const host = createHost([tab]);
-    host.electronAPI.invoke.mockRejectedValue(new Error('disk unavailable'));
+    host.ipcInvoke.mockRejectedValue(new Error('disk unavailable'));
 
     await expect(saveBeforeClose(host)).rejects.toThrow('disk unavailable');
     expect(tab.isDirty).toBe(true);

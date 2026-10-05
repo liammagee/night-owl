@@ -1,0 +1,30 @@
+/* Shared keyboard focus treatment for native and app-defined controls. */
+:where(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  [role="button"],
+  [role="separator"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid var(--accent-color, var(--techne-accent, #e63946)) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 2px var(--surface, #ffffff) !important;
+}
+
+@media (forced-colors: active) {
+  :where(
+    button,
+    a[href],
+    input,
+    select,
+    textarea,
+    [role="button"],
+    [role="separator"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline-color: Highlight !important;
+  }
+}

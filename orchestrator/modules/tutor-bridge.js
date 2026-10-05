@@ -6,6 +6,9 @@
 // replacing the old services/aiService.js. It wraps tutor-core's
 // unifiedAIProvider.call() / callStream() with conversation history management.
 
+const path = require('path');
+const cliAIProvider = require(path.join(__dirname, '..', '..', 'services', 'cliAIProvider'));
+
 function isDebugLoggingEnabled(namespace) {
     const raw = typeof process !== 'undefined' && process.env
         ? process.env.NIGHTOWL_DEBUG_LOGS || ''
@@ -24,7 +27,8 @@ let tutorCore = null;
 let bridgeState = {
     initialized: false,
     learnerId: 'local-writer',
-    initError: null
+    initError: null,
+    runtimePaths: null
 };
 
 // ============================================================================
@@ -35,6 +39,12 @@ const MAX_HISTORY = 40;
 let conversationHistory = [];
 let currentSystemMessage = null;
 let defaultProvider = null; // Override from NightOwl settings
+let routingPreferences = {
+    providerPriority: [...cliAIProvider.DEFAULT_PRIORITY],
+    // Retain legacy behaviour until main.js applies the saved NightOwl policy.
+    allowApiFallback: true,
+    subscriptionOnly: true
+};
 
 function runTutorCoreQuietly(fn) {
     if (isDebugLoggingEnabled('TutorBridge') || isDebugLoggingEnabled('TutorCore')) {
@@ -67,6 +77,38 @@ async function loadTutorCore() {
     }
 }
 
+function isImmutableApplicationPath(targetPath) {
+    if (!targetPath) return false;
+    const normalized = path.resolve(targetPath);
+    const segments = normalized.split(path.sep).filter(Boolean);
+    if (segments.some(segment => segment.endsWith('.asar'))) return true;
+    const appIndex = segments.findIndex(segment => segment.endsWith('.app'));
+    return appIndex >= 0 && segments[appIndex + 1] === 'Contents';
+}
+
+function configureTutorCoreRuntime(options = {}) {
+    const dbPath = options.dbPath || (options.dataDir ? path.join(options.dataDir, 'tutor-core.db') : null);
+    const dataDir = options.dataDir || (dbPath ? path.dirname(dbPath) : null);
+    const logDir = options.logDir || (dataDir ? path.join(dataDir, 'logs') : null);
+    const runtimePaths = { dataDir, dbPath, logDir };
+
+    for (const [name, targetPath] of Object.entries(runtimePaths)) {
+        if (!targetPath) continue;
+        if (!path.isAbsolute(targetPath)) {
+            throw new Error(`Tutor-core ${name} must be an absolute path`);
+        }
+        if (isImmutableApplicationPath(targetPath)) {
+            throw new Error(`Tutor-core ${name} must not be inside app.asar or an application bundle`);
+        }
+    }
+
+    const runtimeEnv = typeof process !== 'undefined' ? process.env : null;
+    if (runtimeEnv && dbPath) runtimeEnv.AUTH_DB_PATH = dbPath;
+    if (runtimeEnv && logDir) runtimeEnv.TUTOR_CORE_LOG_DIR = logDir;
+    bridgeState.runtimePaths = runtimePaths;
+    return runtimePaths;
+}
+
 /**
  * Initialize the tutor bridge for the local user.
  * Sets up the database, writing pad, and verifies tutor-core availability.
@@ -83,6 +125,24 @@ async function initTutorBridge(options = {}) {
 
     const learnerId = options.learnerId || bridgeState.learnerId;
     bridgeState.learnerId = learnerId;
+
+    if (options.aiRuntimeDir) {
+        cliAIProvider.setRuntimeDirectory(options.aiRuntimeDir);
+    }
+    if (options.enableCliProviders) {
+        await cliAIProvider.refreshAvailability({ env: process.env });
+    }
+
+    let runtimePaths;
+    try {
+        // tutor-core currently has one import-time database consumer. These
+        // environment variables therefore have to be set before import(), not
+        // merely passed to initDb() afterwards.
+        runtimePaths = configureTutorCoreRuntime(options);
+    } catch (error) {
+        bridgeState.initError = error.message;
+        return { ok: false, error: error.message };
+    }
 
     const core = await loadTutorCore();
     if (!core) {
@@ -101,6 +161,10 @@ async function initTutorBridge(options = {}) {
                 // initDb throws if already initialized - that's fine
                 debug(`[TutorBridge] Database already initialized: ${dbErr.message}`);
             }
+        }
+
+        if (runtimePaths.logDir && core.setLogDir) {
+            runTutorCoreQuietly(() => core.setLogDir(runtimePaths.logDir));
         }
 
         // Initialize writing pad for the local writer
@@ -148,6 +212,70 @@ function resolveProvider(providerName) {
     return aliases[providerName] || providerName;
 }
 
+function configureAIRouting(settings = {}) {
+    routingPreferences = {
+        providerPriority: cliAIProvider.normalizePriority(settings.providerPriority),
+        allowApiFallback: settings.allowApiFallback === true,
+        subscriptionOnly: settings.subscriptionOnly !== false
+    };
+    return { ...routingPreferences, providerPriority: [...routingPreferences.providerPriority] };
+}
+
+function selectProvider(providerName, options = {}) {
+    const requested = (!providerName || providerName === 'auto' || providerName === 'default')
+        ? defaultProvider
+        : providerName;
+    if (requested) {
+        return { provider: requested, transport: requested.endsWith('-cli') ? 'cli' : 'api' };
+    }
+
+    const priority = options.providerPriority || routingPreferences.providerPriority;
+    const cliProvider = cliAIProvider.getPreferredProvider(priority);
+    if (cliProvider) return { provider: cliProvider, transport: 'cli' };
+
+    const allowApiFallback = options.allowApiFallback == null
+        ? routingPreferences.allowApiFallback
+        : options.allowApiFallback === true;
+    if (allowApiFallback) return { provider: undefined, transport: 'api' };
+
+    throw new Error('No preferred CLI AI provider is available. Install and sign in to Codex or Claude, select an API provider explicitly, or enable API fallback in AI settings.');
+}
+
+async function callProvider({ providerName, systemMessage, messages, options = {} }) {
+    const selection = selectProvider(providerName, options);
+    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
+        ? options.model : undefined;
+
+    if (selection.transport === 'cli') {
+        return cliAIProvider.call({
+            provider: selection.provider,
+            model,
+            systemPrompt: systemMessage,
+            messages,
+            maxTokens: options.maxTokens,
+            subscriptionOnly: options.subscriptionOnly == null
+                ? routingPreferences.subscriptionOnly
+                : options.subscriptionOnly !== false
+        });
+    }
+
+    const core = await loadTutorCore();
+    if (!core || !core.unifiedAIProvider) {
+        throw new Error('tutor-core not available — API providers cannot be used.');
+    }
+    return core.unifiedAIProvider.call({
+        provider: resolveProvider(selection.provider),
+        model,
+        systemPrompt: systemMessage,
+        messages,
+        preset: options.preset || 'direct',
+        config: {
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+        },
+    });
+}
+
 /**
  * Add a message to conversation history (auto-trimmed).
  * @private
@@ -177,12 +305,7 @@ function addToHistory(role, content) {
  * @returns {Promise<{response: string, provider: string, model: string, usage: object}>}
  */
 async function sendMessage(message, options = {}) {
-    const core = await loadTutorCore();
-    if (!core || !core.unifiedAIProvider) {
-        throw new Error('tutor-core not available — cannot send message.');
-    }
-
-    const systemMessage = options.systemMessage ||
+    const systemMessage = options.systemMessage || options.systemPrompt ||
         'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
 
     // Handle conversation state
@@ -194,21 +317,12 @@ async function sendMessage(message, options = {}) {
     // Add user message to history
     addToHistory('user', message);
 
-    const provider = resolveProvider(options.provider);
-    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
-        ? options.model : undefined;
-
     try {
-        const result = await core.unifiedAIProvider.call({
-            provider,
-            model,
-            systemPrompt: systemMessage,
+        const result = await callProvider({
+            providerName: options.provider,
+            systemMessage,
             messages: [...conversationHistory],
-            preset: options.preset || 'direct',
-            config: {
-                temperature: options.temperature,
-                maxTokens: options.maxTokens,
-            },
+            options
         });
 
         // Add assistant response to history
@@ -238,12 +352,7 @@ async function sendMessage(message, options = {}) {
  * @yields {{type: string, content: string, ...}}
  */
 async function* streamMessage(message, options = {}) {
-    const core = await loadTutorCore();
-    if (!core || !core.unifiedAIProvider || !core.unifiedAIProvider.callStream) {
-        throw new Error('tutor-core streaming not available.');
-    }
-
-    const systemMessage = options.systemMessage ||
+    const systemMessage = options.systemMessage || options.systemPrompt ||
         'You are a helpful assistant integrated into a Markdown editor for Hegelian philosophy and pedagogy. Provide thoughtful, educational responses.';
 
     if (options.newConversation || currentSystemMessage !== systemMessage) {
@@ -253,13 +362,29 @@ async function* streamMessage(message, options = {}) {
 
     addToHistory('user', message);
 
-    const provider = resolveProvider(options.provider);
-    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
-        ? options.model : undefined;
-
     try {
+        const selection = selectProvider(options.provider, options);
+        if (selection.transport === 'cli') {
+            const result = await callProvider({
+                providerName: selection.provider,
+                systemMessage,
+                messages: [...conversationHistory],
+                options
+            });
+            yield { type: 'text_delta', content: result.content, provider: result.provider, model: result.model };
+            addToHistory('assistant', result.content);
+            yield { type: 'done', content: result.content, provider: result.provider, model: result.model, usage: result.usage };
+            return;
+        }
+
+        const core = await loadTutorCore();
+        if (!core || !core.unifiedAIProvider || !core.unifiedAIProvider.callStream) {
+            throw new Error('tutor-core streaming not available.');
+        }
+        const model = (options.model && options.model !== 'auto' && options.model !== 'default')
+            ? options.model : undefined;
         const stream = core.unifiedAIProvider.callStream({
-            provider,
+            provider: resolveProvider(selection.provider),
             model,
             systemPrompt: systemMessage,
             messages: [...conversationHistory],
@@ -292,25 +417,11 @@ async function* streamMessage(message, options = {}) {
  * @returns {Promise<{response: string, content: string, provider: string, model: string, usage: object}>}
  */
 async function generateText(prompt, options = {}) {
-    const core = await loadTutorCore();
-    if (!core || !core.unifiedAIProvider) {
-        throw new Error('tutor-core not available — cannot generate text.');
-    }
-
-    const provider = resolveProvider(options.provider);
-    const model = (options.model && options.model !== 'auto' && options.model !== 'default')
-        ? options.model : undefined;
-
-    const result = await core.unifiedAIProvider.call({
-        provider,
-        model,
-        systemPrompt: options.systemMessage || '',
+    const result = await callProvider({
+        providerName: options.provider,
+        systemMessage: options.systemMessage || options.systemPrompt || '',
         messages: [{ role: 'user', content: prompt }],
-        preset: options.preset || 'direct',
-        config: {
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-        },
+        options
     });
 
     return {
@@ -332,12 +443,12 @@ async function generateText(prompt, options = {}) {
  * @returns {string[]}
  */
 function getAvailableProviders() {
-    if (!tutorCore || !tutorCore.unifiedAIProvider) return [];
-
-    const status = tutorCore.unifiedAIProvider.getProviderStatus();
-    const available = [];
-    for (const [id, info] of Object.entries(status)) {
-        if (info.configured) available.push(id);
+    const available = cliAIProvider.getAvailableProviders(routingPreferences.providerPriority);
+    if (tutorCore && tutorCore.unifiedAIProvider) {
+        const status = tutorCore.unifiedAIProvider.getProviderStatus();
+        for (const [id, info] of Object.entries(status)) {
+            if (info.configured && !available.includes(id)) available.push(id);
+        }
     }
     return available;
 }
@@ -348,8 +459,12 @@ function getAvailableProviders() {
  */
 function getDefaultProvider() {
     if (defaultProvider) return defaultProvider;
-    if (!tutorCore || !tutorCore.unifiedAIProvider) return null;
-    return tutorCore.unifiedAIProvider.getAvailableProvider();
+    const cliProvider = cliAIProvider.getPreferredProvider(routingPreferences.providerPriority);
+    if (cliProvider) return cliProvider;
+    if (routingPreferences.allowApiFallback && tutorCore && tutorCore.unifiedAIProvider) {
+        return tutorCore.unifiedAIProvider.getAvailableProvider();
+    }
+    return null;
 }
 
 /**
@@ -388,6 +503,8 @@ function getProviderModels(providerId) {
         claude: ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'],
         gemini: ['gemini-3-flash-preview', 'gemini-3-pro-preview'],
         local: ['local-model'],
+        'codex-cli': [],
+        'claude-cli': [],
     };
     return modelLists[providerId] || [];
 }
@@ -659,12 +776,55 @@ function isAvailable() {
     return bridgeState.initialized && tutorCore !== null;
 }
 
+function getRuntimeStatus() {
+    const providers = getAvailableProviders();
+    return {
+        coreAvailable: isAvailable(),
+        providerConfigured: providers.length > 0,
+        providers,
+        cliProviders: cliAIProvider.getAvailability(),
+        learnerId: bridgeState.learnerId,
+        runtimePaths: bridgeState.runtimePaths ? { ...bridgeState.runtimePaths } : null,
+        error: bridgeState.initError
+    };
+}
+
+async function probeLocalRuntime() {
+    if (!isAvailable()) {
+        return {
+            ok: false,
+            storageReady: false,
+            ...getRuntimeStatus()
+        };
+    }
+
+    try {
+        const writingPad = tutorCore.writingPadService?.getWritingPad
+            ? tutorCore.writingPadService.getWritingPad(bridgeState.learnerId)
+            : null;
+        return {
+            ok: true,
+            storageReady: Boolean(writingPad),
+            ...getRuntimeStatus()
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            storageReady: false,
+            ...getRuntimeStatus(),
+            error: error.message
+        };
+    }
+}
+
 // Export for CommonJS consumption
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         // Initialization
         initTutorBridge,
         isAvailable,
+        getRuntimeStatus,
+        probeLocalRuntime,
         // AI service interface (replaces aiService)
         sendMessage,
         streamMessage,
@@ -673,6 +833,7 @@ if (typeof module !== 'undefined' && module.exports) {
         getAvailableProviders,
         getDefaultProvider,
         setDefaultProvider,
+        configureAIRouting,
         getProviderModels,
         getCurrentConfiguration,
         updateLocalAIUrl,
@@ -704,12 +865,15 @@ if (typeof window !== 'undefined') {
     window.TutorBridge = {
         initTutorBridge,
         isAvailable,
+        getRuntimeStatus,
+        probeLocalRuntime,
         sendMessage,
         streamMessage,
         generateText,
         getAvailableProviders,
         getDefaultProvider,
         setDefaultProvider,
+        configureAIRouting,
         getProviderModels,
         getCurrentConfiguration,
         updateLocalAIUrl,

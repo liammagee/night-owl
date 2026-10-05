@@ -106,6 +106,30 @@ class TagManager {
         return fileData;
     }
 
+    processIndexedFile(entry) {
+        if (!entry?.path) return null;
+        const existing = this.fileTags.get(entry.path);
+        const fileData = {
+            tags: Array.isArray(entry.tags) ? [...entry.tags] : [],
+            metadata: {
+                ...(entry.metadata || {}),
+                title: entry.title || entry.metadata?.title || null
+            },
+            content: existing?.content || ''
+        };
+        this.fileTags.set(entry.path, fileData);
+        this.updateTagIndex(entry.path, fileData.tags);
+        return fileData;
+    }
+
+    hydrateIndexedFiles(entries) {
+        let hydrated = 0;
+        for (const entry of entries || []) {
+            if (this.processIndexedFile(entry)) hydrated += 1;
+        }
+        return hydrated;
+    }
+
     // Update the tag index for faster searching
     updateTagIndex(filePath, tags) {
         // Remove file from old tags

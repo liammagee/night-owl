@@ -38,6 +38,22 @@ function resolveInternalLinkPath(filePath) {
     return workingDir ? joinWorkingPath(workingDir, filePath) : filePath;
 }
 
+async function resolveInternalLinkPathWithIndex(filePath) {
+    const resolver = window.electronAPI?.search?.workspaceIndexResolveLink;
+    if (typeof resolver === 'function' && !isAbsoluteOrExternalPath(filePath)) {
+        try {
+            const result = await resolver({
+                sourcePath: window.currentFilePath || null,
+                target: filePath
+            });
+            if (result?.success && result.resolvedPath) return result.resolvedPath;
+        } catch (_) {
+            // Older preload contracts and unavailable indexes use the primary root.
+        }
+    }
+    return resolveInternalLinkPath(filePath);
+}
+
 function notifyInternalLink(message, type = 'warning') {
     if (typeof window.showNotification === 'function') {
         window.showNotification(message, type);
@@ -117,12 +133,11 @@ async function processInternalLinks(content) {
 
 async function loadLinkContent(filePath) {
     try {
-        const workingDir = window.appSettings?.workingDirectory;
-        if (!workingDir) return 'Working directory not set';
-        const fullPath = `${workingDir}/${filePath}`;
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
+        if (!fullPath) return 'Working directory not set';
         
         // CRITICAL FIX: Use read-file-content to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
         
         if (result.success) {
             return extractPreviewContent(result.content);
@@ -167,7 +182,13 @@ function handleInternalLinkClick(event) {
 // --- Open Internal Link ---
 async function openInternalLink(filePath, originalLink) {
     try {
-        const fullPath = resolveInternalLinkPath(filePath);
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
+        const fileExtension = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
+
+        if (fileExtension === '.pptx' && typeof window.openFilePathInEditor === 'function') {
+            await window.openFilePathInEditor(fullPath, { source: 'internal-link-pptx' });
+            return;
+        }
 
         // Check if this is a binary file type that shouldn't be loaded in the editor
         const binaryExtensions = [
@@ -179,13 +200,12 @@ async function openInternalLink(filePath, originalLink) {
             '.db', '.sqlite', '.sqlite3'
         ];
 
-        const fileExtension = filePath.toLowerCase().match(/\.[^.]+$/)?.[0];
         const isBinaryFile = binaryExtensions.includes(fileExtension);
 
         if (isBinaryFile) {
             // For binary files, open them with the system default application
-            if (window.electronAPI && window.electronAPI.invoke) {
-                await window.electronAPI.invoke('open-external', fullPath);
+            if (window.electronAPI?.navigation?.openExternal) {
+                await window.electronAPI.navigation.openExternal(fullPath);
             } else {
                 notifyInternalLink(`Cannot open ${filePath} inside the editor. Open it externally instead.`, 'warning');
             }
@@ -193,7 +213,7 @@ async function openInternalLink(filePath, originalLink) {
         }
 
         // CRITICAL FIX: Use read-file-content instead of open-file-path to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
 
         if (result.success) {
 
@@ -254,11 +274,11 @@ function handleLinkMouseMove(event) {
 
 async function showLinkPreview(filePath, originalLink, linkElement, x, y) {
     try {
-        const fullPath = resolveInternalLinkPath(filePath);
+        const fullPath = await resolveInternalLinkPathWithIndex(filePath);
         if (!fullPath) return;
         
         // CRITICAL FIX: Use read-file-content for hover previews to avoid changing currentFilePath
-        const result = await window.electronAPI.invoke('read-file-content', fullPath);
+        const result = await window.electronAPI.files.readFileContent(fullPath);
         
         if (result.success && result.content) {
             const content = extractPreviewContent(result.content);
@@ -443,7 +463,7 @@ async function toggleLinkPreview() {
     try {
         const updatedSettings = { ...window.appSettings };
         updatedSettings.linkPreview.mode = newMode;
-        await window.electronAPI.invoke('set-settings', updatedSettings);
+        await window.electronAPI.settings.setSettings(updatedSettings);
         
         // Show notification
         const modes = {
@@ -549,6 +569,7 @@ async function processInternalLinksHTML(htmlContent) {
 window.processInternalLinks = processInternalLinks;
 window.processInternalLinksHTML = processInternalLinksHTML;
 window.openInternalLink = openInternalLink;
+window.resolveInternalLinkPathWithIndex = resolveInternalLinkPathWithIndex;
 window.setupLinkPreviewHandlers = setupLinkPreviewHandlers;
 window.toggleLinkPreview = toggleLinkPreview;
 window.autoCreateInternalLinkFile = autoCreateInternalLinkFile;

@@ -198,10 +198,11 @@
     }, 500);
     setTimeout(() => clearInterval(check), 15000);
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Large File: Toggle Optimized Mode',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand(
+        'editor.largeFileMode',
+        'Large File: Toggle Optimized Mode',
+        () => {
           if (largeModeActive) {
             disableLargeFileMode();
             if (window.showNotification) window.showNotification('Large file optimizations disabled', 'info');
@@ -210,7 +211,7 @@
             if (window.showNotification) window.showNotification('Large file optimizations enabled', 'info');
           }
         }
-      });
+      );
     }
   }
 

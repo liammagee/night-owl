@@ -53,10 +53,10 @@ class VideoRecordingService {
           console.warn('[VIDEO] getDisplayMedia failed:', displayError);
           
           // If getDisplayMedia fails and we're in Electron, try desktopCapturer
-          if (window.electronAPI && window.electronAPI.invoke) {
+          if (window.electronAPI?.video?.getSources) {
             try {
               console.log('[VIDEO] Trying Electron desktopCapturer...');
-              const sources = await window.electronAPI.invoke('video-get-sources');
+              const sources = await window.electronAPI.video.getSources();
               
               if (!sources.success || !sources.sources || sources.sources.length === 0) {
                 throw new Error('No capture sources available');

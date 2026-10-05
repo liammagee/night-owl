@@ -11,12 +11,19 @@
 
 // Restore native DOM getElementById (renderer.setup.js overrides it with a mock)
 const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 // jsdom doesn't implement scrollIntoView
 Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || jest.fn();
 
 // Load the editor-tabs module once — the IIFE sets window.tabManager
 let moduleLoaded = false;
+let electronBridge = null;
+
+function setElectronImplementation(implementation = async () => ({})) {
+    electronBridge = createElectronApiMock(implementation);
+    window.electronAPI = electronBridge.api;
+}
 
 function ensureModuleLoaded() {
     if (!moduleLoaded) {
@@ -70,8 +77,9 @@ beforeEach(() => {
     window.updatePreviewAndStructure = jest.fn();
     window.renderHTMLSourcePreview = jest.fn();
     window.syncContentToPresentation = jest.fn();
+    window.openFileInEditor = undefined;
     window.getMonacoTheme = jest.fn();
-    window.electronAPI = { invoke: jest.fn().mockResolvedValue({}), on: jest.fn() };
+    setElectronImplementation(async () => ({}));
     window.showAppConfirm = jest.fn().mockResolvedValue(true);
     monaco.editor.createModel.mockImplementation((initialContent = '') => {
         let content = initialContent;
@@ -139,6 +147,20 @@ describe('TabManager', () => {
         expect(tm.tabs.size).toBe(1);
     });
 
+    test('creates JSONL tabs with JSON syntax support', () => {
+        const tab = window.tabManager.createTab('/home/user/labels.jsonl', '{"id":"a"}\n');
+
+        expect(tab.language).toBe('json');
+        expect(window.monaco.editor.createModel).toHaveBeenCalledWith('{"id":"a"}\n', 'json');
+    });
+
+    test('creates CSV tabs as editable plain text models', () => {
+        const tab = window.tabManager.createTab('/home/user/labels.csv', 'id,score\na,5\n');
+
+        expect(tab.language).toBe('plaintext');
+        expect(window.monaco.editor.createModel).toHaveBeenCalledWith('id,score\na,5\n', 'plaintext');
+    });
+
     test('evicts least-recently-opened clean tabs when model memory budget is exceeded', () => {
         const tm = window.tabManager;
         const first = tm.createTab('/home/user/a.md', 'aaaaaa');
@@ -189,6 +211,65 @@ describe('TabManager', () => {
         expect(window.renderHTMLSourcePreview).not.toHaveBeenCalled();
         expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
         expect(window.syncContentToPresentation).not.toHaveBeenCalled();
+    });
+
+    test('coordinated activation defers current-file sync and preview rendering', () => {
+        const tm = window.tabManager;
+        window.currentFilePath = '/home/user/original.md';
+        tm.createTab('/home/user/next.md', '# Next');
+
+        tm.activateTab('/home/user/next.md', {
+            syncCurrentFile: false,
+            suppressPreviewUpdate: true
+        });
+
+        expect(tm.activeTabPath).toBe('/home/user/next.md');
+        expect(window.currentFilePath).toBe('/home/user/original.md');
+        expect(window.updatePreviewAndStructure).not.toHaveBeenCalled();
+    });
+
+    test('tab clicks enter the coordinated file-open pipeline', () => {
+        const tm = window.tabManager;
+        const tab = tm.createTab('/home/user/doc.md', '# Current model');
+        window.openFileInEditor = jest.fn().mockResolvedValue({ status: 'committed' });
+
+        document.querySelector('.editor-tab').click();
+
+        expect(window.openFileInEditor).toHaveBeenCalledWith(
+            '/home/user/doc.md',
+            tab.model.getValue(),
+            { source: 'editor-tab' }
+        );
+    });
+
+    test('renders a named, keyboard-navigable toolbar for open files', () => {
+        const tm = window.tabManager;
+        tm.createTab('/home/user/first.md', '# First');
+        tm.activateTab('/home/user/first.md');
+        tm.createTab('/home/user/second.md', '# Second');
+
+        const bar = document.getElementById('editor-tabs-bar');
+        const openButtons = Array.from(bar.querySelectorAll('.editor-tab-select'));
+        const closeButtons = Array.from(bar.querySelectorAll('.editor-tab-close'));
+
+        expect(bar.getAttribute('role')).toBe('toolbar');
+        expect(bar.getAttribute('aria-label')).toBe('Open editor files');
+        expect(bar.tabIndex).toBe(0);
+        expect(openButtons).toHaveLength(2);
+        expect(openButtons[0].getAttribute('aria-label')).toBe('Open first.md');
+        expect(openButtons[0].getAttribute('aria-pressed')).toBe('true');
+        expect(openButtons[1].getAttribute('aria-pressed')).toBe('false');
+        expect(closeButtons.map(button => button.getAttribute('aria-label'))).toEqual([
+            'Close first.md',
+            'Close second.md'
+        ]);
+
+        openButtons[0].focus();
+        openButtons[0].dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'ArrowRight',
+            bubbles: true
+        }));
+        expect(document.activeElement).toBe(openButtons[1]);
     });
 });
 
@@ -397,7 +478,7 @@ describe('mutation cleanup', () => {
         expect(window.editorFileName).toBeNull();
         expect(window.updateBreadcrumb).toHaveBeenLastCalledWith(null);
         expect(window.updatePreviewAndStructure).toHaveBeenLastCalledWith('');
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('set-current-file', null);
+        expect(electronBridge.invoke).toHaveBeenCalledWith('set-current-file', null);
     });
 });
 
@@ -470,7 +551,7 @@ describe('Recovery persistence', () => {
 
         await tm._persistRecovery();
 
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith(
+        expect(electronBridge.invoke).toHaveBeenCalledWith(
             'recovery-persist',
             expect.objectContaining({
                 '/doc.md': expect.objectContaining({
@@ -490,7 +571,7 @@ describe('Recovery persistence', () => {
         await tm._persistRecovery();
 
         // Should call recovery-clear since no tabs need recovery
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).toHaveBeenCalledWith('recovery-clear');
     });
 
     test('_persistRecovery always includes untitled tabs (even if not dirty)', async () => {
@@ -501,7 +582,7 @@ describe('Recovery persistence', () => {
         // Untitled tab is not dirty yet, but should still be persisted
         await tm._persistRecovery();
 
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith(
+        expect(electronBridge.invoke).toHaveBeenCalledWith(
             'recovery-persist',
             expect.objectContaining({
                 [path]: expect.objectContaining({
@@ -546,7 +627,7 @@ describe('Recovery restoration', () => {
         const tm = window.tabManager;
 
         // Mock settings: one tab was open
-        window.electronAPI.invoke = jest.fn((channel, ...args) => {
+        setElectronImplementation((channel, ...args) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -590,7 +671,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs recreates untitled tabs from recovery', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -634,7 +715,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs skips untitled tabs with no recovery data', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -660,7 +741,7 @@ describe('Recovery restoration', () => {
     test('_restoreTabs keeps recovered drafts durable after applying', async () => {
         const tm = window.tabManager;
 
-        window.electronAPI.invoke = jest.fn((channel) => {
+        setElectronImplementation((channel) => {
             if (channel === 'get-settings') {
                 return Promise.resolve({
                     editorTabs: {
@@ -688,8 +769,8 @@ describe('Recovery restoration', () => {
 
         await tm._restoreTabs();
 
-        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-persist', expect.objectContaining({
+        expect(electronBridge.invoke).not.toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).toHaveBeenCalledWith('recovery-persist', expect.objectContaining({
             '/doc.md': expect.objectContaining({ content: 'unsaved', isDirty: true })
         }));
     });
@@ -741,7 +822,7 @@ describe('tab lifecycle and recovery regressions', () => {
     });
 
     function installRestoreFixture({ tabs = [], active = 0, activePath, currentFile, recovery = null, files = {} }) {
-        window.electronAPI.invoke.mockImplementation(async (channel, filePath) => {
+        electronBridge.invoke.mockImplementation(async (channel, filePath) => {
             if (channel === 'get-settings') return { currentFile, editorTabs: { openTabs: tabs.map(filePath => ({ filePath })), activeTabIndex: active, activeTabPath: activePath } };
             if (channel === 'recovery-load') return { success: true, data: recovery };
             if (channel === 'read-file') return Object.hasOwn(files, filePath)
@@ -754,7 +835,7 @@ describe('tab lifecycle and recovery regressions', () => {
         installRestoreFixture({ tabs: ['/missing.md', '/a.md', '/b.md'], active: 1, files: { '/a.md': 'a', '/b.md': 'b' } });
         await window.tabManager._restoreTabs();
         expect(window.tabManager.activeTabPath).toBe('/a.md');
-        const settingsWrites = window.electronAPI.invoke.mock.calls.filter(([channel]) => channel === 'set-settings');
+        const settingsWrites = electronBridge.invoke.mock.calls.filter(([channel]) => channel === 'set-settings');
         expect(settingsWrites).toHaveLength(1);
         expect(settingsWrites[0][1]).toBe('editorTabs');
         expect(settingsWrites[0][2].openTabs.map(tab => tab.filePath)).toEqual(['/a.md', '/b.md']);
@@ -766,7 +847,7 @@ describe('tab lifecycle and recovery regressions', () => {
         tm.createTab('/b.md', 'b');
         tm.activateTab('/b.md');
         await tm._persistTabs();
-        expect(window.electronAPI.invoke).toHaveBeenLastCalledWith('set-settings', 'editorTabs', {
+        expect(electronBridge.invoke).toHaveBeenLastCalledWith('set-settings', 'editorTabs', {
             openTabs: [{ filePath: '/a.md', fileName: 'a.md' }, { filePath: '/b.md', fileName: 'b.md' }],
             activeTabIndex: 1, activeTabPath: '/b.md'
         });
@@ -801,7 +882,7 @@ describe('tab lifecycle and recovery regressions', () => {
         const tab = window.tabManager.tabs.get('/lost.md');
         expect(tab.model.getValue()).toBe('unsaved draft');
         expect(tab.isDirty).toBe(true);
-        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).not.toHaveBeenCalledWith('recovery-clear');
     });
 
     test('restores recovery drafts absent from an outdated tab list', async () => {
@@ -809,7 +890,7 @@ describe('tab lifecycle and recovery regressions', () => {
         await window.tabManager._restoreTabs();
         expect(window.tabManager.tabs.size).toBe(1);
         expect(window.tabManager.tabs.get(window.tabManager.activeTabPath).model.getValue()).toBe('recovered');
-        expect(window.electronAPI.invoke).toHaveBeenCalledWith('recovery-persist', expect.any(Object));
+        expect(electronBridge.invoke).toHaveBeenCalledWith('recovery-persist', expect.any(Object));
     });
 
     test('preserves both untitled recovery entries when saved IDs are out of order', async () => {
@@ -840,18 +921,18 @@ describe('tab lifecycle and recovery regressions', () => {
     });
 
     test('preserves recovery file when reading it fails, including subsequent persistence attempts', async () => {
-        window.electronAPI.invoke.mockImplementation(async channel => {
+        electronBridge.invoke.mockImplementation(async channel => {
             if (channel === 'get-settings') return { editorTabs: { openTabs: [] } };
             if (channel === 'recovery-load') return { success: false, error: 'Permission denied' };
             return { success: true };
         });
         await window.tabManager._restoreTabs();
         await window.tabManager._persistRecovery();
-        expect(window.electronAPI.invoke).not.toHaveBeenCalledWith('recovery-clear');
+        expect(electronBridge.invoke).not.toHaveBeenCalledWith('recovery-clear');
         const draftPath = window.tabManager.createUntitledTab();
         window.tabManager.tabs.get(draftPath).model.setValue('new work');
         await window.tabManager._persistRecovery();
-        expect(window.electronAPI.invoke.mock.calls.some(([channel]) => channel === 'recovery-persist')).toBe(false);
+        expect(electronBridge.invoke.mock.calls.some(([channel]) => channel === 'recovery-persist')).toBe(false);
     });
 
     test('recovered unsaved edits retain their original disk baseline after an external change', async () => {

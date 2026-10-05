@@ -55,6 +55,70 @@ describe('fileHandlers registration', () => {
     expect(handler()).toBe('/workspace/updated');
   });
 
+  test('opens PPTX files without decoding binary ZIP data as editor text', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-pptx-open-'));
+    const deckPath = path.join(workspace, 'deck.pptx');
+    fsSync.writeFileSync(deckPath, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0xff, 0x00]));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      await expect(getRegisteredHandler('open-file-path')({}, deckPath)).resolves.toMatchObject({
+        success: true,
+        filePath: deckPath,
+        content: ''
+      });
+    } finally {
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test('extract-text-with-replacement writes the new file and updates the source inside the workspace', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-extract-text-'));
+    const originalFilePath = path.join(workspace, 'source.md');
+    const newFilePath = path.join(workspace, 'extracted.md');
+    fsSync.writeFileSync(originalFilePath, '# Source\n\nSelected passage.\n');
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(() => originalFilePath),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const handler = getRegisteredHandler('extract-text-with-replacement');
+      const result = await handler({}, {
+        originalFilePath,
+        textToReplace: 'Selected passage.',
+        replacementText: '[[extracted]]',
+        newFilePath,
+        newFileContent: '# Extracted\n\nSelected passage.'
+      });
+
+      expect(result).toMatchObject({ success: true, originalFilePath, newFilePath });
+      expect(fsSync.readFileSync(originalFilePath, 'utf8')).toContain('[[extracted]]');
+      expect(fsSync.readFileSync(newFilePath, 'utf8')).toContain('Selected passage.');
+    } finally {
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   test('change-working-directory updates state through the provided setter', async () => {
     let currentWorkingDirectory = '/workspace/initial';
     const send = jest.fn();
@@ -193,30 +257,40 @@ describe('fileHandlers registration', () => {
     const tempDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-watch-'));
     const filePath = path.join(tempDir, 'watched.md');
     fsSync.writeFileSync(filePath, 'initial\n', 'utf8');
-
-    const send = jest.fn();
-    fileHandlers.register({
-      appSettings: {},
-      saveSettings: jest.fn(),
-      getMainWindow: jest.fn(() => ({ webContents: { send } })),
-      getCurrentFilePath: jest.fn(),
-      setCurrentFilePath: jest.fn(),
-      getCurrentWorkingDirectory: jest.fn(() => tempDir),
-      setCurrentWorkingDirectory: jest.fn(),
-      currentWorkingDirectory: tempDir,
-      userDataPath: '/mock/user-data'
+    let watchCallback;
+    const watcher = {
+      close: jest.fn(),
+      on: jest.fn()
+    };
+    watcher.on.mockReturnValue(watcher);
+    const watchSpy = jest.spyOn(fsSync, 'watch').mockImplementation((_directory, _options, callback) => {
+      watchCallback = callback;
+      return watcher;
     });
+    const send = jest.fn();
+    let setCurrentFile;
 
-    const watcher = { close: jest.fn(), on: jest.fn() };
-    const watchSpy = jest.spyOn(fsSync, 'watch').mockReturnValue(watcher);
-    const setCurrentFile = getRegisteredHandler('set-current-file');
     jest.useFakeTimers();
     try {
+      fileHandlers.register({
+        appSettings: {},
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => tempDir),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: tempDir,
+        userDataPath: '/mock/user-data'
+      });
+
+      setCurrentFile = getRegisteredHandler('set-current-file');
       setCurrentFile(null, filePath);
-      const onDiskEvent = watchSpy.mock.calls[0][2];
+      expect(watchSpy).toHaveBeenCalledWith(tempDir, { persistent: false }, expect.any(Function));
+
       fsSync.writeFileSync(filePath, 'changed on disk\n', 'utf8');
-      onDiskEvent('change', path.basename(filePath));
-      jest.advanceTimersByTime(150);
+      watchCallback('change', Buffer.from(path.basename(filePath)));
+      jest.advanceTimersByTime(151);
 
       expect(send).toHaveBeenCalledWith(
         'current-file-changed-on-disk',
@@ -225,8 +299,28 @@ describe('fileHandlers registration', () => {
           size: Buffer.byteLength('changed on disk\n')
         })
       );
+
+      for (let cycle = 0; cycle < 10; cycle += 1) {
+        setCurrentFile(null, filePath);
+      }
+      expect(fileHandlers.getDiagnostics()).toEqual(expect.objectContaining({
+        watcher: 1,
+        timers: 0
+      }));
+      expect(watchSpy).toHaveBeenCalledTimes(11);
+
+      fileHandlers.cleanup();
+      fileHandlers.cleanup();
+      expect(fileHandlers.getDiagnostics()).toEqual({
+        watcher: 0,
+        timers: 0,
+        trackedFileStates: 0,
+        cachedScans: 0
+      });
+      expect(watcher.close).toHaveBeenCalledTimes(11);
     } finally {
-      setCurrentFile(null, null);
+      fileHandlers.cleanup();
+      expect(watcher.close).toHaveBeenCalled();
       watchSpy.mockRestore();
       jest.useRealTimers();
       fsSync.rmSync(tempDir, { recursive: true, force: true });
@@ -254,6 +348,33 @@ describe('fileHandlers registration', () => {
       url: 'https://machinespirits.org/#/ai-tutor-machinagogy-v2'
     });
     expect(shell.openExternal).toHaveBeenCalledWith('https://machinespirits.org/#/ai-tutor-machinagogy-v2');
+    expect(shell.openPath).not.toHaveBeenCalled();
+  });
+
+  test('open-external rejects non-allowlisted URI schemes without invoking the OS', async () => {
+    fileHandlers.register({
+      appSettings: {},
+      saveSettings: jest.fn(),
+      getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+      getCurrentFilePath: jest.fn(),
+      setCurrentFilePath: jest.fn(),
+      getCurrentWorkingDirectory: jest.fn(() => '/workspace/current'),
+      setCurrentWorkingDirectory: jest.fn(),
+      currentWorkingDirectory: '/workspace/current',
+      userDataPath: '/mock/user-data'
+    });
+
+    const handler = getRegisteredHandler('open-external');
+
+    await expect(handler(null, 'javascript:alert(1)')).resolves.toEqual({
+      success: false,
+      error: 'Unsupported URL protocol: javascript:'
+    });
+    await expect(handler(null, 'data:text/html,unsafe')).resolves.toEqual({
+      success: false,
+      error: 'Unsupported URL protocol: data:'
+    });
+    expect(shell.openExternal).not.toHaveBeenCalled();
     expect(shell.openPath).not.toHaveBeenCalled();
   });
 
@@ -353,5 +474,114 @@ describe('fileHandlers registration', () => {
     expect(afterRemove.signature).toBe(initial.signature);
 
     fsSync.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('duplicate-folder recursively copies a subfolder using a conflict-safe sibling name', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-folder-'));
+    const sourcePath = path.join(workspace, 'Drafts');
+    fsSync.mkdirSync(path.join(sourcePath, 'nested'), { recursive: true });
+    fsSync.writeFileSync(path.join(sourcePath, 'outline.md'), '# Outline\n', 'utf8');
+    fsSync.writeFileSync(path.join(sourcePath, 'nested', 'notes.txt'), 'Notes\n', 'utf8');
+    fsSync.mkdirSync(path.join(workspace, 'Drafts copy'));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const duplicateFolder = getRegisteredHandler('duplicate-folder');
+      const result = await duplicateFolder({}, sourcePath);
+      const destinationPath = path.join(workspace, 'Drafts copy 2');
+
+      expect(result).toEqual(expect.objectContaining({
+        success: true,
+        sourcePath,
+        destinationPath,
+        folderName: 'Drafts copy 2'
+      }));
+      expect(fsSync.readFileSync(path.join(destinationPath, 'outline.md'), 'utf8')).toBe('# Outline\n');
+      expect(fsSync.readFileSync(path.join(destinationPath, 'nested', 'notes.txt'), 'utf8')).toBe('Notes\n');
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test('duplicate-folder rejects workspace roots and paths outside the workspace', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-root-'));
+    const outsideFolder = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-outside-'));
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const duplicateFolder = getRegisteredHandler('duplicate-folder');
+
+      await expect(duplicateFolder({}, workspace)).resolves.toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('workspace root')
+      }));
+      await expect(duplicateFolder({}, outsideFolder)).resolves.toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('inside a workspace folder')
+      }));
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+      fsSync.rmSync(outsideFolder, { recursive: true, force: true });
+    }
+  });
+
+  test('duplicate-folder does not follow a workspace symlink to an outside directory', async () => {
+    const workspace = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-link-root-'));
+    const outsideFolder = fsSync.mkdtempSync(path.join(os.tmpdir(), 'nightowl-duplicate-link-target-'));
+    const outsideChild = path.join(outsideFolder, 'private');
+    const linkedFolder = path.join(workspace, 'linked');
+    fsSync.mkdirSync(outsideChild);
+    fsSync.writeFileSync(path.join(outsideChild, 'secret.txt'), 'outside\n', 'utf8');
+    fsSync.symlinkSync(outsideFolder, linkedFolder, 'dir');
+
+    try {
+      fileHandlers.register({
+        appSettings: { workingDirectory: workspace, workspaceFolders: [] },
+        saveSettings: jest.fn(),
+        getMainWindow: jest.fn(() => ({ webContents: { send: jest.fn() } })),
+        getCurrentFilePath: jest.fn(),
+        setCurrentFilePath: jest.fn(),
+        getCurrentWorkingDirectory: jest.fn(() => workspace),
+        setCurrentWorkingDirectory: jest.fn(),
+        currentWorkingDirectory: workspace,
+        userDataPath: '/mock/user-data'
+      });
+
+      const result = await getRegisteredHandler('duplicate-folder')({}, path.join(linkedFolder, 'private'));
+
+      expect(result).toEqual(expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('inside a workspace folder')
+      }));
+      expect(fsSync.existsSync(path.join(outsideFolder, 'private copy'))).toBe(false);
+    } finally {
+      fileHandlers.cleanup();
+      fsSync.rmSync(workspace, { recursive: true, force: true });
+      fsSync.rmSync(outsideFolder, { recursive: true, force: true });
+    }
   });
 });

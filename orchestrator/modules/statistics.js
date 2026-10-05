@@ -396,7 +396,7 @@ async function calculateProjectStatistics() {
         console.log('[Statistics] Calculating project statistics');
 
         // Get all markdown files in the project
-        const fileResponse = await window.electronAPI.invoke('get-markdown-files');
+        const fileResponse = await window.electronAPI.files.getMarkdownFiles();
 
         if (!fileResponse.success) {
             throw new Error(fileResponse.error || 'Failed to get markdown files');
@@ -432,7 +432,7 @@ async function calculateProjectStatistics() {
         // Process each markdown file
         for (const filePath of markdownFiles) {
             try {
-                const contentResponse = await window.electronAPI.invoke('read-file', filePath);
+                const contentResponse = await window.electronAPI.files.readFile(filePath);
                 if (contentResponse.success && contentResponse.content) {
                     const fileStats = calculateBasicStatistics(contentResponse.content);
 

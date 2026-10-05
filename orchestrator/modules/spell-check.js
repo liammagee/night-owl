@@ -78,7 +78,7 @@
 
     try {
       // Use Electron's session spell checker
-      const result = await window.electronAPI.invoke('spell-check-words', { words });
+      const result = await window.electronAPI.spellcheck.checkWords({ words });
       if (result.success && result.misspelled) {
         return result.misspelled;
       }
@@ -338,7 +338,7 @@
     saveCustomDictionary();
     // Also tell Electron's session
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-add-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.addWord({ word: word.toLowerCase() });
     }
     // Re-run check to clear the decoration
     if (enabled) scheduleCheck();
@@ -349,7 +349,7 @@
     customDictionary.delete(word.toLowerCase());
     saveCustomDictionary();
     if (window.electronAPI) {
-      window.electronAPI.invoke('spell-remove-word', { word: word.toLowerCase() });
+      window.electronAPI.spellcheck.removeWord({ word: word.toLowerCase() });
     }
     if (enabled) scheduleCheck();
   }
@@ -419,18 +419,13 @@
   // ── Init ──
 
   function init() {
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Spelling: Toggle Spell Check',
-        action: toggle
-      });
-      window.commandPaletteCommands.push({
-        name: 'Spelling: Manage Custom Dictionary',
-        action: showDictionaryManager
-      });
-      window.commandPaletteCommands.push({
-        name: 'Spelling: Add Word Under Cursor to Dictionary',
-        action: () => {
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('spelling.toggle', 'Spelling: Toggle Spell Check', toggle);
+      window.registerCommand('spelling.dictionary', 'Spelling: Manage Custom Dictionary', showDictionaryManager);
+      window.registerCommand(
+        'spelling.addWord',
+        'Spelling: Add Word Under Cursor to Dictionary',
+        () => {
           if (!window.editor) return;
           const pos = window.editor.getPosition();
           const model = window.editor.getModel();
@@ -438,10 +433,9 @@
           const wordAtPos = model.getWordAtPosition(pos);
           if (wordAtPos) addToDictionary(wordAtPos.word);
         }
-      });
-      window.commandPaletteCommands.push({
-        name: 'Spelling: Recheck Document',
-        action: () => { if (enabled) runSpellCheck(); }
+      );
+      window.registerCommand('spelling.recheck', 'Spelling: Recheck Document', () => {
+        if (enabled) runSpellCheck();
       });
     }
   }

@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { createElectronApiMock } = require('../../helpers/electron-api-mock');
 
 const modulePath = path.resolve(__dirname, '../../../orchestrator/modules/commandPalette.js');
 
@@ -13,13 +14,21 @@ describe('command palette lifecycle and shortcuts', () => {
     document.body.innerHTML = '<button id="command-palette-btn">Commands</button><textarea id="writing"></textarea>';
     window.editor = { focus: jest.fn(), updateOptions: jest.fn(), getRawOptions: jest.fn(() => ({ wordWrap: 'bounded' })) };
     window.showNotification = jest.fn();
+    window.electronAPI = createElectronApiMock().api;
+    window.appSettings = { editor: { wordWrap: 'bounded' } };
+    delete window.NightOwlActions;
+    const registryModule = require('../../../orchestrator/modules/action-registry');
+    window.NightOwlActions = registryModule.createActionRegistry({ platform: 'Win32' });
     callbackNames = [];
     listeners = jest.spyOn(document, 'addEventListener');
     require(modulePath);
+    window.initializeCommandPalette();
   });
 
   afterEach(() => {
     window.hideCommandPalette();
+    window.__nightOwlActionShortcutCleanup?.();
+    delete window.__nightOwlActionShortcutCleanup;
     for (const [type, listener, options] of listeners.mock.calls) {
       document.removeEventListener(type, listener, options);
     }
@@ -66,7 +75,11 @@ describe('command palette lifecycle and shortcuts', () => {
   test('initialization is idempotent and repeated opens keep one populated palette', () => {
     window.initializeCommandPalette();
     window.initializeCommandPalette();
-    expect(listeners.mock.calls.filter(([type]) => type === 'keydown')).toHaveLength(1);
+    const ids = window.NightOwlActions.list().map(action => action.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const newFile = mockCallback('newFile');
+    shortcut({ key: 'n', shiftKey: false });
+    expect(newFile).toHaveBeenCalledTimes(1);
     expect(shortcut().defaultPrevented).toBe(true);
     expect(document.querySelectorAll('.command-palette-overlay')).toHaveLength(1);
     expect(document.querySelectorAll('.command-item').length).toBeGreaterThan(0);
@@ -83,15 +96,15 @@ describe('command palette lifecycle and shortcuts', () => {
     shortcut({ altKey: true });
     shortcut({ ctrlKey: false, shiftKey: false, key: 'p' });
     expect(document.querySelector('.command-palette-overlay')).toBeNull();
-    shortcut({ key: 'p', metaKey: true, ctrlKey: false });
+    shortcut({ key: 'p' });
     expect(document.querySelector('.command-palette-overlay')).not.toBeNull();
   });
 
-  test('toolbar opens commands and Escape restores the original focus', () => {
+  test('opening commands from an input and Escape restores the original focus', () => {
     const writing = document.getElementById('writing');
     writing.focus();
     window.initializeCommandPalette();
-    document.getElementById('command-palette-btn').click();
+    writing.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
     const input = document.querySelector('.command-palette-input');
     expect(document.activeElement).toBe(input);
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -186,32 +199,32 @@ describe('command palette lifecycle and shortcuts', () => {
     expect(switchView.mock.calls).toEqual([['structure'], ['file']]);
   });
 
-  test('open file uses native selection and opens the returned document', async () => {
-    window.electronAPI = { invoke: jest.fn()
-      .mockResolvedValueOnce({ success: true, filePath: '/notes/draft.md' })
-      .mockResolvedValueOnce({ success: true, filePath: '/notes/draft.md', content: '# Draft' }) };
-    const open = mockCallback('openFileInEditor');
+  test('open file uses native selection and the shared file-open controller', async () => {
+    const ipc = createElectronApiMock(async () => ({ success: true, filePath: '/notes/draft.md' }));
+    window.electronAPI = ipc.api;
+    const open = mockCallback('openFilePathInEditor');
 
     await runCommand('File: Open File');
-    expect(window.electronAPI.invoke.mock.calls).toEqual([
-      ['dialog-open-file'], ['read-file', '/notes/draft.md']
-    ]);
-    expect(open).toHaveBeenCalledWith('/notes/draft.md', '# Draft');
+    expect(ipc.invoke.mock.calls).toEqual([['dialog-open-file']]);
+    expect(open).toHaveBeenCalledWith('/notes/draft.md', {
+      source: 'command-palette', refreshExistingTabContent: false
+    });
   });
 
   test('cancelled file selection does not open a document or report an error', async () => {
-    window.electronAPI = { invoke: jest.fn().mockResolvedValue({ success: false, canceled: true }) };
-    const open = mockCallback('openFileInEditor');
+    window.electronAPI = createElectronApiMock(async () => ({ success: false, canceled: true })).api;
+    const open = mockCallback('openFilePathInEditor');
 
     await runCommand('File: Open File');
     expect(open).not.toHaveBeenCalled();
     expect(window.showNotification).not.toHaveBeenCalled();
   });
 
-  test('open folder delegates to the workspace change handler', async () => {
-    window.electronAPI = { invoke: jest.fn().mockResolvedValue({ success: true, directory: '/notes' }) };
+  test('open folder delegates to the fixed workspace capability', async () => {
+    const ipc = createElectronApiMock(async () => ({ success: true, directory: '/notes' }));
+    window.electronAPI = ipc.api;
     await runCommand('File: Open Folder');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('change-working-directory');
+    expect(ipc.invoke).toHaveBeenCalledWith('change-working-directory');
   });
 
   test('first/last file and goto line use the current navigation APIs', async () => {
@@ -232,6 +245,12 @@ describe('command palette lifecycle and shortcuts', () => {
   test('terminal commands use the integrated terminal controller', async () => {
     callbackNames.push('terminalPanel');
     window.terminalPanel = { toggle: jest.fn(), show: jest.fn(), spawnShell: jest.fn() };
+    // Feature modules own their actions; the palette consumes the shared registry.
+    window.registerCommand('terminal.toggle', 'Terminal: Toggle Integrated Terminal', () => window.terminalPanel.toggle());
+    window.registerCommand('terminal.spawnShell', 'Terminal: Spawn Interactive Shell', () => {
+      window.terminalPanel.show();
+      return window.terminalPanel.spawnShell();
+    });
     await runCommand('Terminal: Toggle Integrated Terminal');
     await runCommand('Terminal: Spawn Interactive Shell');
     expect(window.terminalPanel.toggle).toHaveBeenCalledTimes(1);

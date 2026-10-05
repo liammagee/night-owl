@@ -1,0 +1,329 @@
+.publishing-workflows-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(15, 23, 42, 0.64);
+    backdrop-filter: blur(4px);
+}
+
+.publishing-workflows-dialog {
+    width: min(1180px, 96vw);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--neutral-300);
+    border-radius: 12px;
+    background: var(--neutral-0);
+    color: var(--text-color);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34);
+}
+
+.publishing-workflows-header,
+.publishing-profile-header,
+.publishing-stage-heading,
+.publishing-repository-heading,
+.publishing-stage-footer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.publishing-workflows-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--neutral-200);
+}
+
+.publishing-workflows-heading h2,
+.publishing-profile-header h3,
+.publishing-stage-heading h4 {
+    margin: 0;
+}
+
+.publishing-workflows-heading p,
+.publishing-profile-header p,
+.publishing-stage-heading p {
+    margin: 5px 0 0;
+    color: var(--neutral-600);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.publishing-workflows-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.publishing-workflows-close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.publishing-workflows-close:hover {
+    background: var(--neutral-100);
+}
+
+.publishing-workflows-body {
+    padding: 20px 24px 28px;
+    overflow: auto;
+}
+
+.publishing-loading,
+.publishing-empty {
+    padding: 50px 24px;
+    text-align: center;
+    color: var(--neutral-600);
+}
+
+.publishing-empty h3 {
+    margin: 0 0 8px;
+    color: var(--text-color);
+}
+
+.publishing-profile {
+    display: grid;
+    gap: 16px;
+}
+
+.publishing-profile + .publishing-profile {
+    margin-top: 28px;
+    padding-top: 28px;
+    border-top: 1px solid var(--neutral-300);
+}
+
+.publishing-downstream-revision {
+    min-width: 250px;
+    display: grid;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--neutral-600);
+}
+
+.publishing-downstream-revision code {
+    color: var(--text-color);
+    overflow-wrap: anywhere;
+}
+
+.publishing-alert {
+    padding: 10px 12px;
+    border: 1px solid;
+    border-radius: 7px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.publishing-alert-warning {
+    border-color: #d6a531;
+    background: rgba(214, 165, 49, 0.12);
+}
+
+.publishing-alert-error {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.1);
+}
+
+.publishing-repositories {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.publishing-repository,
+.publishing-stage {
+    padding: 14px;
+    border: 1px solid var(--neutral-300);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--neutral-0) 96%, var(--text-color));
+}
+
+.publishing-repository.missing {
+    border-color: #dc3545;
+}
+
+.publishing-status,
+.publishing-authority,
+.publishing-tool {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.publishing-status.ready,
+.publishing-tool.ready,
+.publishing-authority.inspect {
+    background: rgba(22, 163, 74, 0.13);
+    color: #16803d;
+}
+
+.publishing-status.blocked,
+.publishing-tool.blocked,
+.publishing-authority.mutate {
+    background: rgba(220, 53, 69, 0.13);
+    color: #bd2534;
+}
+
+.publishing-authority.network {
+    background: rgba(37, 99, 235, 0.13);
+    color: #2563eb;
+}
+
+.publishing-repository-metadata {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 8px;
+    margin: 10px 0;
+    font-size: 10px;
+}
+
+.publishing-repository-metadata dt {
+    color: var(--neutral-600);
+}
+
+.publishing-repository-metadata dd {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono, monospace);
+}
+
+.publishing-repository-clean,
+.publishing-repository-warning,
+.publishing-changes {
+    margin: 8px 0 0;
+    font-size: 10px;
+}
+
+.publishing-repository-clean {
+    color: #16803d;
+}
+
+.publishing-repository-warning,
+.publishing-stage-blockers {
+    color: #bd2534;
+}
+
+.publishing-change-list,
+.publishing-stage-blockers {
+    max-height: 150px;
+    margin: 8px 0 0;
+    padding-left: 20px;
+    overflow: auto;
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+}
+
+.publishing-tools {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+}
+
+.publishing-message {
+    display: grid;
+    gap: 5px;
+    max-width: 620px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.publishing-message input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--neutral-300);
+    border-radius: 5px;
+    background: var(--neutral-0);
+    color: var(--text-color);
+}
+
+.publishing-stages {
+    display: grid;
+    gap: 10px;
+}
+
+.publishing-stage {
+    border-left-width: 4px;
+}
+
+.publishing-stage.authority-inspect { border-left-color: #16a34a; }
+.publishing-stage.authority-network { border-left-color: #2563eb; }
+.publishing-stage.authority-mutate { border-left-color: #dc3545; }
+
+.publishing-stage-heading > div:first-child {
+    min-width: 0;
+}
+
+.publishing-stage-plan {
+    display: grid;
+    gap: 5px;
+    margin: 12px 0;
+    padding-left: 22px;
+    font-size: 10px;
+}
+
+.publishing-stage-plan code,
+.publishing-stage-plan small {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.publishing-stage-plan small {
+    margin-top: 3px;
+    color: var(--neutral-600);
+    font-family: var(--font-mono, monospace);
+}
+
+.publishing-stage-footer {
+    justify-content: flex-end;
+}
+
+.publishing-stage-result {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.publishing-stage-result.success { background: rgba(22, 163, 74, 0.1); }
+.publishing-stage-result.failure { background: rgba(220, 53, 69, 0.1); }
+
+.publishing-step-output {
+    margin-top: 7px;
+}
+
+.publishing-step-output pre {
+    max-height: 240px;
+    margin: 6px 0 0;
+    padding: 8px;
+    overflow: auto;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.92);
+    color: #e2e8f0;
+    font-size: 10px;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 820px) {
+    .publishing-workflows-overlay { padding: 10px; }
+    .publishing-repositories { grid-template-columns: 1fr; }
+    .publishing-profile-header { display: grid; }
+    .publishing-downstream-revision { min-width: 0; }
+}

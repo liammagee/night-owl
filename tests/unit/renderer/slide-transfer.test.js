@@ -16,6 +16,11 @@ function setup() {
     const context = { document, console, showNotification: jest.fn(), deleteSlides: jest.fn(),
         window: { editor: { getModel: () => model }, currentFilePath: '/source.md',
             tabManager: { tabs: new Map() }, electronAPI: { invoke } } };
+    context.window.electronAPI.files = {
+        getMarkdownFiles: (...args) => invoke('get-markdown-files', ...args),
+        readFileContentOnly: (...args) => invoke('read-file-content-only', ...args),
+        performSaveWithPath: (...args) => invoke('perform-save-with-path', ...args)
+    };
     vm.runInNewContext(source, context);
     return { context, invoke, edit: value => { content = value; }, switchFile: () => { model = { getValue: () => '# Other' }; } };
 }

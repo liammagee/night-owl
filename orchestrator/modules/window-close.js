@@ -32,17 +32,17 @@
                 const content = tab.model.getValue();
                 const untitled = originalPath.startsWith('untitled:');
                 const result = untitled
-                    ? await host.electronAPI.invoke('perform-save-as', {
+                    ? await host.electronAPI.files.performSaveAs({
                         content,
                         defaultDirectory: host.selectedFolderPath || host.appSettings?.workingDirectory
                     })
-                    : await host.electronAPI.invoke('perform-save-with-path', content, originalPath, {
+                    : await host.electronAPI.files.performSaveWithPath(content, originalPath, {
                         expectedContent: tab.lastSavedContent
                     });
                 if (untitled) {
                     // The native dialog may update main-process state even when
                     // another tab became active while it was open.
-                    await host.electronAPI.invoke('set-current-file', host.currentFilePath || null);
+                    await host.electronAPI.files.setCurrentFile(host.currentFilePath || null);
                 }
                 if (!result?.success || (untitled && !result.filePath)) return false;
                 // A tab may have been closed or renamed while the dialog/write was pending.

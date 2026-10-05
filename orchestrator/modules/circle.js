@@ -378,7 +378,7 @@ class CircleView {
         
         try {
             // Load document content
-            const result = await window.electronAPI.invoke('read-file-content', filePath);
+            const result = await window.electronAPI.files.readFileContent(filePath);
             if (result && result.success && result.content) {
                 this.currentDocument = filePath;
                 this.documentContent = result.content;
@@ -407,12 +407,12 @@ class CircleView {
             } else {
                 console.error('[CircleView] Failed to load document content');
                 // Fallback to opening in editor
-                window.electronAPI.invoke('open-file', filePath);
+                window.electronAPI.files.openFile(filePath);
             }
         } catch (error) {
             console.error('[CircleView] Error loading document:', error);
             // Fallback to opening in editor
-            window.electronAPI.invoke('open-file', filePath);
+            window.electronAPI.files.openFile(filePath);
         }
     }
 
@@ -440,7 +440,7 @@ class CircleView {
             const startTime = Date.now();
             
             // Request AI summaries from the main process
-            const summaryResult = await window.electronAPI.invoke('generate-document-summaries', {
+            const summaryResult = await window.electronAPI.ai.generateDocumentSummaries({
                 content: this.documentContent,
                 filePath: this.currentDocument
             });

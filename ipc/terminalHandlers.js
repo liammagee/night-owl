@@ -6,12 +6,35 @@ const { spawn } = require('child_process');
 const os = require('os');
 const { createRuntimeWorkspaceResolver, pathExists } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
+const { findTutorStubRuntime } = require('../services/tutorStubRuntime');
 
 const debug = createDebugLogger('TerminalHandlers');
 
 const DEFAULT_SESSION_ID = 'default';
 let cachedPtyModule;
 let ptyLoadAttempted = false;
+const activeProcesses = new Map();
+
+function cleanup() {
+  for (const activeProcess of activeProcesses.values()) {
+    activeProcess.suppressExit = true;
+    try {
+      activeProcess.kill();
+    } catch (error) {
+      debug('terminal cleanup failed:', error.message);
+    }
+  }
+  activeProcesses.clear();
+}
+
+function getDiagnostics() {
+  const byBackend = {};
+  for (const activeProcess of activeProcesses.values()) {
+    const backend = activeProcess.backend || 'unknown';
+    byBackend[backend] = (byBackend[backend] || 0) + 1;
+  }
+  return { activeProcesses: activeProcesses.size, byBackend };
+}
 
 function normalizeSessionId(sessionId) {
   return typeof sessionId === 'string' && sessionId.trim()
@@ -37,7 +60,9 @@ function buildTerminalEnv() {
       : `${commonPath}:${currentPath}`,
     TERM: process.env.TERM || 'xterm-256color',
     COLORTERM: process.env.COLORTERM || 'truecolor',
-    TERM_PROGRAM: process.env.TERM_PROGRAM || 'NightOwl',
+    // Child tools should identify their direct terminal host, not whichever
+    // terminal happened to launch NightOwl during development.
+    TERM_PROGRAM: 'NightOwl',
     NIGHTOWL_TERMINAL: '1'
   };
 }
@@ -215,20 +240,13 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
 
 function register(deps) {
   debug('Registering terminal handlers...');
+  cleanup();
   const getWorkingDirectory = createRuntimeWorkspaceResolver(deps || {}, { fallback: os.homedir() });
-
-  const activeProcesses = new Map();
-  let mainWindow = null;
-
-  // Store window reference
-  if (deps && deps.mainWindow) {
-    mainWindow = deps.mainWindow;
-  }
 
   /**
    * Spawn a shell process
    */
-  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], sessionId, cols, rows } = {}) => {
+  ipcMain.handle('terminal-spawn', async (event, { cwd, command, args = [], profile, sessionId, cols, rows } = {}) => {
     const normalizedSessionId = normalizeSessionId(sessionId);
     try {
       const existingProcess = activeProcesses.get(normalizedSessionId);
@@ -236,6 +254,24 @@ function register(deps) {
         existingProcess.suppressExit = true;
         try { existingProcess.kill(); } catch (e) { /* ignore */ }
         activeProcesses.delete(normalizedSessionId);
+      }
+
+      if (profile === 'tutor-stub') {
+        const runtime = findTutorStubRuntime({
+          configuredPath: deps?.appSettings?.ai?.tutorStub?.repositoryPath,
+          workingDirectory: getWorkingDirectory(),
+          appPath: deps?.app?.getAppPath?.(),
+          env: process.env
+        });
+        if (!runtime.available) {
+          return {
+            success: false,
+            error: 'Tutor stub was not found. Set its machinespirits-eval repository path in AI settings.'
+          };
+        }
+        cwd = runtime.repositoryPath;
+        command = runtime.command;
+        args = runtime.args;
       }
 
       const spawnConfig = getShellSpawnConfig(command, Array.isArray(args) ? args : []);
@@ -354,4 +390,4 @@ function register(deps) {
   debug('Registered terminal handlers');
 }
 
-module.exports = { register };
+module.exports = { register, cleanup, getDiagnostics };

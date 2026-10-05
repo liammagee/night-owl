@@ -8,8 +8,9 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 }
 
 require('dotenv').config({ quiet: true }); // Load .env file
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, shell } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const { execFile } = require('child_process');
@@ -34,23 +35,15 @@ const {
   extractWorkspaceUserDataDir
 } = require('./services/cliWorkspaceProfile');
 const { installNightOwlCli } = require('./services/cliInstaller');
+const { resolveTutorRuntimePaths } = require('./services/tutorRuntimePaths');
+const { installNavigationGuards } = require('./services/contentSecurity');
+const { installIpcMainGuard } = require('./services/ipcSecurity');
+const { getElectronAccelerator } = require('./orchestrator/modules/action-registry');
 const ipcHandlers = require('./ipc');
 const { createDebugLogger } = require('./ipc/logging');
 
 const debugMain = createDebugLogger('Main');
 debugMain('main.js execution START');
-
-// Initialize @electron/remote after checking if electron module loaded correctly
-try {
-    if (typeof ipcMain !== 'undefined' && ipcMain && typeof ipcMain.on === 'function') {
-        require('@electron/remote/main').initialize();
-        debugMain('@electron/remote initialized successfully');
-    } else {
-        console.warn('[main.js] Skipping @electron/remote initialization - ipcMain not available');
-    }
-} catch (error) {
-    console.error('[main.js] Failed to initialize @electron/remote:', error.message);
-}
 
 // Utility function to clean AI responses
 function cleanAIResponse(response) {
@@ -387,7 +380,8 @@ const defaultSettings = {
             language: 'en-us', // 'en-us', 'en-gb', 'ja', 'zh', 'es', 'fr', 'hi', 'it', 'pt-br'
             speed: 1.0, // 0.5 to 4.0
             response_format: 'mp3', // 'mp3', 'opus', 'aac', 'flac', 'pcm', 'ogg', 'wav'
-            word_timestamps: false // Currently only supported in English
+            word_timestamps: false, // Currently only supported in English
+            region: 'global' // 'global' or the EU processing endpoint
         },
         
         // Web Speech API Settings (fallback)
@@ -425,7 +419,13 @@ const defaultSettings = {
     
     // === AI Configuration ===
     ai: {
-        preferredProvider: 'auto', // 'auto', 'openai', 'anthropic', 'groq', 'openrouter'
+        preferredProvider: 'auto', // CLI-first auto routing, or an explicit provider
+        providerPriority: ['codex-cli', 'claude-cli'],
+        allowApiFallback: false,
+        subscriptionOnly: true,
+        tutorStub: {
+            repositoryPath: '' // Blank auto-detects a sibling machinespirits-eval checkout
+        },
         models: {
             openai: 'gpt-4o',
             anthropic: 'claude-3-5-sonnet-20241022',
@@ -437,6 +437,7 @@ const defaultSettings = {
         enableChat: true,
         enableSummarization: true,
         enableNoteExtraction: true,
+        allowRemoteDocumentContext: true,
         verboseLogging: false, // true: log full messages, false: log previews only
         chatHistory: {
             persist: true,
@@ -1214,6 +1215,7 @@ function updateSettingsCategory(category, updates) {
     
     // Apply AI provider settings if changed
     if (category === 'ai' && updates) {
+        tutorBridge.configureAIRouting?.(appSettings.ai);
         if (updates.preferredProvider && updates.preferredProvider !== 'auto') {
             try {
                 tutorBridge.setDefaultProvider(updates.preferredProvider);
@@ -1306,6 +1308,7 @@ function updateSettings(category, newSettings) {
     
     // Apply AI provider settings if changed
     if (category === 'ai' && newSettings) {
+        tutorBridge.configureAIRouting?.(appSettings.ai);
         // Update Local AI URL if changed
         if (newSettings.localAIUrl) {
             try {
@@ -1377,6 +1380,7 @@ if (process.platform !== 'darwin') {
 // Save settings and stop capture bridge on shutdown
 app.on('before-quit', () => {
   saveSettings();
+  ipcHandlers.cleanupHandlers();
   if (citationCaptureServer && citationCaptureServer.isRunning()) {
     citationCaptureServer.stop().catch((error) => {
       console.error('[main.js] Failed to stop citation capture bridge:', error);
@@ -1393,7 +1397,20 @@ nativeTheme.on('updated', () => {
 // --- Window Creation ---
 let speakerNotesWindow = null;
 
-function createWindow() {
+installIpcMainGuard(ipcMain, {
+  appEntryUrl: pathToFileURL(path.join(__dirname, 'index.html')).href,
+  getMainWindow: () => mainWindow,
+  getSpeakerNotesWindow: () => speakerNotesWindow
+});
+
+function loadMainWindow(win) {
+  const indexPath = path.join(__dirname, 'index.html');
+  debugMain(`Loading URL: ${indexPath}`);
+  return win.loadFile(indexPath);
+}
+
+function createWindow(options = {}) {
+  const { deferLoad = false } = options;
   debugMain('Creating main window...');
   rendererCitationCaptureReady = false;
   const win = new BrowserWindow({
@@ -1418,13 +1435,10 @@ function createWindow() {
   });
   mainWindow = win;
 
-  // Enable @electron/remote for this window
-  require("@electron/remote/main").enable(win.webContents);
-
-  // Load the index.html of the app.
   const indexPath = path.join(__dirname, 'index.html');
-  debugMain(`Loading URL: ${indexPath}`);
-  win.loadFile(indexPath);
+  if (!deferLoad) {
+    void loadMainWindow(win);
+  }
 
   win.once('ready-to-show', () => {
     win.show();
@@ -1449,10 +1463,12 @@ function createWindow() {
     }
   });
 
-  // Handle external links
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
-    return { action: 'deny' };
+  // Keep the application document in place and send only explicitly supported
+  // external URL schemes to the operating system.
+  installNavigationGuards(win.webContents, {
+    appEntryUrl: pathToFileURL(indexPath).toString(),
+    openExternal: (url) => shell.openExternal(url),
+    onError: (error) => console.error('[main.js] Failed to open external URL:', error)
   });
 
   win.on('closed', () => {
@@ -1580,6 +1596,8 @@ function createWindow() {
   win.on('closed', () => {
     ipcMain.removeListener('saves-completed-close', handleSavesCompletedClose);
   });
+
+  return win;
 }
 
 // Helper functions for menu creation
@@ -1587,7 +1605,7 @@ function createFileMenuItems() {
     return [
       {
         label: 'New File',
-        accelerator: 'CmdOrCtrl+N',
+        accelerator: getElectronAccelerator('file.new'),
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] New File menu item clicked.');
@@ -1599,7 +1617,7 @@ function createFileMenuItems() {
       },
       {
         label: 'Open File...',
-        accelerator: 'CmdOrCtrl+O',
+        accelerator: getElectronAccelerator('file.open'),
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] Open File menu item clicked.');
@@ -1613,7 +1631,6 @@ function createFileMenuItems() {
       },
       {
         label: 'Open Markdown File (Presentation)',
-        accelerator: 'CmdOrCtrl+Shift+O',
         click: async () => {
           if (!mainWindow) return;
           const result = await dialog.showOpenDialog(mainWindow, {
@@ -1637,8 +1654,21 @@ function createFileMenuItems() {
         }
       },
       {
+        label: 'Quick Open...',
+        accelerator: getElectronAccelerator('file.quickOpen'),
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('show-quick-open');
+        }
+      },
+      {
+        label: 'Publishing Workflows...',
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('open-publishing-workflows');
+        }
+      },
+      {
         label: 'Open Folder...',
-        accelerator: 'CmdOrCtrl+Alt+O',
+        accelerator: getElectronAccelerator('file.openFolder'),
         click: async () => {
            if (!mainWindow) return;
            debugMain('[main.js] Open Folder menu item clicked.');
@@ -1666,6 +1696,12 @@ function createFileMenuItems() {
                 console.error('[main.js] Error opening folder:', err);
                 dialog.showErrorBox('Open Folder Error', `Could not open the selected folder: ${err.message}`);
            }
+        }
+      },
+      {
+        label: 'Duplicate Folder',
+        click: () => {
+          if (mainWindow) mainWindow.webContents.send('duplicate-selected-folder');
         }
       },
       {
@@ -1711,7 +1747,6 @@ function createFileMenuItems() {
       },
       {
         label: 'Generate Thumbnail (Nano Banana)',
-        accelerator: 'CmdOrCtrl+Shift+T',
         click: async () => {
           if (!mainWindow) return;
           debugMain('[main.js] Generate Thumbnail menu item clicked.');
@@ -1721,7 +1756,7 @@ function createFileMenuItems() {
       { type: 'separator' },
       {
         label: 'Save',
-        accelerator: 'CmdOrCtrl+S',
+        accelerator: getElectronAccelerator('file.save'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Save menu item clicked. Triggering save in renderer.');
@@ -1731,7 +1766,7 @@ function createFileMenuItems() {
       },
       {
         label: 'Save As...',
-        accelerator: 'Shift+CmdOrCtrl+S',
+        accelerator: getElectronAccelerator('file.saveAs'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Save As menu item clicked. Triggering save-as in renderer.');
@@ -1744,7 +1779,7 @@ function createFileMenuItems() {
         // popup, etc.) still get native close behaviour via the focused-window
         // check — Cmd+W in those windows dismisses the popup as expected.
         label: 'Close Tab',
-        accelerator: 'CmdOrCtrl+W',
+        accelerator: getElectronAccelerator('file.closeTab'),
         click: () => {
           const focused = BrowserWindow.getFocusedWindow();
           if (!focused) return;
@@ -1831,17 +1866,17 @@ function createFileMenuItems() {
 
 function createEditMenuItems() {
     return [
-      { label: 'Undo', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
-      { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', role: 'redo' },
+      { label: 'Undo', accelerator: getElectronAccelerator('edit.undo'), role: 'undo' },
+      { label: 'Redo', accelerator: getElectronAccelerator('edit.redo'), role: 'redo' },
       { type: 'separator' },
-      { label: 'Cut', accelerator: 'CmdOrCtrl+X', role: 'cut' },
-      { label: 'Copy', accelerator: 'CmdOrCtrl+C', role: 'copy' },
-      { label: 'Paste', accelerator: 'CmdOrCtrl+V', role: 'paste' },
-      { label: 'Select All', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
+      { label: 'Cut', accelerator: getElectronAccelerator('edit.cut'), role: 'cut' },
+      { label: 'Copy', accelerator: getElectronAccelerator('edit.copy'), role: 'copy' },
+      { label: 'Paste', accelerator: getElectronAccelerator('edit.paste'), role: 'paste' },
+      { label: 'Select All', accelerator: getElectronAccelerator('edit.selectAll'), role: 'selectAll' },
       { type: 'separator' },
       {
         label: 'Settings...',
-        accelerator: 'CmdOrCtrl+,',
+        accelerator: getElectronAccelerator('settings.open'),
         click: () => {
           if (!mainWindow) return;
           mainWindow.webContents.send('open-settings');
@@ -1904,7 +1939,7 @@ function createViewMenuItems() {
       { type: 'separator' },
       {
         label: 'Editor Mode',
-        accelerator: 'CmdOrCtrl+1',
+        accelerator: getElectronAccelerator('view.editorMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Editor mode via menu');
@@ -1914,7 +1949,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Presentation Mode',
-        accelerator: 'CmdOrCtrl+2',
+        accelerator: getElectronAccelerator('view.presentationMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Presentation mode via menu');
@@ -1924,7 +1959,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Network Mode',
-        accelerator: 'CmdOrCtrl+3',
+        accelerator: getElectronAccelerator('view.networkMode'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Switching to Network mode via menu');
@@ -1935,7 +1970,7 @@ function createViewMenuItems() {
       { type: 'separator' },
       {
         label: 'Command Palette...',
-        accelerator: 'CmdOrCtrl+Shift+P',
+        accelerator: getElectronAccelerator('app.commandPalette'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening Command Palette via menu');
@@ -1945,7 +1980,6 @@ function createViewMenuItems() {
       },
       {
         label: 'Style Settings...',
-        accelerator: 'CmdOrCtrl+Shift+T',
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening Style Settings via menu');
@@ -1955,7 +1989,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Show Writing Stats',
-        accelerator: 'CmdOrCtrl+Shift+G',
+        accelerator: getElectronAccelerator('view.writingStats'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Toggling Writing Stats panel via menu');
@@ -1965,7 +1999,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Visual Markdown',
-        accelerator: 'CmdOrCtrl+Shift+V',
+        accelerator: getElectronAccelerator('view.visualMarkdown'),
         type: 'checkbox',
         checked: appSettings.editor?.visualMarkdown || false,
         click: (menuItem) => {
@@ -1981,7 +2015,7 @@ function createViewMenuItems() {
       },
       {
         label: 'Toggle Preview Pane',
-        accelerator: 'CmdOrCtrl+Shift+M',
+        accelerator: getElectronAccelerator('view.togglePreview'),
         type: 'checkbox',
         checked: appSettings.editor?.showPreview !== false, // Default to true
         click: (menuItem) => {
@@ -2008,7 +2042,7 @@ function createFormatMenuItems() {
     return [
       {
         label: 'Bold',
-        accelerator: 'CmdOrCtrl+B',
+        accelerator: getElectronAccelerator('format.bold'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Bold');
@@ -2018,7 +2052,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Italic',
-        accelerator: 'CmdOrCtrl+I',
+        accelerator: getElectronAccelerator('format.italic'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Italic');
@@ -2028,7 +2062,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Code',
-        accelerator: 'CmdOrCtrl+`',
+        accelerator: getElectronAccelerator('format.code'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Code');
@@ -2039,7 +2073,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Heading 1',
-        accelerator: 'CmdOrCtrl+Alt+1',
+        accelerator: getElectronAccelerator('format.heading1'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 1');
@@ -2049,7 +2083,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Heading 2',
-        accelerator: 'CmdOrCtrl+Alt+2',
+        accelerator: getElectronAccelerator('format.heading2'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 2');
@@ -2059,7 +2093,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Heading 3',
-        accelerator: 'CmdOrCtrl+Alt+3',
+        accelerator: getElectronAccelerator('format.heading3'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Heading 3');
@@ -2070,7 +2104,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Bullet List',
-        accelerator: 'CmdOrCtrl+Shift+8',
+        accelerator: getElectronAccelerator('format.bulletList'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Bullet List');
@@ -2080,7 +2114,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Numbered List',
-        accelerator: 'CmdOrCtrl+Shift+7',
+        accelerator: getElectronAccelerator('format.numberedList'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Numbered List');
@@ -2091,7 +2125,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Insert Link',
-        accelerator: 'CmdOrCtrl+K',
+        accelerator: getElectronAccelerator('format.insertLink'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Insert Link');
@@ -2101,7 +2135,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Insert Image',
-        accelerator: 'CmdOrCtrl+Shift+I',
+        accelerator: getElectronAccelerator('format.insertImage'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Insert Image');
@@ -2112,7 +2146,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Blockquote',
-        accelerator: 'CmdOrCtrl+Shift+.',
+        accelerator: getElectronAccelerator('format.blockquote'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Blockquote');
@@ -2122,7 +2156,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Strikethrough',
-        accelerator: 'CmdOrCtrl+Shift+X',
+        accelerator: getElectronAccelerator('format.strikethrough'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Strikethrough');
@@ -2133,7 +2167,7 @@ function createFormatMenuItems() {
       { type: 'separator' },
       {
         label: 'Fold Current Section',
-        accelerator: 'CmdOrCtrl+Shift+[',
+        accelerator: getElectronAccelerator('fold.current'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Fold Current');
@@ -2143,7 +2177,7 @@ function createFormatMenuItems() {
       },
       {
         label: 'Expand Current Section',
-        accelerator: 'CmdOrCtrl+Shift+]',
+        accelerator: getElectronAccelerator('fold.unfoldCurrent'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Format: Expand Current');
@@ -2177,7 +2211,6 @@ function createPresentationMenuItems() {
     return [
       {
         label: 'Generate Lecture Summary',
-        accelerator: 'CmdOrCtrl+G',
         click: async () => {
           if (mainWindow) {
             debugMain('[main.js] Generate Lecture Summary clicked');
@@ -2188,7 +2221,6 @@ function createPresentationMenuItems() {
       { type: 'separator' },
       {
         label: 'Toggle Presentation Mode',
-        accelerator: 'CmdOrCtrl+P',
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('toggle-presentation-mode');
@@ -2197,7 +2229,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'Start Presentation',
-        accelerator: 'F5',
+        accelerator: getElectronAccelerator('presentation.start'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('start-presentation');
@@ -2206,7 +2238,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'Exit Presentation',
-        accelerator: 'Escape',
+        accelerator: getElectronAccelerator('presentation.exit'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('exit-presentation');
@@ -2234,7 +2266,7 @@ function createPresentationMenuItems() {
       },
       {
         label: 'First Slide',
-        accelerator: 'Home',
+        accelerator: getElectronAccelerator('presentation.firstSlide'),
         click: () => {
           if (mainWindow) {
             mainWindow.webContents.send('first-slide');
@@ -2320,7 +2352,7 @@ function createSettingsMenuItems() {
     return [
       {
         label: 'Preferences...',
-        accelerator: 'CmdOrCtrl+,',
+        accelerator: getElectronAccelerator('settings.open'),
         click: () => {
           if (mainWindow) {
             debugMain('[main.js] Opening settings dialog');
@@ -2473,34 +2505,13 @@ function createHelpMenuItems() {
       {
         label: 'Keyboard Shortcuts',
         click: () => {
-          dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Keyboard Shortcuts',
-            message: 'Keyboard Shortcuts',
-            detail: `
-Editor:
-• Cmd/Ctrl+N: New file
-• Cmd/Ctrl+O: Open file
-• Cmd/Ctrl+S: Save
-• Cmd/Ctrl+Shift+S: Save As
-
-AI Writing:
-• Cmd+Shift+': Invoke Ash (AI Writing Companion)
-
-Presentation:
-• Cmd/Ctrl+P: Toggle presentation mode
-• F5: Start presentation
-• Escape: Exit presentation
-• Arrow Keys: Navigate slides
-• Home: Go to first slide
-
-View:
-• Cmd/Ctrl+Plus: Zoom in
-• Cmd/Ctrl+Minus: Zoom out
-• Cmd/Ctrl+0: Reset zoom
-• F11: Toggle fullscreen
-            `.trim()
-          });
+          mainWindow?.webContents.send('show-keyboard-shortcuts');
+        }
+      },
+      {
+        label: 'Diagnostics...',
+        click: () => {
+          mainWindow?.webContents.send('open-diagnostics');
         }
       },
       { type: 'separator' },
@@ -2552,7 +2563,7 @@ function createMainMenu() {
           submenu: [
             { label: 'About ' + app.getName(), role: 'about' },
             { type: 'separator' },
-            { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() }
+            { label: 'Quit', accelerator: getElectronAccelerator('app.quit'), click: () => app.quit() }
           ] 
         });
     }
@@ -2753,6 +2764,7 @@ async function performSaveAs(options) {
                 { name: 'Markdown Files', extensions: ['md', 'markdown'] },
                 { name: 'BibTeX Files', extensions: ['bib'] },
                 { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'PowerPoint Files', extensions: ['pptx'] },
                 { name: 'HTML Files', extensions: ['html', 'htm'] },
                 { name: 'All Files', extensions: ['*'] }
             ]
@@ -3120,7 +3132,9 @@ async function openFile() {
 
         const filePath = filePaths[0];
         debugMain(`[main.js] User selected file: ${filePath}`);
-        const content = await fs.readFile(filePath, 'utf8');
+        const content = path.extname(filePath).toLowerCase() === '.pptx'
+            ? ''
+            : await fs.readFile(filePath, 'utf8');
         currentFilePath = filePath;
         // Title remains consistent - don't change app title based on file name
          if (mainWindow) {
@@ -3272,172 +3286,13 @@ app.whenReady().then(async () => {
       show: false
     });
     
-    // Load a simple HTML page for speaker notes with proper styling
-    const notesHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Speaker Notes</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #2c3e50;
-      color: white;
-      overflow-y: auto;
-      height: 100vh;
-      box-sizing: border-box;
-    }
-    
-    .speaker-notes-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 16px 16px 8px 16px;
-      padding-top: 8px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .speaker-notes-header h4 {
-      margin: 0;
-      font-size: 14px;
-      color: #ecf0f1;
-    }
-    
-    .slide-indicator {
-      background: #34495e;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-    }
-    
-    #notes-content {
-      font-size: 13px;
-      line-height: 1.4;
-      color: #bdc3c7;
-      padding: 0 16px 16px 16px;
-      overflow-y: auto;
-      height: calc(100vh - 80px);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    
-    #notes-content h3 {
-      color: #4ecdc4;
-      margin-bottom: 10px;
-      font-size: 16px;
-    }
-    
-    #notes-content p {
-      margin-bottom: 10px;
-      font-size: 14px !important;
-    }
-    
-    #notes-content ul,
-    #notes-content ol {
-      margin-left: 20px;
-      margin-bottom: 10px;
-    }
-    
-    #notes-content li {
-      margin-bottom: 5px;
-    }
-    
-    em {
-      color: #95a5a6;
-      font-style: italic;
-    }
-    
-    /* Make sure text is readable */
-    #notes-content strong {
-      color: #ecf0f1;
-    }
-    
-    /* Style any code blocks */
-    #notes-content code {
-      background: rgba(52, 73, 94, 0.5);
-      padding: 2px 4px;
-      border-radius: 3px;
-      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    }
-  </style>
-</head>
-<body>
-  <div class="speaker-notes-header">
-    <h4>📝 Speaker Notes</h4>
-    <div class="slide-indicator">Slide <span id="slide-number">1</span></div>
-  </div>
-  <div id="notes-content"><em>No speaker notes for this slide.</em></div>
-  <script>
-    function renderEmptyState(contentDiv) {
-      contentDiv.replaceChildren();
-      const empty = document.createElement('em');
-      empty.textContent = 'No speaker notes for this slide.';
-      contentDiv.appendChild(empty);
-    }
-
-    function renderNotes(contentDiv, notes) {
-      if (!notes) {
-        renderEmptyState(contentDiv);
-        return;
-      }
-
-      contentDiv.replaceChildren();
-      const lines = String(notes).split(/\\r?\\n/);
-      let currentList = null;
-
-      const flushList = () => {
-        currentList = null;
-      };
-
-      lines.forEach((line) => {
-        const trimmed = line.trim();
-
-        if (!trimmed) {
-          flushList();
-          return;
-        }
-
-        if (/^[-*]\\s+/.test(trimmed)) {
-          if (!currentList) {
-            currentList = document.createElement('ul');
-            contentDiv.appendChild(currentList);
-          }
-          const item = document.createElement('li');
-          item.textContent = trimmed.replace(/^[-*]\\s+/, '');
-          currentList.appendChild(item);
-          return;
-        }
-
-        flushList();
-
-        const paragraph = document.createElement('p');
-        paragraph.textContent = trimmed;
-        contentDiv.appendChild(paragraph);
-      });
-
-      if (!contentDiv.childNodes.length) {
-        renderEmptyState(contentDiv);
-      }
-    }
-
-    window.speakerNotesAPI.onUpdateSpeakerNotes((data) => {
-      const contentDiv = document.getElementById('notes-content');
-      const slideNumber = document.getElementById('slide-number');
-      
-      renderNotes(contentDiv, data && data.notes);
-      if (data.slideNumber !== undefined) {
-        slideNumber.textContent = data.slideNumber;
-      }
+    const speakerNotesHtmlPath = path.join(__dirname, 'js', 'speaker-notes-window.html');
+    installNavigationGuards(speakerNotesWindow.webContents, {
+      appEntryUrl: pathToFileURL(speakerNotesHtmlPath).toString(),
+      openExternal: (url) => shell.openExternal(url),
+      onError: (error) => console.error('[main.js] Failed to open speaker-notes link:', error)
     });
-  </script>
-</body>
-</html>`;
-    
-    speakerNotesWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(notesHTML)}`);
+    speakerNotesWindow.loadFile(speakerNotesHtmlPath);
     
     speakerNotesWindow.once('ready-to-show', () => {
       speakerNotesWindow.show();
@@ -3760,37 +3615,11 @@ app.whenReady().then(async () => {
     console.error('[main.js] Citation capture bridge unavailable. Browser capture features are disabled for this session.');
   }
   
-  createWindow();
-  
-  // Initialize tutor-bridge (async — loads ESM tutor-core via dynamic import)
-  try {
-    await tutorBridge.initTutorBridge({
-      learnerId: 'local-writer',
-      dbPath: path.join(app.getPath('userData'), 'tutor-core.db')
-    });
-    debugMain('TutorBridge initialized successfully');
+  // Construct the window without loading renderer code. IPC must exist before
+  // index.html starts invoking preload channels, even when optional services
+  // such as tutor-core take several seconds to initialize.
+  const initialWindow = createWindow({ deferLoad: true });
 
-    // Apply saved AI settings
-    if (appSettings.ai && appSettings.ai.preferredProvider) {
-      try {
-        tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
-        debugMain(`Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
-      } catch (error) {
-        console.warn('[main.js] Could not apply saved AI provider preference:', error);
-      }
-    }
-
-    const providers = tutorBridge.getAvailableProviders();
-    debugMain('AI providers available via tutor-core:', providers);
-    if (providers.length === 0) {
-      debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
-      debugMain('Add API keys to your .env file to enable built-in AI features. See .env.example for details.');
-    }
-  } catch (error) {
-    console.error('[main.js] Error initializing TutorBridge:', error);
-  }
-
-  // Register modular IPC handlers after window is created
   ipcHandlers.registerAllHandlers({
     app,
     appSettings,
@@ -3816,6 +3645,54 @@ app.whenReady().then(async () => {
     buildSystemMessage,
     cleanAIResponse
   });
+
+  // Start optional tutor initialization in parallel with renderer loading. The
+  // handlers above can now return an unavailable/initializing status instead of
+  // Electron's fatal-looking "No handler registered" startup errors.
+  const tutorInitialization = (async () => {
+    try {
+      const tutorRuntimePaths = resolveTutorRuntimePaths(app.getPath('userData'));
+      const tutorStatus = await tutorBridge.initTutorBridge({
+        learnerId: 'local-writer',
+        enableCliProviders: true,
+        aiRuntimeDir: app.getPath('userData'),
+        ...tutorRuntimePaths
+      });
+      if (!tutorStatus.ok) {
+        console.error('[main.js] Tutor-core runtime unavailable:', tutorStatus.error);
+      } else {
+        debugMain('Tutor-core runtime available:', tutorBridge.getRuntimeStatus());
+      }
+
+      tutorBridge.configureAIRouting?.(appSettings.ai || {});
+
+      // Apply saved AI settings
+      if (appSettings.ai && appSettings.ai.preferredProvider) {
+        try {
+          tutorBridge.setDefaultProvider(appSettings.ai.preferredProvider);
+          debugMain(`Applied saved AI provider preference: ${appSettings.ai.preferredProvider}`);
+        } catch (error) {
+          console.warn('[main.js] Could not apply saved AI provider preference:', error);
+        }
+      }
+
+      const providers = tutorBridge.getAvailableProviders();
+      debugMain('AI providers available:', providers);
+      if (providers.length === 0) {
+        debugMain('No AI providers configured. Built-in AI writing features will be disabled.');
+        debugMain('Install and sign in to Codex or Claude, or explicitly configure an API provider.');
+      }
+    } catch (error) {
+      console.error('[main.js] Error initializing TutorBridge:', error);
+    }
+  })();
+
+  try {
+    await loadMainWindow(initialWindow);
+  } catch (error) {
+    console.error('[main.js] Failed to load the main window:', error);
+  }
+  await tutorInitialization;
 
   app.on('activate', () => {
     if (getLiveAppWindows().length === 0) {

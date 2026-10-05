@@ -74,7 +74,7 @@
     }
 
     async function reorderWorkspaceFolder(item, targetFolderPath, deps = root) {
-        const foldersResult = await deps.electronAPI.invoke('get-workspace-folders');
+        const foldersResult = await deps.electronAPI.workspace.getWorkspaceFolders();
         const currentFolders = foldersResult.workspaceFolders || [];
         const primaryFolder = foldersResult.primaryFolder;
         const allFolders = [primaryFolder, ...currentFolders];
@@ -90,7 +90,7 @@
         allFolders.splice(newDropIdx, 0, item.path);
 
         const newWorkspaceFolders = allFolders.filter(folderPath => folderPath !== primaryFolder);
-        await deps.electronAPI.invoke('reorder-workspace-folders', newWorkspaceFolders);
+        await deps.electronAPI.workspace.reorderWorkspaceFolders(newWorkspaceFolders);
         if (deps.appSettings) {
             deps.appSettings.workspaceFolders = newWorkspaceFolders;
         }
@@ -131,7 +131,7 @@
             }
 
             try {
-                const result = await deps.electronAPI.invoke('move-item', {
+                const result = await deps.electronAPI.files.moveItem({
                     sourcePath: itemToMove.path,
                     targetPath: targetFolderPath,
                     operation: 'cut',

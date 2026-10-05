@@ -1,6 +1,7 @@
 const path = require('path');
 
 const loaderPath = path.resolve(__dirname, '../../../orchestrator/modules/feature-loader.js');
+const lifecyclePath = path.resolve(__dirname, '../../../services/resourceLifecycle.js');
 const nativeGetElementById = Object.getPrototypeOf(document).getElementById.bind(document);
 
 describe('NightOwl feature loader', () => {
@@ -10,12 +11,17 @@ describe('NightOwl feature loader', () => {
     document.head.innerHTML = '';
     document.body.innerHTML = '';
     delete window.NightOwlFeatures;
+    delete window.NightOwlResourceLifecycle;
     delete window.NIGHTOWL_DEBUG_FEATURES;
     window.appSettings = { advanced: { enableDebugMode: false } };
+    require(lifecyclePath);
   });
 
   afterEach(() => {
+    window.NightOwlFeatures?.disposeAllFeatures?.();
+    window.NightOwlResourceLifecycle?.disposeAll?.();
     delete window.NightOwlFeatures;
+    delete window.NightOwlResourceLifecycle;
     delete window.appSettings;
   });
 
@@ -92,5 +98,59 @@ describe('NightOwl feature loader', () => {
     await expect(scriptPromise).resolves.toBe(true);
     await expect(window.NightOwlFeatures.loadScript('feature.js', { id: 'feature-js' })).resolves.toBe(true);
     expect(document.querySelectorAll('script#feature-js')).toHaveLength(1);
+  });
+
+  test('returns owned resources to baseline across repeated feature mount cycles', async () => {
+    jest.useFakeTimers();
+    try {
+      require(loaderPath);
+      const destroy = jest.fn();
+      const disposables = [];
+      const observers = [];
+
+      window.NightOwlFeatures.register({
+        id: 'nightowl-lifecycle-stress',
+        init(host) {
+          const disposable = { close: jest.fn() };
+          const observer = { observe: jest.fn(), disconnect: jest.fn() };
+          disposables.push(disposable);
+          observers.push(observer);
+          host.interval(jest.fn(), 1000);
+          host.timeout(jest.fn(), 5000);
+          host.listen(window, 'nightowl-stress', jest.fn());
+          host.on('nightowl:stress', jest.fn());
+          host.observe(observer, document.body);
+          host.track(disposable, { type: 'watcher' });
+        },
+        destroy
+      });
+
+      await window.NightOwlFeatures.start({ enabled: ['nightowl-lifecycle-stress'] });
+
+      for (let cycle = 0; cycle < 20; cycle += 1) {
+        expect(window.NightOwlFeatures.getLifecycleDiagnostics()).toEqual(expect.objectContaining({
+          activeRegistries: 1,
+          activeResources: 6,
+          byType: { timer: 2, listener: 2, observer: 1, watcher: 1 }
+        }));
+        expect(window.NightOwlFeatures.disableFeature('nightowl-lifecycle-stress')).toBe(true);
+        expect(window.NightOwlFeatures.getLifecycleDiagnostics()).toEqual({
+          activeRegistries: 0,
+          activeResources: 0,
+          byType: {},
+          registries: []
+        });
+        if (cycle < 19) {
+          await window.NightOwlFeatures.enableFeature('nightowl-lifecycle-stress');
+        }
+      }
+
+      expect(destroy).toHaveBeenCalledTimes(20);
+      for (const disposable of disposables) expect(disposable.close).toHaveBeenCalledTimes(1);
+      for (const observer of observers) expect(observer.disconnect).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

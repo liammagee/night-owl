@@ -92,9 +92,9 @@
     }
 
     async function showAppConfirm(options = {}) {
-        if (window.electronAPI && typeof window.electronAPI.invoke === 'function') {
+        if (typeof window.electronAPI?.app?.showConfirmDialog === 'function') {
             try {
-                const response = await window.electronAPI.invoke('show-confirm-dialog', options);
+                const response = await window.electronAPI.app.showConfirmDialog(options);
                 if (response && response.success) {
                     return Boolean(response.confirmed);
                 }

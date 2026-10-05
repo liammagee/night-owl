@@ -8,14 +8,21 @@ const nspell = require('nspell');
 const fs = require('fs');
 const path = require('path');
 
+function loadEnglishDictionary() {
+  // Resolve the ESM package without importing it so linked worktrees can reuse
+  // a dependency installation outside the repository root.
+  const dictDir = path.dirname(require.resolve('dictionary-en'));
+  return {
+    aff: fs.readFileSync(path.join(dictDir, 'index.aff')),
+    dic: fs.readFileSync(path.join(dictDir, 'index.dic'))
+  };
+}
+
 describe('Spell Check (nspell)', () => {
   let spell;
 
   beforeAll(() => {
-    // Load dictionary files directly (dictionary-en is ESM, can't require in Jest)
-    const dictDir = path.join(__dirname, '..', '..', '..', 'node_modules', 'dictionary-en');
-    const aff = fs.readFileSync(path.join(dictDir, 'index.aff'));
-    const dic = fs.readFileSync(path.join(dictDir, 'index.dic'));
+    const { aff, dic } = loadEnglishDictionary();
     spell = nspell({ aff, dic });
   });
 
@@ -82,9 +89,7 @@ describe('isCorrectExtended logic (prefix / compound handling)', () => {
   }
 
   beforeAll(() => {
-    const dictDir = path.join(__dirname, '..', '..', '..', 'node_modules', 'dictionary-en');
-    const aff = fs.readFileSync(path.join(dictDir, 'index.aff'));
-    const dic = fs.readFileSync(path.join(dictDir, 'index.dic'));
+    const { aff, dic } = loadEnglishDictionary();
     spell = nspell({ aff, dic });
   });
 

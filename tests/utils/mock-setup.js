@@ -161,18 +161,12 @@ function createMockFileData() {
  */
 function setupNetworkMocks(fileData) {
   const mockGetFilteredFiles = jest.fn(() => Promise.resolve(fileData.files));
-  
-  const mockElectronAPI = createMockElectronAPI({
-    invoke: jest.fn((action, arg) => {
-      if (action === 'get-all-files') {
-        return Promise.resolve(fileData.files);
-      }
-      if (action === 'read-file-content') {
-        return Promise.resolve(fileData.fileContent[arg] || '');
-      }
-      return Promise.resolve();
-    })
-  });
+  const mockElectronAPI = {
+    isElectron: true,
+    files: {
+      readFileContent: jest.fn((filePath) => Promise.resolve(fileData.fileContent[filePath] || ''))
+    }
+  };
 
   return { mockGetFilteredFiles, mockElectronAPI };
 }

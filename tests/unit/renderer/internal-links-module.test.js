@@ -1,5 +1,6 @@
 describe('internalLinks module', () => {
   const modulePath = '../../../orchestrator/modules/internalLinks.js';
+  let readFileContent;
 
   beforeEach(() => {
     jest.resetModules();
@@ -8,9 +9,9 @@ describe('internalLinks module', () => {
       workingDirectory: '/workspace',
       linkPreview: { mode: 'hover' }
     };
-    window.electronAPI = {
-      invoke: jest.fn()
-    };
+    readFileContent = jest.fn();
+    window.electronAPI = { files: { readFileContent } };
+    window.currentFilePath = '/workspace/notes/source.md';
     window.openFileInEditor = jest.fn();
     window.showNotification = jest.fn();
     window.marked = {
@@ -30,7 +31,7 @@ describe('internalLinks module', () => {
 
   test('opens relative links against the working directory', async () => {
     require(modulePath);
-    window.electronAPI.invoke.mockResolvedValueOnce({
+    readFileContent.mockResolvedValueOnce({
       success: true,
       filePath: '/workspace/notes/today.md',
       content: '# Today'
@@ -38,7 +39,7 @@ describe('internalLinks module', () => {
 
     await window.openInternalLink('notes/today.md', 'notes/today');
 
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('read-file-content', '/workspace/notes/today.md');
+    expect(readFileContent).toHaveBeenCalledWith('/workspace/notes/today.md');
     expect(window.openFileInEditor).toHaveBeenCalledWith(
       '/workspace/notes/today.md',
       '# Today',
@@ -48,7 +49,7 @@ describe('internalLinks module', () => {
 
   test('uses notifications instead of blocking alerts when a link is missing', async () => {
     require(modulePath);
-    window.electronAPI.invoke.mockResolvedValueOnce({
+    readFileContent.mockResolvedValueOnce({
       success: false
     });
 
@@ -56,5 +57,32 @@ describe('internalLinks module', () => {
 
     expect(window.showNotification).toHaveBeenCalledWith('File not found: missing.md', 'warning');
     expect(global.alert).not.toHaveBeenCalled();
+  });
+
+  test('resolves links through the shared multi-root workspace index', async () => {
+    const workspaceIndexResolveLink = jest.fn(async () => ({
+      success: true,
+      resolvedPath: '/second-root/reference.md'
+    }));
+    window.electronAPI.search = { workspaceIndexResolveLink };
+    require(modulePath);
+    readFileContent.mockResolvedValueOnce({
+      success: true,
+      filePath: '/second-root/reference.md',
+      content: '# Shared reference'
+    });
+
+    await window.openInternalLink('reference.md', 'reference');
+
+    expect(workspaceIndexResolveLink).toHaveBeenCalledWith({
+      sourcePath: '/workspace/notes/source.md',
+      target: 'reference.md'
+    });
+    expect(readFileContent).toHaveBeenCalledWith('/second-root/reference.md');
+    expect(window.openFileInEditor).toHaveBeenCalledWith(
+      '/second-root/reference.md',
+      '# Shared reference',
+      { isInternalLinkPreview: true }
+    );
   });
 });

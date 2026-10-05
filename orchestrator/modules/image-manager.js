@@ -166,7 +166,7 @@
                 if (window.electronAPI) {
                   const ext = imageType.split('/')[1] || 'png';
                   const filename = `pasted-${Date.now()}.${ext}`;
-                  const result = await window.electronAPI.invoke('save-image-to-current-dir', filename, base64.split(',')[1]);
+                  const result = await window.electronAPI.images.saveImageToCurrentDir(filename, base64.split(',')[1]);
                   if (result && result.savedPath) {
                     const relativePath = result.savedPath.split('/').pop();
                     insertImageMarkdown(relativePath, 'Pasted image');
@@ -253,14 +253,12 @@
   function init() {
     registerSidebarPane();
 
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'Images: Show Image Gallery',
-        action: () => { if (window.switchStructureView) window.switchStructureView('images'); }
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('images.gallery', 'Images: Show Image Gallery', () => {
+        if (window.switchStructureView) window.switchStructureView('images');
       });
-      window.commandPaletteCommands.push({
-        name: 'Images: Insert Image',
-        action: () => insertImageMarkdown('image.png', 'alt text')
+      window.registerCommand('images.insert', 'Images: Insert Image', () => {
+        insertImageMarkdown('image.png', 'alt text');
       });
     }
   }

@@ -1217,7 +1217,7 @@ class AIFlowDetection {
     
     async requestAIInsight(context) {
         // Check if AI service is available
-        if (!window.electronAPI || !window.electronAPI.invoke) {
+        if (!window.electronAPI?.ai?.aiChat) {
             // console.log('[Flow Detection] AI service not available');
             return null;
         }
@@ -1227,7 +1227,7 @@ class AIFlowDetection {
         try {
             // console.log('[Flow Detection] Requesting AI contextual insight...');
             
-            const response = await window.electronAPI.invoke('ai-chat', {
+            const response = await window.electronAPI.ai.aiChat({
                 message: prompt,
                 options: {
                     systemMessage: this.getInsightSystemPrompt(),

@@ -36,6 +36,13 @@ function setup(filePath = '/a.md') {
             showAppConfirm: jest.fn().mockResolvedValue(true)
         }
     };
+    const bridge = context.window.electronAPI;
+    bridge.files = {
+        performSaveWithPath: (...args) => bridge.invoke('perform-save-with-path', ...args),
+        performSaveAs: (...args) => bridge.invoke('perform-save-as', ...args),
+        refreshFileTree: () => bridge.invoke('refresh-file-tree')
+    };
+    bridge.settings = { getSettings: () => bridge.invoke('get-settings') };
     context.setCurrentFilePathState = jest.fn(async filePath => { context.window.currentFilePath = filePath; });
     vm.runInNewContext(manualSource, context);
     const switchToB = () => {

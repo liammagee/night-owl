@@ -1,294 +1,86 @@
-# Test Suite for Hegel Pedagogy AI
+# NightOwl test suites
 
-This directory contains a comprehensive test suite for the Hegel Pedagogy AI Electron application, designed to prevent regressions and ensure reliable functionality.
+NightOwl separates fast policy tests from real source and packaged Electron
+workflows. Use Node.js 20 or newer and install the committed dependency tree with
+`npm ci` in a normal checkout.
 
-## Test Architecture
+## Jest projects
 
-The testing strategy follows Electron best practices by separating concerns across different test types:
+`jest.config.js` defines four projects:
 
-### 1. Unit Tests (`/unit/`)
-- **Main Process Tests** (`/unit/main/`): Test Node.js backend functionality, file operations, and IPC handlers
-- **Renderer Process Tests** (`/unit/renderer/`): Test frontend JavaScript, UI components, and browser-side logic
+| Project | Location | Boundary |
+| --- | --- | --- |
+| Main | `tests/unit/main/` | Node services, IPC registration/contracts, packaging and tooling. |
+| Renderer | `tests/unit/renderer/` | Browser modules and DOM behavior in jsdom. |
+| Integration | `tests/integration/` | Filesystem and multi-module workflows. |
+| Behavioral | `tests/behavioral/` | Cross-feature product behavior. |
 
-### 2. Integration Tests (`/integration/`)
-- Test IPC communication between main and renderer processes
-- Test file system operations with real file I/O
-- Test workflow integrations (e.g., save → read → display cycles)
+Run all Jest projects:
 
-### 3. End-to-End Tests (`/e2e/`)
-- Test complete user workflows using Playwright
-- Test critical regression scenarios
-- Test UI interactions and application behavior
-
-## Technology Stack
-
-- **Jest**: Unit and integration testing framework
-- **Playwright**: End-to-end testing framework (replaces deprecated Spectron)
-- **jsdom**: DOM environment for renderer process tests
-- **Node environment**: For main process tests
-
-## Getting Started
-
-### Prerequisites
 ```bash
-npm install
+npm test -- --runInBand
 ```
 
-### Running Tests
+Focused alternatives remain available:
 
 ```bash
-# Run all tests
-npm run test:all
-
-# Run only unit tests
 npm run test:unit
-
-# Run only integration tests  
 npm run test:integration
-
-# Run only E2E tests
-npm run test:e2e
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run specific test file
-npx jest tests/unit/renderer/internal-links.test.js
-
-# Run E2E tests with headed browser
-npx playwright test --headed
+npm test -- --runInBand tests/unit/renderer/structured-record-schema.test.js
 ```
 
-### Test Coverage
+## Electron suites
+
+All maintained Electron tests use Playwright's `_electron` launcher and isolated
+temporary user-data profiles.
+
+| Layer | Command | Purpose |
+| --- | --- | --- |
+| Required source | `npm run test:e2e` | Release-critical main/preload/renderer workflows. |
+| Optional source | `npm run test:e2e:optional` | Slower theme and accessibility diagnostics. |
+| Performance | `npm run benchmark:performance` | Repeated readiness samples and p50/p95 budgets. |
+| Packaged | `NIGHTOWL_PACKAGED_APP=/path/to/NightOwl.app npm run test:e2e:packaged` | Bundle-only security, state/resource, and tutor storage checks. |
+
+The required source matrix covers controller startup, fixed IPC capabilities,
+resource disposal, latest-wins file/preview behavior, error recovery, canonical
+UI state, schema-driven records, content security, accessibility, presentation
+recovery, and complete-slide geometry.
+
+Electron tests require a desktop session. Linux must provide `DISPLAY` or
+`WAYLAND_DISPLAY`; use `xvfb-run` in headless CI. The required reporter fails if
+tests are silently skipped and prints planned/executed/passed/failed/skipped
+counts.
+
+## Repository gate
+
+Before pushing a branch, run:
+
 ```bash
-npm test -- --coverage
+npm run ci:local
 ```
 
-## Test Structure
+For packaging or release changes:
 
-### Unit Tests
-
-#### Main Process Tests (`/unit/main/`)
-Focus on testing:
-- File operations (read, write, directory listing)
-- IPC handler implementations
-- Electron main process APIs
-- Error handling
-
-Example:
-```javascript
-// tests/unit/main/file-operations.test.js
-describe('File Operations', () => {
-  test('should read markdown files successfully', async () => {
-    // Test implementation
-  });
-});
-```
-
-#### Renderer Process Tests (`/unit/renderer/`)
-Focus on testing:
-- JavaScript functions and modules
-- DOM manipulation
-- Markdown processing
-- Internal links functionality
-- BibTeX parsing
-
-Example:
-```javascript
-// tests/unit/renderer/internal-links.test.js
-describe('Internal Links Processing', () => {
-  test('should identify simple internal links', () => {
-    // Test implementation
-  });
-});
-```
-
-### Integration Tests (`/integration/`)
-Focus on testing:
-- Complete save/load workflows
-- IPC communication patterns
-- File system integration
-- Cross-process data flow
-
-Example:
-```javascript
-// tests/integration/file-save-workflow.test.js
-describe('File Save Workflow Integration', () => {
-  test('should handle file save requests correctly', async () => {
-    // Test implementation
-  });
-});
-```
-
-### E2E Tests (`/e2e/`)
-Focus on testing:
-- User interactions and workflows
-- UI state changes
-- Application startup and shutdown
-- Critical regression scenarios
-
-Example:
-```javascript
-// tests/e2e/basic-functionality.spec.js
-test('should load the application successfully', async ({ page }) => {
-  await expect(page.locator('#editor')).toBeVisible();
-});
-```
-
-## Critical Regression Tests
-
-The test suite includes specific tests for previously identified critical bugs:
-
-### 1. Internal Links Save Bug
-**Issue**: Saving files with internal links would overwrite the wrong file.
-**Test**: `tests/e2e/basic-functionality.spec.js` - "should save file content without corrupting internal links"
-
-### 2. Monaco Editor Initialization
-**Issue**: Editor not loading due to function name conflicts.
-**Test**: Multiple unit tests for editor initialization and content setting.
-
-### 3. File Path Corruption
-**Issue**: `currentFilePath` changed during internal link previews.
-**Test**: "should not change currentFilePath when previewing internal links"
-
-## Test Configuration
-
-### Jest Configuration (`jest.config.js`)
-- Separates main and renderer process test environments
-- Configures coverage reporting
-- Sets up test timeouts and patterns
-
-### Playwright Configuration (`playwright.config.js`)
-- Configures Electron testing
-- Sets up screenshot and trace capture
-- Configures test timeouts and retries
-
-## Test Utilities
-
-### Test Helpers (`/utils/test-helpers.js`)
-Provides common utilities:
-- Mock Electron APIs
-- Mock Monaco Editor instances
-- Mock file tree structures
-- Wait conditions and timing helpers
-- Sample content generators
-
-### Test Fixtures (`/fixtures/`)
-Contains sample data:
-- `sample-content.md`: Markdown with various features
-- `sample-bibliography.bib`: BibTeX entries for testing
-- Other test data files
-
-### Setup Files (`/setup/`)
-Environment-specific setup:
-- `main.setup.js`: Mocks for main process tests
-- `renderer.setup.js`: Mocks for renderer process tests  
-- `integration.setup.js`: Helpers for integration tests
-
-## Writing New Tests
-
-### Unit Test Guidelines
-
-1. **Isolate functionality**: Test individual functions or modules
-2. **Mock dependencies**: Use Jest mocks for external dependencies
-3. **Test edge cases**: Include error conditions and boundary cases
-4. **Clear assertions**: Use descriptive expect statements
-
-```javascript
-describe('Feature Name', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('should handle normal case', () => {
-    // Arrange
-    const input = 'test input';
-    
-    // Act
-    const result = functionUnderTest(input);
-    
-    // Assert
-    expect(result).toBe('expected output');
-  });
-
-  test('should handle error case', () => {
-    expect(() => functionUnderTest(null)).toThrow('Expected error');
-  });
-});
-```
-
-### Integration Test Guidelines
-
-1. **Test realistic workflows**: Use actual file paths and operations
-2. **Clean up resources**: Remove test files after tests
-3. **Test error scenarios**: Include permission errors, missing files, etc.
-4. **Verify side effects**: Check that operations have expected results
-
-### E2E Test Guidelines
-
-1. **Test user workflows**: Focus on what users actually do
-2. **Wait for conditions**: Use proper waiting strategies
-3. **Keep tests focused**: Each test should verify one primary workflow
-4. **Include regression tests**: Add tests for previously fixed bugs
-
-## Continuous Integration
-
-The test suite is designed to run in CI environments:
-
-- All tests use headless mode by default
-- Screenshots and traces are captured on failures
-- Tests have appropriate timeouts for CI environments
-- No external dependencies required
-
-## Debugging Tests
-
-### Failed Unit Tests
 ```bash
-# Run specific test with verbose output
-npx jest tests/unit/renderer/internal-links.test.js --verbose
-
-# Run with debugging
-node --inspect-brk node_modules/.bin/jest tests/unit/specific-test.js
+npm run ci:local:release
 ```
 
-### Failed E2E Tests
-```bash
-# Run with headed browser
-npx playwright test --headed
+These commands also verify static policy, workplan views, generated presentation
+assets, and distribution inputs. See
+[`docs/development/LOCAL_CI.md`](../docs/development/LOCAL_CI.md) and
+[`docs/development/BUILD_AND_RELEASE.md`](../docs/development/BUILD_AND_RELEASE.md).
 
-# Run with debugging
-npx playwright test --debug
+## Test-writing rules
 
-# View test reports
-npx playwright show-report
-```
-
-### Common Issues
-
-1. **Monaco Editor not loading**: Check that global mocks are properly set up
-2. **File operations failing**: Ensure test fixtures exist and permissions are correct
-3. **E2E timeouts**: Increase timeouts for slower CI environments
-4. **Mock conflicts**: Clear mocks between tests using `jest.clearAllMocks()`
-
-## Test Maintenance
-
-### Regular Tasks
-- Update test dependencies when Electron is upgraded
-- Add regression tests for new bugs found
-- Review and update mock implementations
-- Monitor test performance and optimize slow tests
-
-### When Adding New Features
-1. Add unit tests for new functions
-2. Add integration tests for new workflows
-3. Add E2E tests for new user-facing features
-4. Update test fixtures if needed
-
-## Performance Considerations
-
-- Unit tests should complete in < 1 second
-- Integration tests should complete in < 10 seconds  
-- E2E tests should complete in < 30 seconds
-- Full test suite should complete in < 5 minutes
-
-This comprehensive testing approach ensures the reliability and stability of the Hegel Pedagogy AI application while preventing regressions in critical functionality.
+- Put deterministic policy in a browser/CommonJS-compatible module and test it
+  without Electron where possible.
+- Use injected clocks, watchers, IPC adapters, and filesystem roots rather than
+  ambient machine state.
+- Use semantic readiness or visible state in Electron tests; do not add fixed
+  sleeps.
+- Add release-critical user workflows to `tests/e2e/required/`; keep expensive
+  or hardware-sensitive probes explicit.
+- Use temporary directories and isolated profiles. Never write tests against a
+  developer's actual settings, workspace, database, or credentials.
+- When changing canonical JSX, workplan items, or other generated contracts,
+  update and verify their generated outputs in the same change.

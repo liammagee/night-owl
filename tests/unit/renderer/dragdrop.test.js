@@ -48,14 +48,13 @@ describe('file tree drag and drop', () => {
   });
 
   test('moving selected files invokes one move per file and rekeys open state', async () => {
+    const moveItem = jest.fn(async (payload) => ({
+      success: true,
+      targetPath: `/workspace/dest/${payload.sourcePath.split('/').pop()}`
+    }));
     const deps = {
       currentFilePath: '/workspace/src/a.md',
-      electronAPI: {
-        invoke: jest.fn(async (channel, payload) => ({
-          success: true,
-          targetPath: `/workspace/dest/${payload.sourcePath.split('/').pop()}`
-        }))
-      },
+      electronAPI: { files: { moveItem } },
       syncMovedPathWithOpenTabs: jest.fn(),
       updateBreadcrumb: jest.fn()
     };
@@ -71,14 +70,14 @@ describe('file tree drag and drop', () => {
     const summary = await dragdrop.moveDraggedItemsToFolder(item, '/workspace/dest', deps);
 
     expect(summary).toEqual(expect.objectContaining({ moved: 2, failed: 0, skipped: 0 }));
-    expect(deps.electronAPI.invoke).toHaveBeenCalledTimes(2);
-    expect(deps.electronAPI.invoke).toHaveBeenNthCalledWith(1, 'move-item', {
+    expect(moveItem).toHaveBeenCalledTimes(2);
+    expect(moveItem).toHaveBeenNthCalledWith(1, {
       sourcePath: '/workspace/src/a.md',
       targetPath: '/workspace/dest',
       operation: 'cut',
       type: 'file'
     });
-    expect(deps.electronAPI.invoke).toHaveBeenNthCalledWith(2, 'move-item', {
+    expect(moveItem).toHaveBeenNthCalledWith(2, {
       sourcePath: '/workspace/src/b.md',
       targetPath: '/workspace/dest',
       operation: 'cut',
@@ -91,8 +90,9 @@ describe('file tree drag and drop', () => {
   });
 
   test('moving selected files to their current folder is a no-op', async () => {
+    const moveItem = jest.fn();
     const deps = {
-      electronAPI: { invoke: jest.fn() }
+      electronAPI: { files: { moveItem } }
     };
     const item = {
       isMulti: true,
@@ -105,7 +105,7 @@ describe('file tree drag and drop', () => {
     const summary = await dragdrop.moveDraggedItemsToFolder(item, '/workspace/src', deps);
 
     expect(summary).toEqual(expect.objectContaining({ moved: 0, failed: 0, skipped: 2 }));
-    expect(deps.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(moveItem).not.toHaveBeenCalled();
   });
 
   test('file tree dragstart/drop moves every selected file through event listeners', async () => {
@@ -117,15 +117,14 @@ describe('file tree drag and drop', () => {
     targetFolder.dataset.path = '/workspace/dest';
     fileTreeView.append(fileA, fileB, targetFolder);
 
+    const moveItem = jest.fn(async (payload) => ({
+      success: true,
+      targetPath: `/workspace/dest/${payload.sourcePath.split('/').pop()}`
+    }));
     const deps = {
       fileTreeView,
       currentFilePath: '/workspace/src/a.md',
-      electronAPI: {
-        invoke: jest.fn(async (channel, payload) => ({
-          success: true,
-          targetPath: `/workspace/dest/${payload.sourcePath.split('/').pop()}`
-        }))
-      },
+      electronAPI: { files: { moveItem } },
       getSelectedFiles: jest.fn(() => ['/workspace/src/a.md', '/workspace/src/b.md']),
       renderFileTree: jest.fn(),
       showNotification: jest.fn(),
@@ -148,14 +147,14 @@ describe('file tree drag and drop', () => {
       'application/x-nightowl-file-paths',
       JSON.stringify(['/workspace/src/a.md', '/workspace/src/b.md'])
     );
-    expect(deps.electronAPI.invoke).toHaveBeenCalledTimes(2);
-    expect(deps.electronAPI.invoke).toHaveBeenNthCalledWith(1, 'move-item', {
+    expect(moveItem).toHaveBeenCalledTimes(2);
+    expect(moveItem).toHaveBeenNthCalledWith(1, {
       sourcePath: '/workspace/src/a.md',
       targetPath: '/workspace/dest',
       operation: 'cut',
       type: 'file'
     });
-    expect(deps.electronAPI.invoke).toHaveBeenNthCalledWith(2, 'move-item', {
+    expect(moveItem).toHaveBeenNthCalledWith(2, {
       sourcePath: '/workspace/src/b.md',
       targetPath: '/workspace/dest',
       operation: 'cut',

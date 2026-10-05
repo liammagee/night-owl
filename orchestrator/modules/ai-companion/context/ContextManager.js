@@ -329,7 +329,7 @@ class ContextManager {
 
     async loadContextSettings() {
         try {
-            const settings = await window.electronAPI.invoke('get-settings');
+            const settings = await window.electronAPI.settings.getSettings();
             console.log('[ContextManager] 🔧 Loading context settings:', settings?.ai);
             
             if (settings && settings.ai) {

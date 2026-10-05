@@ -1,0 +1,57 @@
+name: Electron E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  required-smoke:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: night-owl
+
+    steps:
+      - name: Checkout NightOwl
+        uses: actions/checkout@v4
+        with:
+          path: night-owl
+
+      - name: Setup Python for native modules
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: night-owl/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check all built-in theme contracts and contrast
+        run: npm run theme:check
+
+      - name: Run required Electron smoke
+        run: npm run test:e2e
+
+      - name: Build unpacked macOS app
+        run: npm run dist:dir -- --mac --${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+        env:
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          npm_config_python: ${{ steps.setup-python.outputs.python-path }}
+
+      - name: Run packaged tutor-core smoke
+        run: npm run test:e2e:packaged
+        env:
+          NIGHTOWL_PACKAGED_APP: ${{ runner.arch == 'ARM64' && 'dist/mac-arm64/NightOwl.app' || 'dist/mac/NightOwl.app' }}

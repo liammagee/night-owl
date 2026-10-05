@@ -47,12 +47,12 @@ class TTSService {
   }
 
   async loadSettings(retryCount = 0) {
-    if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.invoke) {
+    if (typeof window !== 'undefined' && window.electronAPI?.speech?.test) {
       try {
         // First check if the handler is available by testing a simple TTS handler
-        await window.electronAPI.invoke('tts-test');
+        await window.electronAPI.speech.test();
         
-        const result = await window.electronAPI.invoke('tts-get-settings');
+        const result = await window.electronAPI.speech.getSettings();
         if (result.success) {
           this.settings = result.settings;
           this.applySettings();
@@ -89,7 +89,8 @@ class TTSService {
         language: 'en-us',
         speed: 1.0,
         response_format: 'mp3',
-        word_timestamps: false
+        word_timestamps: false,
+        region: 'global'
       },
       webSpeech: {
         rate: 1.0,
@@ -126,11 +127,11 @@ class TTSService {
     this.availabilityChecked = true;
 
     // Check Electron API first
-    if (window.electronAPI && window.electronAPI.invoke) {
+    if (window.electronAPI?.speech?.checkAvailability) {
       try {
         // First test if any IPC is working
         console.log('[TTS] Testing IPC connection...');
-        const testResult = await window.electronAPI.invoke('tts-test');
+        const testResult = await window.electronAPI.speech.test();
         console.log('[TTS] Test result:', testResult);
 
         // If TTS test works but settings weren't loaded, try to load them now
@@ -139,7 +140,7 @@ class TTSService {
           await this.loadSettings();
         }
 
-        const result = await window.electronAPI.invoke('tts-check-availability');
+        const result = await window.electronAPI.speech.checkAvailability();
         console.log('[TTS] Availability check result:', result);
         if (result.success && result.available) {
           this.useLemonfox = true;
@@ -332,7 +333,7 @@ class TTSService {
 
     try {
       // Use Lemonfox via Electron if available
-      if (this.useLemonfox && window.electronAPI && window.electronAPI.invoke) {
+      if (this.useLemonfox && window.electronAPI?.speech?.generateSpeech) {
         console.log('[TTS] Using Lemonfox.ai provider via Electron');
         return await this.speakWithLemonfoxImmediate(text, options, signal);
       }
@@ -519,13 +520,21 @@ class TTSService {
           language: options.language || lemonfoxSettings.language,
           speed: options.speed || lemonfoxSettings.speed,
           response_format: options.response_format || lemonfoxSettings.response_format,
-          word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps
+          word_timestamps: options.word_timestamps !== undefined ? options.word_timestamps : lemonfoxSettings.word_timestamps,
+          region: options.region || lemonfoxSettings.region
         };
         
-        console.log('[TTS-LEMONFOX] Request params:', requestParams);
+        console.log('[TTS-LEMONFOX] Request prepared:', {
+          characters: text.length,
+          voice: requestParams.voice,
+          language: requestParams.language,
+          format: requestParams.response_format,
+          timestamps: requestParams.word_timestamps,
+          region: requestParams.region
+        });
         console.log('[TTS-LEMONFOX] Invoking IPC handler tts-generate-speech...');
         
-        const result = await window.electronAPI.invoke('tts-generate-speech', requestParams);
+        const result = await window.electronAPI.speech.generateSpeech(requestParams);
         
         console.log('[TTS-LEMONFOX] IPC result received:', {
           success: result.success,
@@ -550,7 +559,11 @@ class TTSService {
         
         console.log('[TTS-LEMONFOX] Creating audio blob...');
         // Create audio element and play
-        const audioBlob = this.base64ToBlob(result.audioData, 'audio/mp3');
+        const audioTypes = {
+          mp3: 'audio/mpeg', opus: 'audio/opus', aac: 'audio/aac', flac: 'audio/flac',
+          pcm: 'audio/L16', ogg: 'audio/ogg', wav: 'audio/wav'
+        };
+        const audioBlob = this.base64ToBlob(result.audioData, audioTypes[result.format] || 'audio/mpeg');
         audioUrl = URL.createObjectURL(audioBlob);
         console.log('[TTS-LEMONFOX] Audio URL created:', audioUrl);
         
@@ -890,7 +903,11 @@ class TTSService {
 
   setVoice(voiceName) {
     // Check if it's a Lemonfox voice
-    const lemonfoxVoices = ['sarah', 'john', 'emily', 'michael'];
+    const lemonfoxVoices = [
+      'heart', 'bella', 'michael', 'alloy', 'aoede', 'kore', 'jessica', 'nicole', 'nova', 'river',
+      'sarah', 'sky', 'echo', 'eric', 'fenrir', 'liam', 'onyx', 'puck', 'adam', 'santa',
+      'alice', 'emma', 'isabella', 'lily', 'daniel', 'fable', 'george', 'lewis'
+    ];
     if (lemonfoxVoices.includes(voiceName.toLowerCase())) {
       this.lemonfoxVoice = voiceName.toLowerCase();
       console.log('[TTS] Lemonfox voice set to:', this.lemonfoxVoice);
@@ -938,9 +955,9 @@ class TTSService {
       this.applySettings();
       
       // Save to backend if available
-      if (window.electronAPI && window.electronAPI.invoke) {
+      if (window.electronAPI?.settings?.updateSettingsCategory) {
         try {
-          await window.electronAPI.invoke('update-settings-category', 'tts', newSettings);
+          await window.electronAPI.settings.updateSettingsCategory('tts', newSettings);
           console.log('[TTS] Settings updated and saved');
         } catch (error) {
           console.warn('[TTS] Could not save TTS settings:', error);

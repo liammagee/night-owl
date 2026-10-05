@@ -8,27 +8,27 @@ describe('ApiHelpers', () => {
 
     delete window.ApiHelpers;
     window.showNotification = jest.fn();
-    window.electronAPI = {
-      invoke: jest.fn()
-    };
+    delete window.electronAPI;
   });
 
-  test('shows a notification when invokeElectronAPI fails', async () => {
-    window.electronAPI.invoke.mockRejectedValueOnce(new Error('boom'));
+  test('shows a notification when a capability call fails', async () => {
+    const operation = jest.fn().mockRejectedValueOnce(new Error('boom'));
 
     require(apiHelpersPath);
 
-    await expect(window.ApiHelpers.invokeElectronAPI('broken-call')).rejects.toThrow('boom');
-    expect(window.showNotification).toHaveBeenCalledWith('Error calling broken-call', 'error');
+    await expect(window.ApiHelpers.callElectronAPI(operation, [], {
+      errorMessage: 'Error calling operation'
+    })).rejects.toThrow('boom');
+    expect(window.showNotification).toHaveBeenCalledWith('Error calling operation', 'error');
   });
 
-  test('respects showNotification=false when invokeElectronAPI fails', async () => {
-    window.electronAPI.invoke.mockRejectedValueOnce(new Error('boom'));
+  test('respects showNotification=false when a capability call fails', async () => {
+    const operation = jest.fn().mockRejectedValueOnce(new Error('boom'));
 
     require(apiHelpersPath);
 
     await expect(
-      window.ApiHelpers.invokeElectronAPI('broken-call', null, { showNotification: false })
+      window.ApiHelpers.callElectronAPI(operation, [], { showNotification: false })
     ).rejects.toThrow('boom');
 
     expect(window.showNotification).not.toHaveBeenCalled();

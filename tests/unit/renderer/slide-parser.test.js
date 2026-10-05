@@ -105,11 +105,17 @@ test.each([
     const source = read(file);
     const start = source.indexOf('  const extractSpeakerNotes =') >= 0
         ? source.indexOf('  const extractSpeakerNotes =') : source.indexOf('  var extractSpeakerNotes =');
+    const helpersEnd = source.indexOf('  const calculateAuthoringFocus =') >= 0
+        ? source.indexOf('  const calculateAuthoringFocus =') : source.indexOf('  var calculateAuthoringFocus =');
+    const parserStart = source.indexOf('  // Parse markdown into slides');
+    const parserEnd = source.indexOf('  // Initialize - wait for content', parserStart);
+    expect([start, helpersEnd, parserStart, parserEnd].every(index => index >= 0)).toBe(true);
     const context = {
         window: { NightOwlSlides: slides },
+        contentSecurity: require('../../../services/contentSecurity'),
         calculateSlidePosition: () => ({}), parseMarkdownContent: content => content
     };
-    vm.runInNewContext(source.slice(start, source.indexOf('  // Initialize - wait for content', start)) + '\nthis.parse = parseMarkdown;', context);
+    vm.runInNewContext(source.slice(start, helpersEnd) + source.slice(parserStart, parserEnd) + '\nthis.parse = parseMarkdown;', context);
     const result = context.parse('<!-- bg: /background.png -->\n' + markdown);
     expect(result).toHaveLength(2);
     expect(result[0].cleanContent).toBe('# First');

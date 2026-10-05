@@ -19,15 +19,58 @@ const {
   resolvePathWithinRoots,
   validatePathSegment
 } = require('./pathGuards');
+const {
+  hasExplicitScheme,
+  isAllowedExternalUrl
+} = require('../services/contentSecurity');
+const workspaceIndexHandlers = require('./workspaceIndexHandlers');
+const { convertWithDocling, findDoclingRuntime } = require('../services/doclingRuntime');
 
 const debug = createDebugLogger('FileHandlers');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
 const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
+let activeRegistrationCleanup = null;
+let activeRegistrationDiagnostics = null;
+
+function isPptxPath(filePath) {
+  return path.extname(String(filePath || '')).toLowerCase() === '.pptx';
+}
+
+function readFileForEditor(filePath) {
+  return isPptxPath(filePath) ? Promise.resolve('') : fs.readFile(filePath, 'utf8');
+}
+
+function cleanup() {
+  if (!activeRegistrationCleanup) return false;
+  const dispose = activeRegistrationCleanup;
+  activeRegistrationCleanup = null;
+  activeRegistrationDiagnostics = null;
+  dispose();
+  return true;
+}
+
+function getDiagnostics() {
+  return activeRegistrationDiagnostics?.() || {
+    watcher: 0,
+    timers: 0,
+    trackedFileStates: 0,
+    cachedScans: 0
+  };
+}
 
 async function statOrNull(filePath, fsApi = fs) {
   try {
     return await fsApi.stat(filePath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function lstatOrNull(filePath, fsApi = fs) {
+  try {
+    return await fsApi.lstat(filePath);
   } catch (error) {
     if (error && error.code === 'ENOENT') return null;
     throw error;
@@ -103,11 +146,25 @@ async function guardedWriteFile(filePath, content, options = {}, context = {}) {
   };
 }
 
+async function findAvailableFolderCopyPath(sourcePath, fsApi = fs) {
+  const parentPath = path.dirname(sourcePath);
+  const folderName = path.basename(sourcePath);
+
+  for (let copyNumber = 1; copyNumber < Number.MAX_SAFE_INTEGER; copyNumber += 1) {
+    const suffix = copyNumber === 1 ? ' copy' : ` copy ${copyNumber}`;
+    const candidatePath = path.join(parentPath, `${folderName}${suffix}`);
+    if (!await lstatOrNull(candidatePath, fsApi)) return candidatePath;
+  }
+
+  throw new Error('No available duplicate folder name could be found');
+}
+
 /**
  * Register all file system IPC handlers
  * @param {Object} deps - Dependencies from main.js
  */
 function register(deps) {
+  cleanup();
   const {
     appSettings,
     saveSettings,
@@ -128,6 +185,11 @@ function register(deps) {
   const FILE_SCAN_CACHE_TTL_MS = 10000;
   const availableFilesCache = new Map();
   const markdownFilesCache = new Map();
+  const doclingOptions = {
+    userDataPath,
+    resourcesPath: process.resourcesPath,
+    env: process.env
+  };
 
   function cloneFileList(files) {
     return (Array.isArray(files) ? files : []).map(file => {
@@ -159,6 +221,7 @@ function register(deps) {
   function clearFileScanCaches() {
     availableFilesCache.clear();
     markdownFilesCache.clear();
+    workspaceIndexHandlers.invalidate('file-handler-mutation');
   }
 
   function rememberFileState(filePath, stat) {
@@ -291,6 +354,18 @@ function register(deps) {
       stopWatchingCurrentFile();
     }
   }
+
+  activeRegistrationCleanup = () => {
+    stopWatchingCurrentFile();
+    clearFileScanCaches();
+    fileStateMap.clear();
+  };
+  activeRegistrationDiagnostics = () => ({
+    watcher: currentFileWatcher ? 1 : 0,
+    timers: currentFileWatchTimer ? 1 : 0,
+    trackedFileStates: fileStateMap.size,
+    cachedScans: availableFilesCache.size + markdownFilesCache.size
+  });
 
   function resolveMainWindow() {
     const allWindows = typeof BrowserWindow.getAllWindows === 'function'
@@ -586,6 +661,86 @@ function register(deps) {
       return {
         success: false,
         error: `Failed to create folder: ${error.message}`
+      };
+    }
+  });
+
+  ipcMain.handle('duplicate-folder', async (event, sourcePath) => {
+    try {
+      const sourceResult = resolveWorkspaceWritePath(sourcePath, 'Folder path');
+      if (!sourceResult.success) return pathGuardFailure(sourceResult, { sourcePath });
+      sourcePath = sourceResult.path;
+
+      const canonicalSourcePath = await fs.realpath(sourcePath);
+      const canonicalRootResults = await Promise.allSettled(
+        getWorkspaceWriteRoots().map(rootPath => fs.realpath(rootPath))
+      );
+      const canonicalWorkspaceRoots = canonicalRootResults
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value);
+      const canonicalSourceResult = resolvePathWithinRoots(
+        canonicalSourcePath,
+        canonicalWorkspaceRoots,
+        { label: 'Folder path' }
+      );
+      if (!canonicalSourceResult.success) {
+        return pathGuardFailure(canonicalSourceResult, { sourcePath });
+      }
+
+      if (getWorkspaceWriteRoots().some(rootPath => pathsEqual(rootPath, sourcePath))) {
+        return {
+          success: false,
+          error: 'A workspace root cannot be duplicated here. Select one of its subfolders instead.',
+          sourcePath
+        };
+      }
+
+      const sourceStats = await fs.lstat(sourcePath);
+      if (!sourceStats.isDirectory() || sourceStats.isSymbolicLink()) {
+        return {
+          success: false,
+          error: 'The selected item must be a regular folder',
+          sourcePath
+        };
+      }
+
+      let destinationPath;
+      while (true) {
+        destinationPath = await findAvailableFolderCopyPath(sourcePath);
+        const destinationResult = resolveWorkspaceWritePath(destinationPath, 'Duplicate folder path');
+        if (!destinationResult.success) {
+          return pathGuardFailure(destinationResult, { sourcePath, destinationPath });
+        }
+        destinationPath = destinationResult.path;
+
+        try {
+          await fs.cp(sourcePath, destinationPath, {
+            recursive: true,
+            force: false,
+            errorOnExist: true,
+            dereference: false
+          });
+          break;
+        } catch (error) {
+          if (error?.code === 'EEXIST') continue;
+          throw error;
+        }
+      }
+
+      clearFileScanCaches();
+      return {
+        success: true,
+        sourcePath,
+        destinationPath,
+        folderName: path.basename(destinationPath),
+        message: `Folder duplicated as "${path.basename(destinationPath)}"`
+      };
+    } catch (error) {
+      console.error(`[FileHandlers] Error duplicating folder ${sourcePath}:`, error);
+      return {
+        success: false,
+        error: `Failed to duplicate folder: ${error.message}`,
+        sourcePath
       };
     }
   });
@@ -980,7 +1135,7 @@ function register(deps) {
   ipcMain.handle('read-file-content', async (event, filePath) => {
     try {
       debug(`[FileHandlers] Reading file content: ${filePath}`);
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       
       return {
         success: true,
@@ -1061,7 +1216,7 @@ function register(deps) {
   ipcMain.handle('read-file', async (event, filePath) => {
     try {
       debug(`[FileHandlers] Reading file: ${filePath}`);
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1122,13 +1277,48 @@ function register(deps) {
     }
   });
 
+  ipcMain.handle('extract-text-with-replacement', async (event, request) => {
+    const originalResult = resolveWorkspaceWritePath(request.originalFilePath, 'Original file path');
+    if (!originalResult.success) return pathGuardFailure(originalResult);
+    const newFileResult = resolveWorkspaceWritePath(request.newFilePath, 'New file path');
+    if (!newFileResult.success) return pathGuardFailure(newFileResult);
+
+    try {
+      const originalContent = await fs.readFile(originalResult.path, 'utf8');
+      const occurrence = originalContent.indexOf(request.textToReplace);
+      if (occurrence < 0) {
+        return { success: false, error: 'Selected text no longer matches the saved source file' };
+      }
+      const updatedOriginalContent = [
+        originalContent.slice(0, occurrence),
+        request.replacementText,
+        originalContent.slice(occurrence + request.textToReplace.length)
+      ].join('');
+
+      await fs.mkdir(path.dirname(newFileResult.path), { recursive: true });
+      const newFileSave = await guardedWriteFile(newFileResult.path, request.newFileContent, {}, { fileStateMap });
+      if (!newFileSave.success) return newFileSave;
+      const originalSave = await guardedWriteFile(originalResult.path, updatedOriginalContent, {}, { fileStateMap });
+      if (!originalSave.success) return originalSave;
+      clearFileScanCaches();
+      return {
+        success: true,
+        originalFilePath: originalResult.path,
+        newFilePath: newFileResult.path,
+        updatedOriginalContent
+      };
+    } catch (error) {
+      return { success: false, error: `Failed to extract text: ${error.message}` };
+    }
+  });
+
   // File Opening Operations  
   ipcMain.handle('open-file', async (event, filePath) => {
     try {
       debug(`[FileHandlers] Opening file: ${filePath}`);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1161,7 +1351,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1195,7 +1385,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       
       // DO NOT update current file path - this is just for reading
       
@@ -1377,7 +1567,7 @@ function register(deps) {
       await fs.access(filePath);
       
       // Read the file content
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readFileForEditor(filePath);
       const stat = await statOrNull(filePath);
       rememberFileState(filePath, stat);
       
@@ -1805,26 +1995,29 @@ function register(deps) {
         return { success: false, error: 'No file or URL provided' };
       }
 
-      try {
-        const parsedUrl = new URL(targetPath);
-        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'mailto:') {
-          await shell.openExternal(targetPath);
-          debug(`[FileHandlers] Opened external URL: ${targetPath}`);
-          return { success: true, url: targetPath };
-        }
+      if (isAllowedExternalUrl(targetPath)) {
+        await shell.openExternal(targetPath);
+        debug(`[FileHandlers] Opened external URL: ${targetPath}`);
+        return { success: true, url: targetPath };
+      }
 
-        if (parsedUrl.protocol === 'file:') {
+      if (/^file:/i.test(targetPath)) {
+        try {
           const { fileURLToPath } = require('url');
-          const localPath = fileURLToPath(parsedUrl);
+          const localPath = fileURLToPath(targetPath);
           const openError = await shell.openPath(localPath);
           if (openError) {
             return { success: false, error: openError, filePath: localPath };
           }
           debug(`[FileHandlers] Opened external file URL: ${targetPath}`);
           return { success: true, filePath: localPath };
+        } catch (error) {
+          return { success: false, error: `Invalid file URL: ${error.message}` };
         }
-      } catch {
-        // Not a URL; treat it as a local filesystem path.
+      }
+
+      if (hasExplicitScheme(targetPath)) {
+        return { success: false, error: `Unsupported URL protocol: ${targetPath.split(':', 1)[0].toLowerCase()}:` };
       }
 
       const openError = await shell.openPath(targetPath);
@@ -2675,6 +2868,10 @@ function register(deps) {
   // Get all markdown files in the project (including all workspace folders)
   ipcMain.handle('get-markdown-files', async (event) => {
     try {
+      const indexed = await workspaceIndexHandlers.list({ extensions: ['.md', '.markdown'], limit: 50000 });
+      if (indexed?.success) {
+        return { success: true, files: indexed.files.map(file => file.path), indexed: true, status: indexed.status };
+      }
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
 
@@ -2746,101 +2943,10 @@ function register(deps) {
   });
 
   // --- Docling PDF to Markdown Conversion ---
-  // Convert PDF to Markdown using IBM's Docling library (requires Python)
+  // Convert PDF to Markdown through the managed or system Docling runtime.
   ipcMain.handle('convert-pdf-to-markdown', async (event, pdfPath) => {
-    const { spawn } = require('child_process');
-
     debug(`[FileHandlers] Converting PDF to Markdown: ${pdfPath}`);
-
-    return new Promise((resolve) => {
-      // Path to the docling conversion script
-      const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
-
-      // Try to find Python executable
-      const pythonCommands = ['python3', 'python'];
-
-      const tryPython = (pythonIdx) => {
-        if (pythonIdx >= pythonCommands.length) {
-          resolve({
-            success: false,
-            error: 'Python not found. Please install Python 3 and the docling package (pip install docling)',
-            install_instructions: {
-              python: 'https://www.python.org/downloads/',
-              docling: 'pip install docling'
-            }
-          });
-          return;
-        }
-
-        const pythonCmd = pythonCommands[pythonIdx];
-        const args = [scriptPath, pdfPath, '--json'];
-
-        debug(`[FileHandlers] Trying: ${pythonCmd} ${args.join(' ')}`);
-
-        const proc = spawn(pythonCmd, args, {
-          timeout: 300000, // 5 minute timeout for large PDFs
-          env: { ...process.env }
-        });
-
-        let stdout = '';
-        let stderr = '';
-
-        proc.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        proc.stderr.on('data', (data) => {
-          stderr += data.toString();
-          debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
-        });
-
-        proc.on('error', (err) => {
-          if (err.code === 'ENOENT') {
-            // Python command not found, try next
-            tryPython(pythonIdx + 1);
-          } else {
-            resolve({
-              success: false,
-              error: `Failed to run docling converter: ${err.message}`
-            });
-          }
-        });
-
-        proc.on('close', (code) => {
-          if (code === 0) {
-            try {
-              const result = JSON.parse(stdout);
-              resolve(result);
-            } catch (parseErr) {
-              // If not JSON, treat stdout as raw markdown
-              resolve({
-                success: true,
-                markdown: stdout,
-                metadata: { source_file: pdfPath }
-              });
-            }
-          } else {
-            // Check if it's a "command not found" type error
-            if (stderr.includes('No such file') || stderr.includes('not found')) {
-              tryPython(pythonIdx + 1);
-            } else {
-              try {
-                const result = JSON.parse(stdout);
-                resolve(result);
-              } catch {
-                resolve({
-                  success: false,
-                  error: stderr || `Conversion failed with exit code ${code}`,
-                  stdout: stdout
-                });
-              }
-            }
-          }
-        });
-      };
-
-      tryPython(0);
-    });
+    return convertWithDocling(pdfPath, doclingOptions);
   });
 
   // Open dialog to select PDF for conversion
@@ -2869,62 +2975,7 @@ function register(deps) {
       const pdfPath = result.filePaths[0];
       debug(`[FileHandlers] User selected PDF for import: ${pdfPath}`);
 
-      // Convert the PDF
-      const conversionResult = await new Promise((resolve) => {
-        // Emit the conversion event internally
-        const handler = ipcMain._events['convert-pdf-to-markdown'];
-        if (handler) {
-          // Call our handler directly
-          const { spawn } = require('child_process');
-          const scriptPath = path.join(__dirname, '..', 'scripts', 'docling-convert.py');
-
-          const proc = spawn('python3', [scriptPath, pdfPath, '--json'], {
-            timeout: 300000,
-            env: { ...process.env }
-          });
-
-          let stdout = '';
-          let stderr = '';
-
-          proc.stdout.on('data', (data) => { stdout += data.toString(); });
-          proc.stderr.on('data', (data) => {
-            stderr += data.toString();
-            debug(`[FileHandlers] Docling: ${data.toString().trim()}`);
-          });
-
-          proc.on('error', (err) => {
-            resolve({
-              success: false,
-              error: `Failed to run docling: ${err.message}`,
-              install_instructions: {
-                docling: 'pip install docling'
-              }
-            });
-          });
-
-          proc.on('close', (code) => {
-            if (code === 0) {
-              try {
-                resolve(JSON.parse(stdout));
-              } catch {
-                resolve({ success: true, markdown: stdout });
-              }
-            } else {
-              try {
-                resolve(JSON.parse(stdout));
-              } catch {
-                resolve({
-                  success: false,
-                  error: stderr || `Exit code ${code}`,
-                  install_instructions: stderr.includes('docling') ? { docling: 'pip install docling' } : null
-                });
-              }
-            }
-          });
-        } else {
-          resolve({ success: false, error: 'Handler not available' });
-        }
-      });
+      const conversionResult = await convertWithDocling(pdfPath, doclingOptions);
 
       return {
         ...conversionResult,
@@ -2939,33 +2990,13 @@ function register(deps) {
 
   // Check if docling is available
   ipcMain.handle('check-docling-available', async () => {
-    const { spawn } = require('child_process');
-
-    return new Promise((resolve) => {
-      const proc = spawn('python3', ['-c', 'import docling; print(docling.__version__ if hasattr(docling, "__version__") else "installed")'], {
-        timeout: 10000
-      });
-
-      let stdout = '';
-
-      proc.stdout.on('data', (data) => { stdout += data.toString(); });
-
-      proc.on('error', () => {
-        resolve({ available: false, reason: 'Python not found' });
-      });
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          resolve({ available: true, version: stdout.trim() });
-        } else {
-          resolve({
-            available: false,
-            reason: 'Docling not installed',
-            install_command: 'pip install docling'
-          });
-        }
-      });
-    });
+    const result = await findDoclingRuntime(doclingOptions);
+    return {
+      available: result.available,
+      version: result.version || null,
+      source: result.available ? result.source : null,
+      reason: result.available ? null : 'Docling not installed'
+    };
   });
 
   // --- Pandoc Word to Markdown Conversion ---
@@ -3286,13 +3317,17 @@ function register(deps) {
 
 module.exports = {
   register,
+  cleanup,
+  getDiagnostics,
   __testHooks: {
     SAVE_CONFLICT_CODE,
     statOrNull,
+    lstatOrNull,
     hasExternalModification,
     buildBackupFilePath,
     createFileBackup,
     guardedWriteFile,
+    findAvailableFolderCopyPath,
     resolvePathWithinRoots,
     validatePathSegment
   }

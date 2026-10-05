@@ -19,7 +19,7 @@
         '.md': 'markdown', '.markdown': 'markdown',
         '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
         '.ts': 'typescript', '.tsx': 'typescriptreact', '.jsx': 'javascriptreact',
-        '.json': 'json', '.jsonc': 'json',
+        '.json': 'json', '.jsonc': 'json', '.jsonl': 'json',
         '.html': 'html', '.htm': 'html',
         '.css': 'css', '.scss': 'scss', '.less': 'less',
         '.py': 'python',
@@ -357,7 +357,7 @@
          * Switch to a tab. Saves outgoing view state, swaps model, restores incoming state.
          * Syncs global variables so auto-save, preview, etc. continue to work.
          */
-        activateTab(filePath) {
+        activateTab(filePath, options = {}) {
             const tab = this.tabs.get(filePath);
             if (!tab) return;
 
@@ -406,10 +406,12 @@
             // Sync globals that auto-save and other systems depend on.
             // Untitled tabs must keep currentFilePath null so saveFile triggers save-as.
             const isUntitled = isUntitledPath(filePath);
-            setCurrentFileMirror(isUntitled ? null : filePath, {
-                syncMain: true,
-                clearDirectory: isUntitled
-            });
+            if (options.syncCurrentFile !== false) {
+                setCurrentFileMirror(isUntitled ? null : filePath, {
+                    syncMain: true,
+                    clearDirectory: isUntitled
+                });
+            }
             window.lastSavedContent = tab.lastSavedContent;
             window.hasUnsavedChanges = tab.isDirty;
 
@@ -435,7 +437,7 @@
             // pipeline can suppress this because it performs the file-type
             // specific render after the rest of the open state is synchronized.
             const content = editor.getValue();
-            if (!window.__suppressTabPreviewUpdate) {
+            if (!options.suppressPreviewUpdate && !window.__suppressTabPreviewUpdate) {
                 if (!isUntitled && tab.language === 'html' && typeof window.renderHTMLSourcePreview === 'function') {
                     window.renderHTMLSourcePreview(filePath, content);
                 } else if (typeof window.updatePreviewAndStructure === 'function') {
@@ -666,10 +668,10 @@
                 }
 
                 if (hasRecoverableTabs) {
-                    await window.electronAPI.invoke('recovery-persist', recoveryData);
+                    await window.electronAPI.recovery.recoveryPersist(recoveryData);
                 } else {
                     // No unsaved content — clear the recovery file
-                    await window.electronAPI.invoke('recovery-clear');
+                    await window.electronAPI.recovery.recoveryClear();
                 }
             } catch (err) {
                 console.warn('[TabManager] Recovery persist failed:', err);
@@ -679,7 +681,7 @@
         async _loadRecovery() {
             if (!window.electronAPI) return null;
             try {
-                const result = await window.electronAPI.invoke('recovery-load');
+                const result = await window.electronAPI.recovery.recoveryLoad();
                 if (!result?.success) throw new Error(result?.error || 'Recovery read was not confirmed');
                 if (result.data && (typeof result.data !== 'object' || Array.isArray(result.data))) {
                     throw new Error('Recovery data has an invalid format');
@@ -757,6 +759,11 @@
             const bar = document.getElementById('editor-tabs-bar');
             if (!bar) return;
 
+            bar.setAttribute('role', 'toolbar');
+            bar.setAttribute('aria-label', 'Open editor files');
+            bar.setAttribute('aria-orientation', 'horizontal');
+            bar.tabIndex = 0;
+
             if (this.tabOrder.length === 0) {
                 bar.style.display = 'none';
                 return;
@@ -776,43 +783,86 @@
                 el.className = 'editor-tab'
                     + (filePath === this.activeTabPath ? ' active' : '')
                     + (folderHint ? ' has-folder-hint' : '');
+                el.setAttribute('role', 'presentation');
                 el.dataset.filePath = filePath;
-                el.title = filePath;
+
+                const selectBtn = document.createElement('button');
+                selectBtn.type = 'button';
+                selectBtn.className = 'editor-tab-select';
+                selectBtn.setAttribute('aria-label', `Open ${tab.fileName}`);
+                selectBtn.setAttribute('aria-pressed', filePath === this.activeTabPath ? 'true' : 'false');
+                selectBtn.tabIndex = filePath === this.activeTabPath ? 0 : -1;
+                selectBtn.dataset.filePath = filePath;
+                selectBtn.title = filePath;
 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'editor-tab-name';
                 nameSpan.textContent = tab.fileName;
-                el.appendChild(nameSpan);
+                selectBtn.appendChild(nameSpan);
 
                 if (folderHint) {
                     const folderSpan = document.createElement('span');
                     folderSpan.className = 'editor-tab-folder';
                     folderSpan.textContent = folderHint;
                     folderSpan.title = filePath;
-                    el.appendChild(folderSpan);
+                    selectBtn.appendChild(folderSpan);
                 }
 
                 if (tab.isDirty) {
                     const dot = document.createElement('span');
                     dot.className = 'editor-tab-dirty';
                     dot.textContent = '●';
-                    el.appendChild(dot);
+                    dot.setAttribute('aria-hidden', 'true');
+                    selectBtn.appendChild(dot);
                 }
 
-                const closeBtn = document.createElement('span');
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
                 closeBtn.className = 'editor-tab-close';
                 closeBtn.textContent = '×';
-                closeBtn.title = 'Close';
+                closeBtn.setAttribute('aria-label', `Close ${tab.fileName}`);
+                closeBtn.dataset.tooltip = `Close ${tab.fileName}`;
                 closeBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.closeTab(filePath);
                 });
-                el.appendChild(closeBtn);
 
-                // Left click to activate
-                el.addEventListener('click', () => {
+                const activate = () => {
+                    const tab = this.tabs.get(filePath);
+                    if (tab && typeof window.openFileInEditor === 'function') {
+                        void window.openFileInEditor(filePath, tab.model.getValue(), {
+                            source: 'editor-tab'
+                        });
+                        return;
+                    }
                     this.activateTab(filePath);
+                };
+
+                // Left click and keyboard activation use the native button.
+                selectBtn.addEventListener('click', activate);
+                selectBtn.addEventListener('keydown', (event) => {
+                    let targetIndex = null;
+                    const index = this.tabOrder.indexOf(filePath);
+                    if (event.key === 'ArrowLeft') targetIndex = Math.max(0, index - 1);
+                    else if (event.key === 'ArrowRight') targetIndex = Math.min(this.tabOrder.length - 1, index + 1);
+                    else if (event.key === 'Home') targetIndex = 0;
+                    else if (event.key === 'End') targetIndex = this.tabOrder.length - 1;
+                    if (targetIndex === null || targetIndex === index) return;
+
+                    event.preventDefault();
+                    const targetPath = this.tabOrder[targetIndex];
+                    const target = Array.from(bar.querySelectorAll('.editor-tab-select'))
+                        .find(button => button.dataset.filePath === targetPath);
+                    target?.focus();
                 });
+
+                // Preserve delegated/programmatic wrapper clicks used by older callers.
+                el.addEventListener('click', (event) => {
+                    if (event.target === el) activate();
+                });
+
+                el.appendChild(selectBtn);
+                el.appendChild(closeBtn);
 
                 // Middle click to close
                 el.addEventListener('mousedown', (e) => {
@@ -890,7 +940,7 @@
                 const activeTabIndex = this.activeTabPath
                     ? this.tabOrder.indexOf(this.activeTabPath)
                     : 0;
-                await window.electronAPI.invoke('set-settings', 'editorTabs', {
+                await window.electronAPI.settings.setSettings('editorTabs', {
                     openTabs, activeTabIndex, activeTabPath: this.activeTabPath
                 });
             } catch (err) {
@@ -903,7 +953,7 @@
             this._restoringTabs = true;
             let restored = false;
             try {
-                const settings = await window.electronAPI.invoke('get-settings');
+                const settings = await window.electronAPI.settings.getSettings();
                 const tabSettings = settings?.editorTabs;
                 const savedTabs = Array.isArray(tabSettings?.openTabs) ? tabSettings.openTabs : [];
                 const activeIdx = Number.isInteger(tabSettings?.activeTabIndex) ? tabSettings.activeTabIndex : 0;
@@ -971,7 +1021,7 @@
 
                     let response;
                     try {
-                        response = await window.electronAPI.invoke('read-file', filePath);
+                        response = await window.electronAPI.files.readFile(filePath);
                     } catch (err) {
                         console.warn(`[TabManager] Could not read file: ${filePath}`, err);
                     }

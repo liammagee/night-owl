@@ -1,6 +1,24 @@
 // Speaker Notes Functions
 // Handles speaker notes extraction, display, and panel management
 
+function sanitizeSpeakerNotesHTML(html) {
+  if (window.NightOwlContentSecurity?.sanitizeRenderedHTML) {
+    return window.NightOwlContentSecurity.sanitizeRenderedHTML(html);
+  }
+  return String(html || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function setSpeakerNotesHTML(element, html) {
+  if (window.NightOwlContentSecurity?.setSanitizedHTML) {
+    return window.NightOwlContentSecurity.setSanitizedHTML(element, html);
+  }
+  element.textContent = String(html || '');
+  return element.textContent;
+}
+
 // Simple markdown to HTML converter for speaker notes
 function markdownToHtml(markdown) {
   if (!markdown || typeof markdown !== 'string') return '';
@@ -86,7 +104,7 @@ function markdownToHtml(markdown) {
   
   html = htmlParagraphs.filter(p => p).join('\n\n');
   
-  return html;
+  return sanitizeSpeakerNotesHTML(html);
 }
 
 // Speaker Notes Functions
@@ -135,7 +153,7 @@ async function showSpeakerNotesPanel(content, forceInline = false) {
         allNotes: allNotes
       };
       
-      const result = await window.electronAPI.invoke('open-speaker-notes-window', windowData);
+      const result = await window.electronAPI.presentation.openSpeakerNotesWindow(windowData);
       
       // Store notes for later updates and make them available to React component
       // Only create if React isn't already controlling it
@@ -216,9 +234,9 @@ function showInlineSpeakerNotesPanel(content) {
     const currentSlideNotes = allNotes[0] || ''; // Start with first slide
     
     if (currentSlideNotes) {
-      notesContainer.innerHTML = markdownToHtml(currentSlideNotes);
+      setSpeakerNotesHTML(notesContainer, markdownToHtml(currentSlideNotes));
     } else {
-      notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+      setSpeakerNotesHTML(notesContainer, '<em>No speaker notes for this slide.</em>');
     }
     
     console.log('[Speaker Notes] Panel shown with notes:', currentSlideNotes);
@@ -235,7 +253,7 @@ async function hideSpeakerNotesPanel() {
   // Close the separate window if it exists
   if (window.electronAPI) {
     try {
-      await window.electronAPI.invoke('close-speaker-notes-window');
+      await window.electronAPI.presentation.closeSpeakerNotesWindow();
       console.log('[Speaker Notes] Separate window closed');
     } catch (error) {
       console.error('[Speaker Notes] Failed to close separate window:', error);
@@ -279,7 +297,7 @@ async function updateSpeakerNotes(slideIndex, content) {
     
     try {
       const formattedNotes = currentSlideNotes ? markdownToHtml(currentSlideNotes) : '<em>No speaker notes for this slide.</em>';
-      const updateResult = await window.electronAPI.invoke('update-speaker-notes', {
+      const updateResult = await window.electronAPI.presentation.updateSpeakerNotes({
         notes: formattedNotes,
         slideNumber: slideIndex + 1
       });
@@ -288,7 +306,7 @@ async function updateSpeakerNotes(slideIndex, content) {
       if (!updateResult.success && updateResult.error === 'Speaker notes window not available') {
         // Recreate the window with the full speaker notes data
         try {
-          await window.electronAPI.invoke('open-speaker-notes-window', {
+          await window.electronAPI.presentation.openSpeakerNotesWindow({
             notes: formattedNotes,
             slideNumber: slideIndex + 1,
             allNotes: window.speakerNotesData.allNotes
@@ -311,9 +329,9 @@ async function updateSpeakerNotes(slideIndex, content) {
     const currentSlideNotes = allNotes[slideIndex] || '';
     
     if (currentSlideNotes) {
-      notesContainer.innerHTML = markdownToHtml(currentSlideNotes);
+      setSpeakerNotesHTML(notesContainer, markdownToHtml(currentSlideNotes));
     } else {
-      notesContainer.innerHTML = '<em>No speaker notes for this slide.</em>';
+      setSpeakerNotesHTML(notesContainer, '<em>No speaker notes for this slide.</em>');
     }
     
     console.log('[Speaker Notes] Updated inline panel for slide', slideIndex, ':', currentSlideNotes);

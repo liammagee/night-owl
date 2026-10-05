@@ -1,30 +1,15 @@
-const { test, expect, _electron: electron } = require('@playwright/test');
-const path = require('path');
+const { test, expect } = require('./fixtures/electron-app');
 
 test.describe('Editor Theme Inheritance', () => {
-  let app;
-  let window;
+  test('editor background does not inherit presentation bg-color when surface tokens are available', async ({ appPage }) => {
+    await appPage.evaluate(() => window.switchToMode('editor'));
+    await expect(appPage.locator('.monaco-editor')).toBeVisible();
 
-  test.beforeEach(async () => {
-    const { ELECTRON_RUN_AS_NODE, ...cleanEnv } = process.env;
-    app = await electron.launch({
-      args: [path.join(__dirname, '../..')],
-      env: { ...cleanEnv, NODE_ENV: 'test' }
-    });
-
-    window = await app.firstWindow();
-    await window.waitForLoadState('domcontentloaded');
-    await window.waitForSelector('.monaco-editor', { timeout: 15000 });
-  });
-
-  test.afterEach(async () => {
-    await app.close();
-  });
-
-  test('editor background does not inherit presentation bg-color when surface tokens are available', async () => {
-    await window.evaluate(() => {
-      const root = document.documentElement;
+    await appPage.evaluate(() => {
+      const root = document.body;
       root.style.setProperty('--bg-color', '#d1fae5'); // green presentation token
+      root.style.setProperty('--techne-bg', '#f3eee2'); // managed editor canvas token
+      root.style.setProperty('--editor-bg', '#f3eee2'); // explicit editor surface token
       root.style.setProperty('--surface', '#f3eee2'); // app/editor surface token
       root.style.setProperty('--panel-bg', '#f3eee2');
       root.style.setProperty('--surface-variant', '#ebe6dc');
@@ -38,9 +23,9 @@ test.describe('Editor Theme Inheritance', () => {
       }
     });
 
-    await window.waitForTimeout(200);
+    await appPage.waitForTimeout(200);
 
-    const state = await window.evaluate(() => {
+    const state = await appPage.evaluate(() => {
       const editorBgNode = document.querySelector('.monaco-editor .monaco-editor-background');
       const computedBg = editorBgNode ? getComputedStyle(editorBgNode).backgroundColor : null;
       return { computedBg };

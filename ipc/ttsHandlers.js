@@ -1,248 +1,134 @@
-// === TTS (Text-to-Speech) IPC Handlers ===
-// Handles TTS operations using Lemonfox.ai API
-
-const { createDebugLogger } = require('./logging');
-
-const debug = createDebugLogger('TTS');
-debug('Loading ttsHandlers.js module');
+'use strict';
 
 const { ipcMain } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const { Readable } = require('stream');
-const { finished } = require('stream/promises');
+const { createDebugLogger } = require('./logging');
+const { getCredentialStore } = require('../services/credentialStore');
+const { ENGLISH_VOICES, synthesizeSpeech } = require('../services/lemonfoxTts');
 
-// Use node-fetch for Node.js environment
-let fetch;
-try {
-  // Try to use native fetch if available (Node 18+)
-  fetch = globalThis.fetch;
-  if (!fetch) {
-    debug('Native fetch not available, trying node-fetch');
-    fetch = require('node-fetch');
-  }
-  debug('Fetch loaded successfully');
-} catch (e) {
-  console.error('[TTS] Error loading fetch:', e.message);
-  // Fall back to node-fetch
-  try {
-    fetch = require('node-fetch');
-    debug('Successfully loaded node-fetch as fallback');
-  } catch (e2) {
-    console.error('[TTS] Could not load node-fetch either:', e2.message);
-  }
-}
+const debug = createDebugLogger('TTS');
+const CREDENTIAL_SOURCE = 'lemonfox';
+const CREDENTIAL_NAME = 'api-key';
 
-/**
- * Register all TTS IPC handlers
- * @param {Object} deps - Dependencies from main.js
- */
-function register(deps) {
-  debug('TTS handlers register function called');
-  const { mainWindow, appSettings, defaultSettings } = deps;
-  
-  // Get API key from environment
-  const LEMONFOX_API_KEY = process.env.LEMONFOX_API_KEY;
-  
-  // Helper function to get TTS settings
+function register(deps = {}) {
+  const { appSettings, defaultSettings } = deps;
+  const credentialStore = deps.credentialStore || getCredentialStore();
+  const credentialReady = deps.userDataPath
+    ? credentialStore.initialize(deps.userDataPath)
+    : Promise.resolve();
+  const fetchImpl = deps.fetchImpl || globalThis.fetch;
+
   function getTTSSettings() {
+    return {
+      ...(defaultSettings?.tts || {}),
+      ...(appSettings?.tts || {}),
+      lemonfox: {
+        ...(defaultSettings?.tts?.lemonfox || {}),
+        ...(appSettings?.tts?.lemonfox || {})
+      }
+    };
+  }
+
+  async function getApiKey() {
+    if (process.env.LEMONFOX_API_KEY) return { value: process.env.LEMONFOX_API_KEY, source: 'environment' };
+    if (!deps.userDataPath) return { value: null, source: null };
+    await credentialReady;
+    return { value: await credentialStore.get(CREDENTIAL_SOURCE, CREDENTIAL_NAME), source: 'secure-storage' };
+  }
+
+  async function credentialStatus() {
+    const credential = await getApiKey();
+    const backend = typeof credentialStore.backendInfo === 'function'
+      ? credentialStore.backendInfo()
+      : { available: false, protected: false, backend: 'none' };
+    return {
+      success: true,
+      configured: Boolean(credential.value),
+      source: credential.source,
+      canStoreSecurely: Boolean(backend.available && backend.protected !== false),
+      backend: backend.backend || 'unknown'
+    };
+  }
+
+  async function generate(request) {
+    const credential = await getApiKey();
+    const settings = getTTSSettings().lemonfox || {};
+    return synthesizeSpeech(request, credential.value, { defaults: settings, fetchImpl });
+  }
+
+  ipcMain.handle('tts-generate-speech', async (_event, request = {}) => {
     try {
-      const defaults = defaultSettings?.tts || {};
-      const current = appSettings?.tts || {};
-      const merged = {
-        ...defaults,
-        ...current
-      };
-      debug('getTTSSettings - defaults:', defaults);
-      debug('getTTSSettings - current:', current);
-      debug('getTTSSettings - merged:', merged);
-      return merged;
+      return await generate(request);
     } catch (error) {
-      console.error('[TTS] Error in getTTSSettings:', error);
-      // Return minimal defaults if there's an error
-      return {
-        enabled: false,
-        provider: 'auto',
-        lemonfox: { voice: 'sarah', language: 'en-us', speed: 1.0, response_format: 'mp3', word_timestamps: false },
-        webSpeech: { rate: 1.0, pitch: 1.0, volume: 1.0, voice: null },
-        autoSpeak: true,
-        stopOnSlideChange: true,
-        cleanMarkdown: true,
-        speakSpeakerNotes: true
-      };
+      console.error('[TTS] Speech generation failed:', error.message);
+      return { success: false, error: error.message };
     }
-  }
-  
-  if (!LEMONFOX_API_KEY) {
-    debug('LEMONFOX_API_KEY not found in environment variables');
-  } else {
-    debug('LEMONFOX_API_KEY found, length:', LEMONFOX_API_KEY.length);
-  }
+  });
 
-  // Generate speech from text using Lemonfox.ai
-  ipcMain.handle('tts-generate-speech', async (event, { text, voice, language, speed, response_format, word_timestamps }) => {
-    debug('tts-generate-speech handler called');
-    debug('Text length:', text?.length || 0);
-    debug('Text preview:', text?.substring(0, 50) + '...');
-    
+  ipcMain.handle('tts-get-voices', async () => ({
+    success: true,
+    voices: ENGLISH_VOICES.map(id => ({
+      id,
+      name: id.charAt(0).toUpperCase() + id.slice(1),
+      lang: ['alice', 'emma', 'isabella', 'lily', 'daniel', 'fable', 'george', 'lewis'].includes(id) ? 'en-GB' : 'en-US'
+    }))
+  }));
+
+  ipcMain.handle('tts-get-settings', async () => ({ success: true, settings: getTTSSettings() }));
+
+  ipcMain.handle('tts-check-availability', async () => {
+    const status = await credentialStatus();
+    return { success: true, available: status.configured, provider: 'lemonfox', source: status.source };
+  });
+
+  ipcMain.handle('tts-credential-status', async () => credentialStatus());
+
+  ipcMain.handle('tts-set-api-key', async (_event, request = {}) => {
     try {
-      if (!LEMONFOX_API_KEY) {
-        console.error('[TTS-IPC] LEMONFOX_API_KEY not configured!');
-        throw new Error('LEMONFOX_API_KEY not configured');
+      const apiKey = String(request.apiKey || '').trim();
+      if (!apiKey || apiKey.length > 4096) throw new Error('Enter a valid Lemonfox API key.');
+      if (!deps.userDataPath) throw new Error('The NightOwl user data directory is unavailable.');
+      await credentialReady;
+      await credentialStore.set(CREDENTIAL_SOURCE, CREDENTIAL_NAME, apiKey);
+      return await credentialStatus();
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('tts-delete-api-key', async () => {
+    try {
+      if (process.env.LEMONFOX_API_KEY) {
+        return { success: false, error: 'The active key comes from LEMONFOX_API_KEY and must be removed from the launch environment.' };
       }
-
-      if (!text || text.trim().length === 0) {
-        console.error('[TTS-IPC] No text provided for TTS');
-        throw new Error('No text provided for TTS');
+      if (deps.userDataPath) {
+        await credentialReady;
+        await credentialStore.delete(CREDENTIAL_SOURCE, CREDENTIAL_NAME);
       }
+      return await credentialStatus();
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
 
-      const ttsSettings = getTTSSettings();
-      const lemonfoxSettings = ttsSettings.lemonfox;
-
-      // Use provided settings or fall back to configured defaults
-      const requestParams = {
-        input: text,
-        voice: voice || lemonfoxSettings.voice,
-        language: language || lemonfoxSettings.language,
-        speed: speed || lemonfoxSettings.speed,
-        response_format: response_format || lemonfoxSettings.response_format,
-        word_timestamps: word_timestamps !== undefined ? word_timestamps : lemonfoxSettings.word_timestamps
-      };
-
-      debug('Request parameters:', JSON.stringify(requestParams, null, 2));
-      debug('Making request to Lemonfox API...');
-
-      // Make request to Lemonfox.ai API
-      const response = await fetch("https://api.lemonfox.ai/v1/audio/speech", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${LEMONFOX_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestParams)
+  ipcMain.handle('tts-test-connection', async (_event, request = {}) => {
+    try {
+      const result = await generate({
+        text: 'NightOwl speech is ready.',
+        voice: request.voice,
+        language: request.language,
+        speed: request.speed,
+        response_format: 'mp3',
+        word_timestamps: false,
+        region: request.region
       });
-
-      debug('Response status:', response.status);
-      debug('Response headers:', Object.fromEntries(response.headers));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[TTS-IPC] Lemonfox API error:', errorText);
-        throw new Error(`Lemonfox API error: ${response.status} - ${errorText}`);
-      }
-
-      debug('Response OK, processing audio data...');
-
-      // Create temp file for audio
-      const tempDir = path.join(require('os').tmpdir(), 'nightowl-tts');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-
-      const audioFileName = `speech_${Date.now()}.mp3`;
-      const audioFilePath = path.join(tempDir, audioFileName);
-      
-      // Save audio to file
-      const arrayBuffer = await response.arrayBuffer();
-      debug('Audio array buffer size:', arrayBuffer.byteLength, 'bytes');
-      
-      const buffer = Buffer.from(arrayBuffer);
-      fs.writeFileSync(audioFilePath, buffer);
-      
-      debug(`Audio saved to: ${audioFilePath}`);
-
-      // Read file as base64 for sending to renderer
-      const audioBuffer = fs.readFileSync(audioFilePath);
-      const audioBase64 = audioBuffer.toString('base64');
-      debug('Base64 audio length:', audioBase64.length);
-      
-      // Clean up temp file after a delay
-      setTimeout(() => {
-        try {
-          fs.unlinkSync(audioFilePath);
-          debug(`Cleaned up temp file: ${audioFilePath}`);
-        } catch (err) {
-          console.warn(`[TTS-IPC] Could not clean up temp file: ${err.message}`);
-        }
-      }, 60000); // Clean up after 1 minute
-
-      debug('Returning success with audio data');
-      return {
-        success: true,
-        audioData: audioBase64,
-        format: 'mp3'
-      };
-
+      return { ...result, message: 'Lemonfox generated the test phrase.' };
     } catch (error) {
-      console.error('[TTS-IPC] Error generating speech:', error);
-      console.error('[TTS-IPC] Error stack:', error.stack);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   });
 
-  // Get available voices
-  ipcMain.handle('tts-get-voices', async (event) => {
-    // Lemonfox.ai voices - could be expanded based on their API documentation
-    return {
-      success: true,
-      voices: [
-        { id: 'sarah', name: 'Sarah', lang: 'en-US', gender: 'female' },
-        { id: 'john', name: 'John', lang: 'en-US', gender: 'male' },
-        { id: 'emily', name: 'Emily', lang: 'en-US', gender: 'female' },
-        { id: 'michael', name: 'Michael', lang: 'en-US', gender: 'male' },
-        { id: 'alice', name: 'Alice', lang: 'en-US', gender: 'female' }
-      ]
-    };
-  });
-
-  // Get TTS settings
-  try {
-    ipcMain.handle('tts-get-settings', async (event) => {
-      try {
-        const settings = getTTSSettings();
-        debug('Returning settings:', settings);
-        return {
-          success: true,
-          settings: settings
-        };
-      } catch (error) {
-        console.error('[TTS] Error getting TTS settings:', error);
-        return {
-          success: false,
-          error: error.message
-        };
-      }
-    });
-    debug('tts-get-settings handler registered successfully');
-  } catch (error) {
-    console.error('[TTS] Failed to register tts-get-settings handler:', error);
-  }
-
-  // Check if TTS is available
-  ipcMain.handle('tts-check-availability', async (event) => {
-    return {
-      success: true,
-      available: !!LEMONFOX_API_KEY,
-      provider: 'lemonfox'
-    };
-  });
-
-  // Add a simple test handler to verify registration works
-  ipcMain.handle('tts-test', async (event) => {
-    return { success: true, message: 'TTS handlers are working' };
-  });
-
-  debug('All TTS handlers registered successfully:');
-  debug('  - tts-generate-speech');
-  debug('  - tts-get-voices');
-  debug('  - tts-get-settings');
-  debug('  - tts-check-availability');
-  debug('  - tts-test');
+  ipcMain.handle('tts-test', async () => ({ success: true, message: 'TTS handlers are working' }));
+  debug('Registered Lemonfox TTS and credential handlers');
 }
 
-module.exports = {
-  register
-};
+module.exports = { register };

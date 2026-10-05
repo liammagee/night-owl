@@ -1,0 +1,115 @@
+.capability-health-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 125000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.capability-health-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(220px, 1fr) auto;
+    gap: 12px;
+    width: min(940px, 96vw);
+    max-height: 92vh;
+    padding: 20px;
+    overflow: hidden;
+    color: var(--text-primary, #e5e7eb);
+    background: var(--surface-primary, #202124);
+    border: 1px solid var(--border-color, #4b5563);
+    border-radius: 10px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.capability-health-header,
+.capability-health-actions,
+.capability-health-card header,
+.capability-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.capability-health-header { justify-content: space-between; }
+.capability-health-header h2 { margin: 0; font-size: 20px; }
+.capability-health-header p,
+.capability-health-privacy { margin: 3px 0 0; color: var(--text-secondary, #b8bec8); }
+
+.capability-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 10px;
+    overflow: auto;
+}
+
+.capability-health-card {
+    padding: 12px;
+    background: var(--surface-secondary, #15171a);
+    border: 1px solid var(--border-color, #374151);
+    border-left-width: 4px;
+    border-radius: 7px;
+}
+
+.capability-health-card[data-capability-status="available"] { border-left-color: #4caf7a; }
+.capability-health-card[data-capability-status="degraded"] { border-left-color: #d9a441; }
+.capability-health-card[data-capability-status="missing"] { border-left-color: #df6b66; }
+.capability-health-card[data-capability-status="unconfigured"] { border-left-color: #8391a6; }
+.capability-health-card header { justify-content: space-between; }
+.capability-health-card h3 { margin: 0; font-size: 14px; }
+.capability-health-card p { margin: 8px 0; }
+.capability-health-card code { display: block; overflow: hidden; color: var(--text-secondary, #b8bec8); text-overflow: ellipsis; white-space: nowrap; }
+.capability-alternatives { color: var(--text-secondary, #b8bec8); font-size: 11px; }
+
+.capability-status {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.capability-status-available { color: #9ee6b8; background: rgba(76, 175, 122, .16); }
+.capability-status-degraded { color: #f4ce83; background: rgba(217, 164, 65, .16); }
+.capability-status-missing { color: #ffaaa6; background: rgba(223, 107, 102, .16); }
+.capability-status-unconfigured { color: #c1cad8; background: rgba(131, 145, 166, .18); }
+
+.capability-health-actions { justify-content: flex-end; }
+.capability-health-action-status { margin-right: auto; color: var(--text-secondary, #b8bec8); }
+.capability-card-actions { flex-wrap: wrap; margin-top: 10px; }
+.capability-primary-button,
+.capability-secondary-button {
+    min-height: 32px;
+    padding: 5px 10px;
+    color: inherit;
+    background: var(--surface-secondary, #30343a);
+    border: 1px solid var(--border-color, #596273);
+    border-radius: 5px;
+    cursor: pointer;
+}
+.capability-primary-button { color: white; background: var(--accent-color, #3478c7); border-color: var(--accent-color, #3478c7); }
+.capability-primary-button:focus-visible,
+.capability-secondary-button:focus-visible { outline: 2px solid var(--accent-color, #60a5fa); outline-offset: 2px; }
+
+.capability-first-run-guidance {
+    position: fixed;
+    right: 18px;
+    bottom: 38px;
+    /* Keep setup guidance above the workspace, but below every modal surface. */
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(680px, calc(100vw - 36px));
+    padding: 10px 12px;
+    color: var(--text-primary, #e5e7eb);
+    background: var(--surface-primary, #202124);
+    border: 1px solid var(--border-color, #596273);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+}
+
+@media (max-width: 680px) {
+    .capability-health-overlay { padding: 8px; }
+    .capability-first-run-guidance { align-items: stretch; flex-direction: column; }
+}

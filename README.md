@@ -25,10 +25,13 @@ Download the latest release for your platform:
 
 - **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting and split preview
 - **Visual Markdown** - Inline image previews, collapsible code blocks, wiki-style `[[links]]`
+- **Microfiche Preview** - Scan long rendered documents as a paginated miniature grid, then select a frame to resume full-size reading at that section
 - **Presentation Mode** - Create and present slides directly from Markdown
+- **PowerPoint Files** - Preview complete PPTX decks through macOS Quick Look and open them directly in Microsoft PowerPoint (with system-open fallback elsewhere)
 - **Babel Maze** - MUD-style exploration of interconnected Markdown documents
 - **AI Integration** - Chat, summarization, and note extraction with multiple AI providers
-- **Citation Management** - SQLite-backed citation database with BibTeX support
+- **Citation Management** - SQLite-backed citations plus page-linked PDF annotations and provenance-rich research notes
+- **Structured Records** - Readable JSONL/CSV editing with optional task schemas, validation, and progress
 - **Graph Visualization** - Force-directed graph of document relationships
 - **Bundled Features** - App-native feature modules for presentation, preview, graph, maze, and feed workflows
 
@@ -40,7 +43,7 @@ git clone https://github.com/liammagee/night-owl.git
 cd night-owl
 
 # Install dependencies
-npm install
+npm ci
 
 # Run in development mode
 npm run electron-dev
@@ -51,7 +54,14 @@ npm run dist
 
 ## AI Configuration
 
-NightOwl supports multiple AI providers. To enable AI features:
+NightOwl uses signed-in command-line assistants for text AI by default:
+
+1. Install and sign in to [Codex CLI](https://learn.chatgpt.com/docs/codex-cli) and/or Claude CLI.
+2. Leave the assistant provider on `auto`. NightOwl tries `codex-cli`, then `claude-cli`.
+
+CLI requests run without tools in an isolated workspace. Direct API credentials are not inherited by these subprocesses. Automatic API fallback is off by default.
+
+API providers remain available as explicit alternatives. To configure one:
 
 1. Copy `.env.example` to `.env`
 2. Add your API key(s) for the provider(s) you want to use:
@@ -73,7 +83,9 @@ GROQ_API_KEY=gsk_your-key-here
 OPENROUTER_API_KEY=sk-or-your-key-here
 ```
 
-You only need to configure the providers you plan to use. The application auto-detects available providers.
+You only need to configure the API providers you deliberately plan to use. Select a named provider in AI settings, or opt in to automatic API fallback.
+
+The stateful tutor-stub CLI can also be launched from the Assistant terminal's `tutor` button. NightOwl auto-detects a sibling `machinespirits-eval` checkout; its path can be overridden in AI settings.
 
 ### AI Settings
 
@@ -81,7 +93,10 @@ Configure AI behavior in the Settings dialog or via `settings.json`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `preferredProvider` | Which AI to use (`auto`, `openai`, `anthropic`, `gemini`, `groq`, `openrouter`) | `auto` |
+| `preferredProvider` | Which AI to use (`auto`, `codex-cli`, `claude-cli`, or a named API provider) | `auto` |
+| `providerPriority` | CLI order used by `auto` | `['codex-cli', 'claude-cli']` |
+| `allowApiFallback` | Permit `auto` to use a configured API when both CLIs are unavailable | `false` |
+| `tutorStub.repositoryPath` | Optional path to a `machinespirits-eval` checkout | auto-detect |
 | `temperature` | Response creativity (0.0 - 2.0) | `0.7` |
 | `maxTokens` | Maximum response length | `2000` |
 
@@ -125,15 +140,26 @@ Found a bug or have a feature request?
 
 ## Contributing
 
-Contributions welcome! Please read our contributing guidelines before submitting PRs.
+Contributions welcome! Start with [CONTRIBUTING.md](CONTRIBUTING.md), the
+[architecture map](ARCHITECTURE.md), and the
+[build/release chain](docs/development/BUILD_AND_RELEASE.md).
 
 ```bash
-# Run tests
-npm run test:all
+# Run the complete local branch gate
+npm run ci:local
 
-# Run E2E tests (requires display)
-npm run test:e2e
+# Add distribution preflight for packaging changes
+npm run ci:local:release
+
+# Run deterministic startup/view performance budgets
+npm run benchmark:performance
+
+# After an unpacked build, verify packaged tutor-core storage
+NIGHTOWL_PACKAGED_APP=dist/mac-arm64/NightOwl.app npm run test:e2e:packaged
 ```
+
+Live engineering status belongs in the source-controlled
+[workplan board](workplan/BOARD.md), not in architecture notes.
 
 ## Related Projects
 

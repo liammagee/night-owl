@@ -50,16 +50,31 @@ describe('nightowl-presentations plugin', () => {
     const cssArgs = host.loadCSS.mock.calls.map(c => c[0]);
     expect(cssArgs.some(url => url.includes('preview-presentation.css'))).toBe(true);
     expect(cssArgs.some(url => url.includes('speaker-notes.css'))).toBe(true);
+    expect(host.loadCSS).toHaveBeenCalledWith(
+      expect.stringContaining('preview-presentation.css'),
+      { id: 'nightowl-presentations-preview-css' }
+    );
 
     const scriptsArg = host.loadScriptsSequential.mock.calls[0][0];
     expect(scriptsArg[0]).toContain('orchestrator/modules/slide-parser.js');
     // Scripts loaded (with optional cache-busting query params)
+    expect(scriptsArg.some(url => url.includes('presentation-viewport.js'))).toBe(true);
+    expect(scriptsArg.some(url => url.includes('presentation-preflight.js'))).toBe(true);
+    expect(scriptsArg.findIndex(url => url.includes('presentation-viewport.js')))
+      .toBeLessThan(scriptsArg.findIndex(url => url.includes('presentation-preflight.js')));
+    expect(scriptsArg.findIndex(url => url.includes('presentation-preflight.js')))
+      .toBeLessThan(scriptsArg.findIndex(url => url.includes('touch-gestures.js')));
     expect(scriptsArg.some(url => url.includes('ttsService.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('videoRecordingService.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('speaker-notes.js'))).toBe(true);
     expect(scriptsArg.some(url => url.includes('touch-gestures.js'))).toBe(true);
 
-    expect(document.body.querySelector('#speaker-notes-panel')).toBeTruthy();
+    const notesPanel = document.body.querySelector('#speaker-notes-panel');
+    expect(notesPanel).toBeTruthy();
+    expect(notesPanel.getAttribute('role')).toBe('region');
+    expect(notesPanel.getAttribute('aria-labelledby')).toBe('speaker-notes-title');
+    expect(notesPanel.querySelector('#current-slide-notes').getAttribute('role')).toBe('note');
+    expect(notesPanel.querySelector('#speaker-notes-resize-handle').getAttribute('role')).toBe('separator');
     expect(host.emit).toHaveBeenCalledWith('presentations:ready', { id: 'nightowl-presentations' });
   });
 

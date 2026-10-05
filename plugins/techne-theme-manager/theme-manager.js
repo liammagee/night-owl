@@ -7,6 +7,7 @@
     'use strict';
 
     const THEMES = window._TECHNE_THEMES || {};
+    const CONTRACT = window.TechneThemeContract;
     const STORAGE_KEY = 'techne-theme-active';
     const MANAGED_CLASSES = Object.values(THEMES)
         .map(t => t.bodyClass)
@@ -57,6 +58,12 @@
             return;
         }
 
+        const conformance = CONTRACT?.validateTheme(themeId, theme);
+        if (conformance && !conformance.valid) {
+            console.error('[techne-theme-manager] Theme failed conformance:', themeId, conformance.issues);
+            return false;
+        }
+
         const prev = _activeThemeId;
         _activeThemeId = themeId;
 
@@ -69,12 +76,14 @@
 
         // 2. Apply token overrides on :root
         const root = document.documentElement;
+        root.style.colorScheme = theme.colorScheme;
         // Clear any previous per-theme overrides
         root.style.cssText = root.style.cssText.replace(
             /--techne-[a-z-]+:\s*[^;]+;\s*/g, ''
         );
-        if (theme.tokens) {
-            Object.entries(theme.tokens).forEach(([prop, value]) => {
+        const resolvedTokens = conformance?.tokens || CONTRACT?.resolveTheme(theme) || theme.tokens;
+        if (resolvedTokens) {
+            Object.entries(resolvedTokens).forEach(([prop, value]) => {
                 root.style.setProperty(prop, value);
             });
         }
@@ -89,6 +98,7 @@
         document.dispatchEvent(
             new CustomEvent('techne-theme-changed', { detail: { themeId, prev } })
         );
+        return true;
     }
 
     function getActiveTheme() {
@@ -97,6 +107,10 @@
 
     function getThemes() {
         return { ...THEMES };
+    }
+
+    function getConformanceReport() {
+        return CONTRACT?.validateAll(THEMES) || null;
     }
 
     function detectSystemPreference() {
@@ -174,6 +188,7 @@
         applyTheme,
         getActiveTheme,
         getThemes,
+        getConformanceReport,
         detectSystemPreference,
         _init,
         _destroy

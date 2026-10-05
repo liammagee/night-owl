@@ -385,7 +385,7 @@ async function handleImageInsertion() {
   
   try {
     // Call the IPC handler to browse for image
-    const result = await window.electronAPI.invoke('browse-for-image');
+    const result = await window.electronAPI.images.browseForImage();
     
     if (!result.success) {
       if (!result.canceled) {

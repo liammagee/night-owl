@@ -60,7 +60,7 @@ function parseInternalLinks(content, filename) {
 async function getFileContentForParsing(filename) {
   try {
     if (window.electronAPI) {
-      const result = await window.electronAPI.invoke('read-file-content', filename);
+      const result = await window.electronAPI.files.readFileContent(filename);
       return result.success ? result.content : '';
     }
     return '';
@@ -244,14 +244,14 @@ function createNetworkVisualization(data) {
   // Add click handler to nodes
   node.on('click', (event, d) => {
     console.log('[Network] Node clicked:', d.name);
-    if (window.electronAPI && d.path) {
-      window.electronAPI.invoke('open-file-path', d.path)
+    if (d.path && window.openFilePathInEditor) {
+      window.openFilePathInEditor(d.path, { source: 'network' })
         .then(result => {
-          if (result.success) {
+          if (result?.status === 'committed') {
             console.log('[Network] File opened:', d.path);
             // Switch back to editor mode
             switchToMode('editor');
-          } else {
+          } else if (result?.status === 'failed') {
             console.error('[Network] Error opening file:', result.error);
           }
         })
@@ -409,7 +409,7 @@ function setupNetworkControls() {
 
 function updateNetworkOnFileChange() {
   console.log('[Network] File change detected, updating network...');
-  if (currentMode === 'network') {
+  if (window.currentMode === 'network') {
     refreshNetwork();
   }
 }

@@ -94,6 +94,9 @@
             const el = document.querySelector(`.file-tree-item.folder[data-path="${escaped}"]`);
             if (el) el.classList.add('folder-active');
         }
+        window.dispatchEvent(new CustomEvent('nightowl:active-folder-changed', {
+            detail: { folderPath: window.selectedFolderPath }
+        }));
     }
 
     window.NightOwlFileTreeState = {

@@ -10,6 +10,7 @@ const {
   pathExists
 } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
+const workspaceIndexHandlers = require('./workspaceIndexHandlers');
 
 /**
  * Register all search IPC handlers
@@ -346,6 +347,31 @@ function register(deps) {
       if (isPatternSearch) {
         debug(`Detected file pattern search: "${filePatternQuery}"`);
 
+        const indexedFiles = await workspaceIndexHandlers.list({ limit: 50000 });
+        if (indexedFiles?.success) {
+          const pattern = globToRegex(filePatternQuery);
+          const fileMatches = indexedFiles.files
+            .filter(file => pattern.test(file.name))
+            .slice(0, 500)
+            .map(file => ({
+              path: file.path,
+              name: file.name,
+              relativePath: file.relativePath,
+              sourceFolder: file.root,
+              isPrimaryFolder: file.root === workingDir,
+              isWorkspaceFolder: file.root !== workingDir,
+              format: file.format
+            }));
+          return {
+            success: true,
+            results: [],
+            fileMatches,
+            isFilePatternSearch: true,
+            indexed: true,
+            indexStatus: indexedFiles.status
+          };
+        }
+
         // Search for files by pattern
         let fileMatches = await searchFilesByPattern(workingDir, filePatternQuery, 100);
         fileMatches.forEach(file => {
@@ -379,6 +405,20 @@ function register(deps) {
       }
 
       // Regular content search
+      const indexedSearch = await workspaceIndexHandlers.search(searchQuery, options);
+      if (indexedSearch?.success) {
+        indexedSearch.results.forEach(result => {
+          result.isPrimaryFolder = result.sourceFolder === workingDir;
+          result.isWorkspaceFolder = result.sourceFolder !== workingDir;
+        });
+        return {
+          success: true,
+          results: indexedSearch.results,
+          indexed: true,
+          indexStatus: indexedSearch.status
+        };
+      }
+
       let allResults = await performGlobalSearch(searchQuery, workingDir, options);
 
       // Add source folder info to primary results
@@ -420,6 +460,9 @@ function register(deps) {
       }
       
       const result = await performGlobalReplace(searchQuery, replaceText, searchResults, options);
+      if (!options.previewOnly && result.modifiedFilePaths?.length) {
+        workspaceIndexHandlers.invalidate('global-replace');
+      }
       return { success: true, ...result };
     } catch (error) {
       console.error('[SearchHandlers] Error in global replace:', error);

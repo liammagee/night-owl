@@ -41,7 +41,9 @@ function loadAutosaveModule(overrides = {}) {
         tabs: new Map([[activeTab.filePath, activeTab]])
       },
       electronAPI: {
-        invoke: jest.fn(async () => ({ success: true }))
+        files: {
+          performSaveWithPath: jest.fn(async () => ({ success: true }))
+        }
       }
     },
     ...overrides.context
@@ -63,8 +65,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).toHaveBeenCalledWith(
-      'perform-save-with-path',
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenCalledWith(
       'changed',
       '/project/doc.md',
       { expectedContent: 'saved' }
@@ -100,7 +101,9 @@ describe('autosave module', () => {
             tabs: new Map()
           },
           electronAPI: {
-            invoke: jest.fn(async () => ({ success: true }))
+            files: {
+              performSaveWithPath: jest.fn(async () => ({ success: true }))
+            }
           }
         }
       }
@@ -108,7 +111,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(context.console.log).toHaveBeenCalledWith(
       '[performAutoSave] Save attempt',
       expect.objectContaining({
@@ -136,7 +139,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
     expect(context.window.hasUnsavedChanges).toBe(true);
     expect(context.console.log).toHaveBeenCalledWith(
@@ -173,7 +176,9 @@ describe('autosave module', () => {
             tabs: new Map([[activeTab.filePath, activeTab]])
           },
           electronAPI: {
-            invoke: jest.fn(async () => ({ success: true }))
+            files: {
+              performSaveWithPath: jest.fn(async () => ({ success: true }))
+            }
           }
         }
       }
@@ -181,7 +186,7 @@ describe('autosave module', () => {
 
     await context.window.performAutoSave();
 
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
     expect(context.window.hasUnsavedChanges).toBe(true);
   });
@@ -193,7 +198,7 @@ describe('autosave pending-write safety', () => {
   test('keeps edits typed during a save dirty against the saved version', async () => {
     const { context, activeTab, model } = loadAutosaveModule();
     let finish;
-    context.window.electronAPI.invoke.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    context.window.electronAPI.files.performSaveWithPath.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
     const pending = context.window.performAutoSave();
     await flushQueue();
     model.getValue.mockReturnValue('newer edits');
@@ -209,7 +214,7 @@ describe('autosave pending-write safety', () => {
   test('saving an outgoing tab cannot clear the incoming tab dirty state', async () => {
     const { context, activeTab } = loadAutosaveModule();
     let finish;
-    context.window.electronAPI.invoke.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    context.window.electronAPI.files.performSaveWithPath.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
     const pending = context.window.performAutoSave();
     await flushQueue();
     const other = { filePath: '/project/other.md', model: {}, lastSavedContent: 'other saved', isDirty: true };
@@ -229,17 +234,17 @@ describe('autosave pending-write safety', () => {
   test('serializes overlapping writes and saves newer edits last', async () => {
     const { context, model, activeTab } = loadAutosaveModule();
     let finish;
-    context.window.electronAPI.invoke.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    context.window.electronAPI.files.performSaveWithPath.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     const first = context.window.performAutoSave();
     await flushQueue();
     context.editor.getValue.mockReturnValue('newer');
     model.getValue.mockReturnValue('newer');
     const second = context.window.performAutoSave();
     await flushQueue();
-    expect(context.window.electronAPI.invoke).toHaveBeenCalledTimes(1);
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenCalledTimes(1);
     finish({ success: true });
     await Promise.all([first, second]);
-    expect(context.window.electronAPI.invoke).toHaveBeenNthCalledWith(2, 'perform-save-with-path', 'newer', '/project/doc.md', { expectedContent: 'changed' });
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenNthCalledWith(2, 'newer', '/project/doc.md', { expectedContent: 'changed' });
     expect(activeTab.lastSavedContent).toBe('newer');
     expect(activeTab.isDirty).toBe(false);
   });
@@ -291,7 +296,7 @@ describe('autosave target capture across queued work and tab changes', () => {
     const other = switchTab(context);
     release();
     await pending;
-    expect(context.window.electronAPI.invoke).toHaveBeenCalledWith('perform-save-with-path', 'changed', activeTab.filePath, { expectedContent: 'saved' });
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenCalledWith('changed', activeTab.filePath, { expectedContent: 'saved' });
     expect(activeTab.isDirty).toBe(false);
     expect(other.isDirty).toBe(true);
     expect(context.lastSavedContent).toBe('other saved');
@@ -306,7 +311,7 @@ describe('autosave target capture across queued work and tab changes', () => {
     context.window.hasUnsavedChanges = false;
     timer();
     await context.window._editorSaveQueue;
-    expect(context.window.electronAPI.invoke).toHaveBeenCalledWith('perform-save-with-path', 'changed', activeTab.filePath, { expectedContent: 'saved' });
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenCalledWith('changed', activeTab.filePath, { expectedContent: 'saved' });
     expect(activeTab.isDirty).toBe(false);
     expect(context.window.hasUnsavedChanges).toBe(false);
   });
@@ -317,11 +322,11 @@ describe('autosave target capture across queued work and tab changes', () => {
     switchTab(context);
     context.window.scheduleAutoSave();
     await context.window._editorSaveQueue;
-    expect(context.window.electronAPI.invoke).toHaveBeenNthCalledWith(1, 'perform-save-with-path', 'changed', '/project/doc.md', { expectedContent: 'saved' });
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenNthCalledWith(1, 'changed', '/project/doc.md', { expectedContent: 'saved' });
     expect(context.autoSaveTimer).not.toBeNull();
     context.setTimeout.mock.calls[1][0]();
     await context.window._editorSaveQueue;
-    expect(context.window.electronAPI.invoke).toHaveBeenNthCalledWith(2, 'perform-save-with-path', 'other edits', '/project/other.md', { expectedContent: 'other saved' });
+    expect(context.window.electronAPI.files.performSaveWithPath).toHaveBeenNthCalledWith(2, 'other edits', '/project/other.md', { expectedContent: 'other saved' });
   });
 
   test('queued autosave does not recreate a renamed file', async () => {
@@ -334,13 +339,13 @@ describe('autosave target capture across queued work and tab changes', () => {
     context.window.tabManager.tabs.set(activeTab.filePath, activeTab);
     release();
     await pending;
-    expect(context.window.electronAPI.invoke).not.toHaveBeenCalled();
+    expect(context.window.electronAPI.files.performSaveWithPath).not.toHaveBeenCalled();
     expect(activeTab.isDirty).toBe(true);
   });
 
   test('external-content conflicts preserve the recovered baseline and draft', async () => {
     const { context, activeTab } = loadAutosaveModule();
-    context.window.electronAPI.invoke.mockResolvedValue({ success: false, code: 'FILE_MODIFIED_EXTERNALLY' });
+    context.window.electronAPI.files.performSaveWithPath.mockResolvedValue({ success: false, code: 'FILE_MODIFIED_EXTERNALLY' });
     await context.window.performAutoSave();
     expect(activeTab.lastSavedContent).toBe('saved');
     expect(activeTab.isDirty).toBe(true);

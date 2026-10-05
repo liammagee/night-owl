@@ -1317,7 +1317,7 @@ Mode: ${context.tourMode} tour, ${context.isPaused ? 'paused for experimentation
 Be concise, friendly, and practical. Focus on the current feature. Use markdown formatting.`;
 
                     try {
-                        const response = await window.electronAPI.invoke('send-chat-message-with-options', {
+                        const response = await window.electronAPI.ai.sendChatMessageWithOptions({
                             message: question,
                             systemMessage: systemPrompt,
                             options: { temperature: 0.7, maxTokens: 400 }

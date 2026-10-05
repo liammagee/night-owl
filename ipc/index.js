@@ -2,6 +2,7 @@
 // Central registry for all IPC handlers organized by category
 
 const { ipcMain } = require('electron');
+const resourceLifecycle = require('../services/resourceLifecycle');
 const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('IPC');
@@ -16,6 +17,7 @@ const settingsHandlers = require('./settingsHandlers');
 const exportHandlers = require('./exportHandlers');
 const navigationHandlers = require('./navigationHandlers');
 const searchHandlers = require('./searchHandlers');
+const workspaceIndexHandlers = require('./workspaceIndexHandlers');
 const contextMenuHandlers = require('./contextMenuHandlers');
 const ttsHandlers = require('./ttsHandlers');
 const videoHandlers = require('./videoHandlers');
@@ -25,10 +27,35 @@ const gitHandlers = require('./gitHandlers');
 const terminalHandlers = require('./terminalHandlers');
 const spellcheckHandlers = require('./spellcheckHandlers');
 const advancedExportHandlers = require('./advancedExportHandlers');
-const collaborationHandlers = require('./collaborationHandlers');
 const staticSiteHandlers = require('./staticSiteHandlers');
+const publishingProfileHandlers = require('./publishingProfileHandlers');
 const performanceHandlers = require('./performanceHandlers');
 const feedHandlers = require('./feedHandlers');
+const pdfResearchHandlers = require('./pdfResearchHandlers');
+const capabilityHealthHandlers = require('./capabilityHealthHandlers');
+const presentationFileHandlers = require('./presentationFileHandlers');
+
+/**
+ * Register handler groups independently so an optional subsystem cannot leave
+ * the renderer without unrelated settings, file, or diagnostics channels.
+ */
+function registerHandlerGroups(groups) {
+  const failures = [];
+  for (const group of groups) {
+    try {
+      group.register();
+      debug(`${group.label} handlers registered`);
+    } catch (error) {
+      failures.push({ label: group.label, error });
+      console.error(`[IPC] Error registering ${group.label} handlers:`, error);
+    }
+  }
+  return {
+    success: failures.length === 0,
+    registered: groups.length - failures.length,
+    failures
+  };
+}
 
 /**
  * Register all IPC handlers
@@ -36,119 +63,52 @@ const feedHandlers = require('./feedHandlers');
  */
 function registerAllHandlers(dependencies) {
   debug('Registering all IPC handlers...');
-  
-  try {
-    // Register each category of handlers
-    aiHandlers.register(dependencies);
-    debug('AI handlers registered');
-    
-    fileHandlers.register(dependencies);
-    debug('File handlers registered');
-    
-    settingsHandlers.register(dependencies);
-    debug('Settings handlers registered');
-    
-    exportHandlers.register(dependencies);
-    debug('Export handlers registered');
-    
-    navigationHandlers.register(dependencies);
-    debug('Navigation handlers registered');
-    
-    searchHandlers.register(dependencies);
-    debug('Search handlers registered');
-    
-    contextMenuHandlers.register(dependencies);
-    debug('Context menu handlers registered');
-    
-    try {
-      ttsHandlers.register(dependencies);
-      debug('TTS handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering TTS handlers:', error);
-    }
-    
-    try {
-      videoHandlers.register(dependencies);
-      debug('Video recording handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering video handlers:', error);
-    }
-    
-    try {
-      citationHandlers.registerCitationHandlers(dependencies.userDataPath);
-      debug('Citation handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering citation handlers:', error);
-    }
-    
-    try {
-      imageHandlers.register(dependencies);
-      debug('Image handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering image handlers:', error);
-    }
+  const result = registerHandlerGroups([
+    { label: 'Workspace index', register: () => workspaceIndexHandlers.register(dependencies) },
+    { label: 'Capability health', register: () => capabilityHealthHandlers.register(dependencies) },
+    { label: 'AI', register: () => aiHandlers.register(dependencies) },
+    { label: 'File', register: () => fileHandlers.register(dependencies) },
+    { label: 'Settings', register: () => settingsHandlers.register(dependencies) },
+    { label: 'Export', register: () => exportHandlers.register(dependencies) },
+    { label: 'Navigation', register: () => navigationHandlers.register(dependencies) },
+    { label: 'Search', register: () => searchHandlers.register(dependencies) },
+    { label: 'Context menu', register: () => contextMenuHandlers.register(dependencies) },
+    { label: 'TTS', register: () => ttsHandlers.register(dependencies) },
+    { label: 'Video recording', register: () => videoHandlers.register(dependencies) },
+    { label: 'Citation', register: () => citationHandlers.registerCitationHandlers(dependencies.userDataPath) },
+    { label: 'PDF research', register: () => pdfResearchHandlers.register(dependencies) },
+    { label: 'PowerPoint files', register: () => presentationFileHandlers.register(dependencies) },
+    { label: 'Image', register: () => imageHandlers.register(dependencies) },
+    { label: 'Git', register: () => gitHandlers.register(dependencies) },
+    { label: 'Terminal', register: () => terminalHandlers.register(dependencies) },
+    { label: 'Spellcheck', register: () => spellcheckHandlers.register(dependencies) },
+    { label: 'Advanced export', register: () => advancedExportHandlers.register(dependencies) },
+    { label: 'Static site', register: () => staticSiteHandlers.register(dependencies) },
+    { label: 'Publishing profile', register: () => publishingProfileHandlers.register(dependencies) },
+    {
+      label: 'Performance',
+      register: () => performanceHandlers.register({
+        ...dependencies,
+        getResourceDiagnostics: () => ({
+          lifecycle: resourceLifecycle.getDiagnostics(),
+          handlers: {
+            feed: feedHandlers.getDiagnostics(),
+            file: fileHandlers.getDiagnostics(),
+            workspaceIndex: workspaceIndexHandlers.getDiagnostics(),
+            terminal: terminalHandlers.getDiagnostics()
+          }
+        })
+      })
+    },
+    { label: 'Research-feed', register: () => feedHandlers.register(dependencies) }
+  ]);
 
-    try {
-      gitHandlers.register(dependencies);
-      debug('Git handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering git handlers:', error);
-    }
-
-    try {
-      terminalHandlers.register(dependencies);
-      debug('Terminal handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering terminal handlers:', error);
-    }
-
-    try {
-      spellcheckHandlers.register(dependencies);
-      debug('Spellcheck handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering spellcheck handlers:', error);
-    }
-
-    try {
-      advancedExportHandlers.register(dependencies);
-      debug('Advanced export handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering advanced export handlers:', error);
-    }
-
-    try {
-      collaborationHandlers.register(dependencies);
-      debug('Collaboration handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering collaboration handlers:', error);
-    }
-
-    try {
-      staticSiteHandlers.register(dependencies);
-      debug('Static site handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering static site handlers:', error);
-    }
-
-    try {
-      performanceHandlers.register(dependencies);
-      debug('Performance handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering performance handlers:', error);
-    }
-
-    try {
-      feedHandlers.register(dependencies);
-      debug('Research-feed handlers registered');
-    } catch (error) {
-      console.error('[IPC] Error registering research-feed handlers:', error);
-    }
-
+  if (result.success) {
     debug('All IPC handlers registered successfully');
-  } catch (error) {
-    console.error('[IPC] Error registering handlers:', error);
-    throw error;
+  } else {
+    console.error(`[IPC] ${result.failures.length} handler group(s) failed; ${result.registered} remain available.`);
   }
+  return result;
 }
 
 /**
@@ -165,6 +125,21 @@ function getHandlerCount() {
  */
 function cleanupHandlers() {
   try {
+    workspaceIndexHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up workspace index handlers:', error);
+  }
+  try {
+    fileHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up file handlers:', error);
+  }
+  try {
+    terminalHandlers.cleanup();
+  } catch (error) {
+    console.error('[IPC] Error cleaning up terminal handlers:', error);
+  }
+  try {
     citationHandlers.cleanupCitationService();
     debug('Handlers cleaned up successfully');
   } catch (error) {
@@ -179,6 +154,7 @@ function cleanupHandlers() {
 
 module.exports = {
   registerAllHandlers,
+  registerHandlerGroups,
   getHandlerCount,
   cleanupHandlers
 };

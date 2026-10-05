@@ -26,6 +26,7 @@
         panelEl.style.cssText = 'display: none; height: 100%; flex-direction: column; overflow-y: auto; padding: 16px; gap: 16px;';
         panelEl.innerHTML = buildPanelHTML();
         rightPane.appendChild(panelEl);
+        window.NightOwlUIState?.render?.();
 
         return panelEl;
     }
@@ -307,51 +308,13 @@
     // ========================================================================
 
     function registerWithPaneSystem() {
-        // Patch window.showPane to support 'recognition' type
-        const originalShowPane = window.showPane;
-        window.showPane = function(paneType) {
-            if (paneType === 'recognition') {
-                hideAllPanes();
-                showRecognitionPane();
-                return;
-            }
-            // Hide recognition pane when switching to other panes
-            if (panelEl) {
-                panelEl.style.display = 'none';
-                panelEl.classList.add('pane-hidden');
-            }
-            if (originalShowPane) originalShowPane.call(this, paneType);
-        };
-
-        // Add recognition pane to the hide cycle (monkey-patch if available)
-        const origHideAll = window._hideAllRightPanes;
-        if (origHideAll) {
-            window._hideAllRightPanes = function() {
-                origHideAll();
-                if (panelEl) {
-                    panelEl.style.display = 'none';
-                    panelEl.classList.add('pane-hidden');
-                }
-            };
-        }
-    }
-
-    function hideAllPanes() {
-        const rightPane = document.querySelector('#right-pane > div');
-        if (!rightPane) return;
-        const panes = rightPane.querySelectorAll('.content-pane');
-        panes.forEach(p => {
-            p.style.display = 'none';
-            p.classList.add('pane-hidden');
+        window.addEventListener('nightowl-ui-state-changed', event => {
+            if (event.detail?.state?.activeRightPane === 'recognition') refreshPanel();
         });
     }
 
     function showRecognitionPane() {
-        if (!panelEl) return;
-        panelEl.style.display = '';
-        panelEl.style.display = 'flex';
-        panelEl.classList.remove('pane-hidden');
-        refreshPanel();
+        window.showPane?.('recognition');
     }
 
     // ========================================================================
@@ -372,7 +335,7 @@
             e.preventDefault();
             e.stopPropagation();
 
-            if (panelEl && panelEl.style.display !== 'none') {
+            if (window.NightOwlUIState?.getState?.().activeRightPane === 'recognition') {
                 // Currently showing - switch back to preview
                 window.showPane('preview');
             } else {
@@ -574,6 +537,7 @@
         createPanel();
         registerWithPaneSystem();
         addToolbarButton();
+        window.NightOwlUIState?.render?.();
 
         // Bind refresh button
         const refreshBtn = document.getElementById('recognition-refresh-btn');
@@ -591,7 +555,7 @@
     if (typeof window !== 'undefined') {
         window.RecognitionPanel = {
             refresh: refreshPanel,
-            show: () => window.showPane && window.showPane('recognition'),
+            show: showRecognitionPane,
         };
     }
 

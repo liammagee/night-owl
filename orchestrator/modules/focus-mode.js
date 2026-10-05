@@ -162,25 +162,13 @@
   }
 
   function init() {
-    // Command palette
-    if (window.commandPaletteCommands) {
-      window.commandPaletteCommands.push({
-        name: 'View: Toggle Focus Mode',
-        action: toggle
-      });
-      window.commandPaletteCommands.push({
-        name: 'View: Toggle Typewriter Scrolling',
-        action: toggleTypewriter
-      });
+    if (typeof window.registerCommand === 'function') {
+      window.registerCommand('view.focusMode', 'View: Toggle Focus Mode', toggle);
+      window.registerCommand('view.typewriterScrolling', 'View: Toggle Typewriter Scrolling', toggleTypewriter);
     }
 
-    // Keyboard shortcut: Cmd+. (Mac) / Ctrl+.
+    // Escape remains contextual; the registered action owns the global shortcut.
     document.addEventListener('keydown', (e) => {
-      if (e.key === '.' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
-        e.preventDefault();
-        toggle();
-      }
-      // Esc exits focus mode (only if focus mode is active and zen mode is not)
       if (e.key === 'Escape' && active && !document.body.classList.contains('zen-mode')) {
         deactivate();
       }
