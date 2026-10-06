@@ -116,6 +116,17 @@ describe('presentation preflight', () => {
     ]));
   });
 
+  test('respects the measured overflow tolerance instead of flagging tiny fits', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `<section class="slide" data-slide-index="0" data-content-overflow="false">
+      <div class="slide-content" data-content-scale="0.998"></div>
+    </section>`;
+    const slides = preflight.splitSlides('# One');
+    expect(preflight.analyzeRenderedSlides(root, slides).filter(item => item.code === 'overflow')).toEqual([]);
+    delete root.firstElementChild.dataset.contentOverflow;
+    expect(preflight.analyzeRenderedSlides(root, slides).some(item => item.code === 'overflow')).toBe(true);
+  });
+
   test('resolves local assets, reports missing files, and honors exact suppressions', async () => {
     const markdown = '# Assets\n\n![Diagram](../images/missing.png)\n\n---\n\n# Remote\n\n![Remote](https://example.com/image.png)';
     const root = document.createElement('div');

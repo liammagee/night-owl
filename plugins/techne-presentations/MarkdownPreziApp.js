@@ -219,37 +219,38 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     setContentScale = _useState2[1];
   var sanitizedHtml = sanitizeRenderedHTML(html);
   useLayoutEffect(function () {
+    var _document$fonts;
     var frame = frameRef.current;
     var element = contentRef.current;
     if (!frame || !element) return undefined;
     var slideElement = element.closest('.slide');
     var animationFrame = null;
+    var disposed = false;
     var measure = function measure() {
+      if (disposed) return;
       if (animationFrame) cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(function () {
         var _window$NightOwlPrese, _window$NightOwlPrese2, _window$NightOwlPrese3;
         animationFrame = null;
-        var availableWidth = Math.min(frame.clientWidth, element.clientWidth);
-        var availableHeight = Math.min(frame.clientHeight, element.clientHeight);
-        var descendants = Array.from(element.querySelectorAll('*'));
-        var contentWidth = descendants.reduce(function (maximum, child) {
-          return Math.max(maximum, child.scrollWidth || 0);
-        }, Math.max(availableWidth, element.scrollWidth));
-        var contentHeight = descendants.reduce(function (maximum, child) {
-          return Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0));
-        }, Math.max(availableHeight, element.scrollHeight));
+        // Natural, untransformed dimensions stay independent of canvas pan,
+        // zoom and the previous fit. Nested offsetTop values do not share an
+        // offset parent (notably table cells), so cannot be compared directly.
+        var availableWidth = frame.clientWidth;
+        var availableHeight = frame.clientHeight;
+        var contentWidth = element.scrollWidth;
+        var contentHeight = element.scrollHeight;
         var nextScale = (_window$NightOwlPrese = (_window$NightOwlPrese2 = window.NightOwlPresentationViewport) === null || _window$NightOwlPrese2 === void 0 || (_window$NightOwlPrese3 = _window$NightOwlPrese2.calculateContentScale) === null || _window$NightOwlPrese3 === void 0 ? void 0 : _window$NightOwlPrese3.call(_window$NightOwlPrese2, {
           availableWidth: availableWidth,
           availableHeight: availableHeight,
           contentWidth: contentWidth,
           contentHeight: contentHeight
         })) !== null && _window$NightOwlPrese !== void 0 ? _window$NightOwlPrese : 1;
-        var overflows = nextScale < 0.999;
+        var overflows = contentWidth > availableWidth + 2 || contentHeight > availableHeight + 2;
         if (slideElement) {
           slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
         }
         setContentScale(function (previous) {
-          return Math.abs(previous - nextScale) > 0.001 ? nextScale : previous;
+          return Math.abs(previous - nextScale) > 0.000001 ? nextScale : previous;
         });
       });
     };
@@ -257,6 +258,10 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     var resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
     resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(frame);
     resizeObserver === null || resizeObserver === void 0 || resizeObserver.observe(element);
+    // Template changes can widen a code block without changing the outer box.
+    Array.from(element.children).forEach(function (child) {
+      return resizeObserver === null || resizeObserver === void 0 ? void 0 : resizeObserver.observe(child);
+    });
     var mutationObserver = new MutationObserver(measure);
     mutationObserver.observe(element, {
       childList: true,
@@ -266,8 +271,10 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     element.querySelectorAll('img').forEach(function (image) {
       return image.addEventListener('load', measure);
     });
+    (_document$fonts = document.fonts) === null || _document$fonts === void 0 || _document$fonts.ready.then(measure);
     window.addEventListener('resize', measure);
     return function () {
+      disposed = true;
       if (animationFrame) cancelAnimationFrame(animationFrame);
       resizeObserver === null || resizeObserver === void 0 || resizeObserver.disconnect();
       mutationObserver.disconnect();
@@ -284,7 +291,8 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     style: {
       height: '100%',
       width: '100%',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }
   }, /*#__PURE__*/React.createElement("div", {
     ref: contentRef,
@@ -293,7 +301,7 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     style: {
       height: '100%',
       width: '100%',
-      transform: isPresenting ? "scale(".concat(contentScale, ")") : 'none',
+      transform: "scale(".concat(contentScale, ")"),
       transformOrigin: 'top left'
     },
     onClick: function onClick(event) {
@@ -303,7 +311,9 @@ var PresentationSlideContent = function PresentationSlideContent(_ref2) {
     dangerouslySetInnerHTML: {
       __html: sanitizedHtml
     }
-  }));
+  }), !isPresenting && contentScale < 0.75 && /*#__PURE__*/React.createElement("span", {
+    className: "slide-density-hint"
+  }, "Dense slide \xB7 consider splitting"));
 };
 var Home = function Home() {
   return /*#__PURE__*/React.createElement("svg", {
@@ -903,7 +913,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   }, []);
 
   // Calculate slide positioning based on layout type
-  var calculateSlidePosition = function calculateSlidePosition(index, total) {
+  var calculateSlidePosition = function calculateSlidePosition(index, total, spiralPositions) {
     var spacing = SLIDE_SPACING;
     switch (layoutType) {
       case 'linear':
@@ -927,16 +937,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           y: Math.sin(circleAngle) * circleRadius
         };
       case 'spiral':
-        if (index === 0) return {
-          x: 0,
-          y: 0
-        };
-        var spiralAngle = index / total * 4 * Math.PI;
-        var spiralRadius = SLIDE_HALF_WIDTH * 0.75 + index * (SLIDE_HALF_WIDTH * 0.6);
-        return {
-          x: Math.cos(spiralAngle) * spiralRadius,
-          y: Math.sin(spiralAngle) * spiralRadius
-        };
+        return spiralPositions[index];
       case 'tree':
         if (index === 0) return {
           x: 0,
@@ -1499,6 +1500,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       });
       // Empty documents and frontmatter-only files have no slides.
       var renderSlides = sourceSlides;
+      var spiralPositions = layoutType === 'spiral' ? presentationViewport.calculateSpiralPositions(renderSlides.length) : [];
       return renderSlides.map(function (sourceSlide, index) {
         var text = sourceSlide.markdown;
         var _extractSpeakerNotes = extractSpeakerNotes(text),
@@ -1515,7 +1517,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           backgroundImage: backgroundImage,
           title: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.title) || "Slide ".concat(index + 1),
           sourceLine: (sourceSlide === null || sourceSlide === void 0 ? void 0 : sourceSlide.startLine) || 1,
-          position: calculateSlidePosition(index, renderSlides.length),
+          position: calculateSlidePosition(index, renderSlides.length, spiralPositions),
           parsed: parseMarkdownContent(cleanContent)
         };
       });
@@ -1965,9 +1967,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Recalculate positions when layout changes
   useEffect(function () {
     if (slides.length > 0) {
+      var spiralPositions = layoutType === 'spiral' ? presentationViewport.calculateSpiralPositions(slides.length) : [];
       var updatedSlides = slides.map(function (slide, index) {
         return _objectSpread(_objectSpread({}, slide), {}, {
-          position: calculateSlidePosition(index, slides.length)
+          position: calculateSlidePosition(index, slides.length, spiralPositions)
         });
       });
       setSlides(updatedSlides);
