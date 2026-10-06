@@ -98,6 +98,23 @@ describe('presentation viewport geometry', () => {
     })).toBe(1);
   });
 
+  test.each([0, 1, 2, 4, 8, 12, 30, 100, 250])('spiral keeps every pair separated for %i slides', count => {
+    const positions = viewport.calculateSpiralPositions(count);
+    expect(positions).toHaveLength(count);
+    for (let i = 0; i < positions.length; i += 1) {
+      expect(Number.isFinite(positions[i].x + positions[i].y)).toBe(true);
+      for (let j = i + 1; j < positions.length; j += 1) {
+        expect(Math.abs(positions[i].x - positions[j].x) >= viewport.SLIDE_WIDTH + 120 ||
+          Math.abs(positions[i].y - positions[j].y) >= viewport.SLIDE_HEIGHT + 120).toBe(true);
+      }
+    }
+  });
+
+  test('adding slides preserves existing spiral positions', () => {
+    expect(viewport.calculateSpiralPositions(20).slice(0, 8))
+      .toEqual(viewport.calculateSpiralPositions(8));
+  });
+
   test('ships a manual overflow fixture covering delivery content and notes controls', () => {
     const fixture = fs.readFileSync(
       path.resolve(__dirname, '../../../fixtures/presentation-viewport-overflow.md'),
