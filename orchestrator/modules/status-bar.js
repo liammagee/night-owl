@@ -35,6 +35,7 @@ function updateStatusBar(content) {
     const charCountEl = document.getElementById('char-count');
     const lineCountEl = document.getElementById('line-count');
     const cursorPosEl = document.getElementById('cursor-position');
+    const slideCountEl = document.getElementById('slide-count');
 
     if (!content) content = '';
 
@@ -43,6 +44,20 @@ function updateStatusBar(content) {
     let isSelection = false;
 
     const editor = window.editor;
+    if (slideCountEl) {
+        const isMarkdown = window.currentFilePath
+            ? /\.(md|markdown)$/i.test(window.currentFilePath)
+            : (editor?.getModel?.()?.getLanguageId?.() || 'markdown') === 'markdown';
+        // Match the presentation parser, counting non-empty slides in the whole
+        // document even when the word/line counts describe a selection.
+        const slideCount = isMarkdown
+            ? content.replace(/[ \t]+$/gm, '')
+                .split(/(?:^|\n)---[ \t]*(?:\n|$)/)
+                .filter(slide => slide.trim()).length
+            : 0;
+        slideCountEl.textContent = `Slides: ${slideCount}`;
+        slideCountEl.style.display = slideCount > 1 ? '' : 'none';
+    }
     if (editor && editor.getSelection && editor.getModel) {
         const selection = editor.getSelection();
         if (selection && !selection.isEmpty()) {
@@ -139,6 +154,7 @@ function updateStatusBarWithKanban(totalTasks, doneTasks) {
     const charCountEl = document.getElementById('char-count');
     const lineCountEl = document.getElementById('line-count');
     const cursorPosEl = document.getElementById('cursor-position');
+    const slideCountEl = document.getElementById('slide-count');
 
     // Calculate progress
     const inProgressTasks = totalTasks - doneTasks;
@@ -147,6 +163,7 @@ function updateStatusBarWithKanban(totalTasks, doneTasks) {
     // Update status bar elements with Kanban stats
     if (wordCountEl) wordCountEl.textContent = `📋 Total Tasks: ${totalTasks}`;
     if (previewWordCountEl) previewWordCountEl.textContent = '';
+    if (slideCountEl) slideCountEl.style.display = 'none';
     if (charCountEl) charCountEl.textContent = `✅ Completed: ${doneTasks}`;
     if (lineCountEl) lineCountEl.textContent = `⏳ Remaining: ${inProgressTasks}`;
     if (cursorPosEl) cursorPosEl.textContent = `📊 Progress: ${progressPercent}%`;
