@@ -171,6 +171,8 @@ function createNetworkVisualization(data) {
     return null;
   }
   
+  // Release the previous simulation and activity subscription before rebuilding.
+  networkGraph?.dispose?.();
   // Clear previous visualization
   container.innerHTML = '';
   
@@ -300,11 +302,17 @@ function createNetworkVisualization(data) {
     event.subject.fy = null;
   }
   
+  const releaseActivity = window.nightowlRendererActivity?.trackSimulation(simulation);
+
   return {
     svg: svg,
     simulation: simulation,
     width: width,
-    height: height
+    height: height,
+    dispose() {
+      releaseActivity?.();
+      simulation.stop();
+    }
   };
 }
 

@@ -316,6 +316,7 @@ const fileTreeController = window.NightOwlFileTreeController?.createFileTreeCont
     requestSignature: () => window.electronAPI.files.getFileTreeSignature(),
     shouldPoll: context => {
         if (!window.electronAPI?.files?.getFileTreeSignature || document.visibilityState === 'hidden') return false;
+        if (window.nightowlRendererActivity?.isActive() === false) return false;
         if (context?.starting) return true;
         const view = document.getElementById('file-tree-view');
         return window.currentStructureView === 'file' && view && view.style.display !== 'none';
@@ -10395,6 +10396,7 @@ function shouldPollFileTreeSignature() {
         state.rendered &&
         !state.rendering &&
         document.visibilityState !== 'hidden' &&
+        window.nightowlRendererActivity?.isActive() !== false &&
         fileTreeView &&
         fileTreeView.style.display !== 'none'
     );
@@ -12874,8 +12876,8 @@ if (window.electronAPI) {
         }
     });
 
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
+    window.addEventListener('nightowl-activity-changed', () => {
+        if (window.nightowlRendererActivity?.isActive() === false) {
             stopFileTreeAutoRefreshPolling();
             return;
         }
