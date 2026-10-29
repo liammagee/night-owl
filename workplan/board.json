@@ -1,21 +1,22 @@
 {
-  "generated": "2026-08-11T00:10:49.765Z",
+  "generated": "2026-10-29T20:27:48.349Z",
   "counts": {
-    "total": 32,
+    "total": 33,
     "byStatus": {
+      "review": 1,
       "done": 32
     },
     "byPriority": {
+      "P2": 14,
       "P0": 4,
       "P1": 14,
-      "P2": 13,
       "P3": 1
     },
     "byArea": {
+      "editor": 4,
       "presentation": 5,
       "preview": 3,
       "platform": 7,
-      "editor": 3,
       "testing": 3,
       "packaging": 2,
       "security": 2,
@@ -26,6 +27,25 @@
     }
   },
   "items": [
+    {
+      "id": "pause-inactive-rendering",
+      "title": "Pause decorative rendering while NightOwl is inactive",
+      "status": "review",
+      "type": "bug",
+      "priority": "P2",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-10-29",
+      "updated": "2026-10-29",
+      "verification": "Electron checks show CSS animations and graph ticks pause on blur/hide, resume on focus, background saves continue, and visible presentations remain live.",
+      "tags": [
+        "performance",
+        "electron",
+        "regression"
+      ]
+    },
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",

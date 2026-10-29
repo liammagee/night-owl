@@ -269,6 +269,7 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
 ]);
 
 const ALLOWED_ON_CHANNELS = new Set([
+  'window-activity-changed',
   'ai-chat-stream-chunk',
   'change-layout',
   'citation-capture-request',
