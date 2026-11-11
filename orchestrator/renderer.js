@@ -7125,6 +7125,18 @@ function setPDFResearchStatus(message, state = 'ready') {
 
 window.updatePDFResearchStatus = setPDFResearchStatus;
 
+let pdfJsReady;
+
+function loadPackagedPDFJS() {
+    const buildUrl = new URL('node_modules/pdfjs-dist/legacy/build/', document.baseURI);
+    pdfJsReady ??= import(new URL('pdf.min.mjs', buildUrl).href).then(pdfjs => {
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.mjs', buildUrl).href;
+        window.pdfjsLib = pdfjs;
+        return pdfjs;
+    });
+    return pdfJsReady;
+}
+
 // Initialize PDF.js viewer
 async function initializePDFViewer(filePath, transition = null) {
     
@@ -7133,31 +7145,9 @@ async function initializePDFViewer(filePath, transition = null) {
             throw new Error('Packaged PDF annotation tools are unavailable. Reinstall or update NightOwl.');
         }
 
-        // The PDF.js module is packaged, but its ES module initialization is asynchronous.
-        if (typeof window.pdfjsLib === 'undefined') {
-            const startedAt = Date.now();
-            await new Promise((resolve, reject) => {
-                const checkPdfJs = () => {
-                    if (!isTransitionCurrent(transition) || typeof window.pdfjsLib !== 'undefined') {
-                        resolve();
-                    } else if (Date.now() - startedAt > 10000) {
-                        reject(new Error('Packaged PDF text extraction did not become available.'));
-                    } else {
-                        setTimeout(checkPdfJs, 100);
-                    }
-                };
-                checkPdfJs();
-            });
-        }
+        const pdfjsLib = await loadPackagedPDFJS();
         if (!isTransitionCurrent(transition)) return;
-        
-        const pdfjsLib = window.pdfjsLib;
-        
-        // Set up PDF.js worker (should already be set in HTML, but ensure it's correct)
-        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdfjs/pdf.worker.min.js';
-        }
-        
+
         // Initialize canvas and context
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
@@ -7170,7 +7160,12 @@ async function initializePDFViewer(filePath, transition = null) {
         
         loadingElement.style.display = 'block';
         
-        const pdf = await pdfjsLib.getDocument(`file://${filePath}`).promise;
+        const normalizedPath = window.electronAPI.platform === 'win32'
+            ? filePath.replace(/\\/g, '/')
+            : filePath;
+        const encodedPath = encodeURI(normalizedPath).replace(/#/g, '%23');
+        const fileUrl = normalizedPath.startsWith('//') ? `file:${encodedPath}` : `file://${encodedPath}`;
+        const pdf = await pdfjsLib.getDocument({ url: fileUrl, isEvalSupported: false }).promise;
         if (!isTransitionCurrent(transition)) return;
         pdfViewerState.doc = pdf;
         pdfViewerState.totalPages = pdf.numPages;
