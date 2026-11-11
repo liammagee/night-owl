@@ -3548,17 +3548,27 @@ function resolveBibliographyPath(bibPath, baseDir) {
 
 async function loadBibliographyForMarkdownFile(filePath, content, options = {}) {
     const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
-    const frontmatter = extractFrontmatter(content);
-    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
-    const signature = getBibliographySignature(filePath, bibliographyFiles);
+    const { bibliographyFiles: declaredFiles, signature } = getBibliographyConfigForContent(filePath, content);
+    const separator = filePath ? Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')) : -1;
+    const baseDir = separator >= 0 ? filePath.slice(0, separator + 1) : '';
+    const token = ++currentBibLoadToken;
+    let bibliographyFiles = declaredFiles;
+    if (!bibliographyFiles.length && baseDir) {
+        try {
+            const siblings = await window.electronAPI.files.listDirectoryFiles(baseDir);
+            bibliographyFiles = siblings.filter(file => file.isFile && /\.bib$/i.test(file.name))
+                .map(file => file.name).sort();
+        } catch (error) {
+            console.warn('[renderer.js] Could not list the document bibliography directory:', error);
+        }
+    }
 
+    if (token !== currentBibLoadToken || !isCurrent()) return true;
     if (!bibliographyFiles.length) {
-        if (isCurrent()) updateLastBibliographyConfig(filePath, signature);
+        updateLastBibliographyConfig(filePath, signature);
         return false;
     }
 
-    const baseDir = filePath?.substring(0, filePath.lastIndexOf('/')) || window.currentFileDirectory || '';
-    const token = ++currentBibLoadToken;
     const entries = [];
 
     for (const bibPath of bibliographyFiles) {
@@ -3588,8 +3598,7 @@ async function loadBibliographyForMarkdownFile(filePath, content, options = {}) 
         return true;
     }
 
-    // Sync .bib file entries into the citation database so they're searchable
-    if (entries.length > 0) {
+    if (declaredFiles.length && entries.length) {
         syncBibEntriesToDatabase(entries).catch(err =>
             console.warn('[renderer.js] Background bib→DB sync failed:', err)
         );
@@ -3613,7 +3622,7 @@ async function loadBibliographyForMarkdownFile(filePath, content, options = {}) 
 
 async function refreshBibliographyFromContent(filePath, content, options = {}) {
     const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
-    const { bibliographyFiles, signature } = getBibliographyConfigForContent(filePath, content);
+    const { signature } = getBibliographyConfigForContent(filePath, content);
     const sameFile = lastBibliographyConfig.filePath === filePath;
 
     if (sameFile && signature === lastBibliographyConfig.signature) {
@@ -3623,9 +3632,8 @@ async function refreshBibliographyFromContent(filePath, content, options = {}) {
     if (!isCurrent()) return false;
     updateLastBibliographyConfig(filePath, signature);
 
-    if (bibliographyFiles.length > 0) {
-        await loadBibliographyForMarkdownFile(filePath, content, { isCurrent });
-    } else {
+    const loaded = await loadBibliographyForMarkdownFile(filePath, content, { isCurrent });
+    if (!loaded && isCurrent()) {
         await loadBibTeXFiles({ isCurrent });
         if (isCurrent()) showBibliographyStatus(formatBibliographyStatus([]));
     }
@@ -3859,9 +3867,14 @@ async function loadBibTeXFiles(options = {}) {
     }
 }
 
-async function refreshCitationAutocompleteData(context = {}) {
+async function refreshCitationAutocompleteData() {
     try {
-        const updatedEntries = await loadBibTeXFiles();
+        const filePath = window.currentFilePath;
+        const model = window.editor?.getModel();
+        const isCurrent = () => window.currentFilePath === filePath && window.editor?.getModel() === model;
+        if (model?.getLanguageId() === 'markdown' && filePath &&
+            await loadBibliographyForMarkdownFile(filePath, model.getValue(), { isCurrent })) return;
+        if (isCurrent()) await loadBibTeXFiles({ isCurrent });
     } catch (error) {
         console.error('[renderer.js] Error refreshing citation autocomplete data:', error);
     }
@@ -3886,8 +3899,8 @@ function registerCitationAutocomplete() {
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
 
-            // Look for citation pattern: [@...] where we're after the [@
-            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
+            // Replace only the key after the last @ in the open citation group.
+            const citationMatch = textBeforePointer.match(/\[[^[\]]*?@-?([\w-]*)$/);
 
             if (!citationMatch) {
                 return { suggestions: [] };
@@ -3898,7 +3911,11 @@ function registerCitationAutocomplete() {
             // Filter entries based on search term (supports fuzzy matching)
             const searchLower = (searchTerm || '').toLowerCase();
             const _fuzzyMatch = typeof fuzzyMatchBest === 'function' ? fuzzyMatchBest : null;
-            const scoredEntries = bibEntries
+            const entriesByKey = new Map();
+            for (const entry of bibEntries) {
+                if (!entriesByKey.has(entry.key)) entriesByKey.set(entry.key, entry);
+            }
+            const scoredEntries = Array.from(entriesByKey.values())
                 .map(entry => {
                     if (!searchLower) return { entry, score: 0, match: true };
 
@@ -3975,7 +3992,7 @@ function registerCitationAutocomplete() {
                     const completionItem = {
                         label: entry.key,
                         kind: kind,
-                        insertText: entry.key + ']',
+                        insertText: entry.key + (currentLine[position.column - 1] === ']' ? '' : ']'),
                         detail: detail,
                         documentation: {
                             value: documentationParts.join('\n\n'),
@@ -3998,7 +4015,8 @@ function registerCitationAutocomplete() {
                     return completionItem;
                 });
             
-            return { suggestions: suggestions };
+            // Monaco must query again after @, since the first page is limited.
+            return { suggestions, incomplete: true };
         }
     });
     
@@ -4430,14 +4448,7 @@ async function initializeMonacoEditor() {
                 if (settings?.editor?.enableCitationAutocomplete !== false) {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
-                    // Load BibTeX files and register citation autocomplete
-                    loadBibTeXFiles().then(() => {
-                        registerCitationAutocomplete();
-                    }).catch(error => {
-                        console.error('[renderer.js] Error loading BibTeX files:', error);
-                        // Still try to register autocomplete even if loading fails
-                        registerCitationAutocomplete();
-                    });
+                    registerCitationAutocomplete();
                 } else {
                     citationOptions.autoClosingBrackets = 'beforeWhitespace';
                 }
@@ -4456,12 +4467,7 @@ async function initializeMonacoEditor() {
                 editor.updateOptions({
                     autoClosingBrackets: 'never'
                 });
-                loadBibTeXFiles().then(() => {
-                    registerCitationAutocomplete();
-                }).catch(error => {
-                    console.error('[renderer.js] Fallback BibTeX loading error:', error);
-                    registerCitationAutocomplete();
-                });
+                registerCitationAutocomplete();
                 
                 // Update available files and register file link autocomplete
                 updateAvailableFiles().then(() => {
