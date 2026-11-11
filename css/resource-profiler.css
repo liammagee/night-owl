@@ -1,0 +1,22 @@
+#resource-profiler-toggle { color: inherit; background: transparent; border: 0; font: inherit; cursor: pointer; padding: 2px 6px; }
+#resource-profiler-toggle[aria-expanded="true"] { color: var(--primary-color, #0f766e); font-weight: 600; }
+#resource-profiler { flex: 0 0 auto; max-height: 44vh; min-height: 180px; overflow: auto; padding: 12px 16px; border-top: 1px solid var(--border-color, #8885); background: var(--bg-primary, var(--background-color, #fff)); color: var(--text-primary, #222); font-size: 12px; }
+body.dark-mode #resource-profiler { background: var(--bg-primary, #202124); color: var(--text-primary, #eee); }
+#resource-profiler header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+#resource-profiler h2 { font-size: 14px; margin: 0 auto 0 0; }
+#resource-profiler button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--border-color, #8886); border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+#resource-profiler button:hover { background: #8882; }
+#resource-profiler button:focus-visible, #resource-profiler-toggle:focus-visible { outline: 2px solid var(--primary-color, #0f766e); outline-offset: 2px; }
+#resource-profiler .resource-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin: 10px 0; }
+#resource-profiler .resource-summary span, #resource-profiler .resource-summary strong { display: block; }
+#resource-profiler .resource-summary strong { font-size: 18px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+#resource-profiler .resource-charts { display: flex; gap: 24px; }
+#resource-profiler .resource-chart { flex: 1; min-width: 0; }
+#resource-profiler svg { display: block; width: 100%; height: 55px; }
+#resource-profiler svg path { stroke: var(--primary-color, #0f9b89); stroke-width: 2; fill: none; }
+#resource-profiler table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#resource-profiler th, #resource-profiler td { text-align: right; padding: 5px 8px; border-bottom: 1px solid #8883; white-space: nowrap; }
+#resource-profiler th:first-child, #resource-profiler td:first-child { text-align: left; }
+#resource-profiler .resource-note { opacity: .75; line-height: 1.45; }
+#resource-profiler .resource-trace-status { overflow-wrap: anywhere; }
+#resource-profiler pre { font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
