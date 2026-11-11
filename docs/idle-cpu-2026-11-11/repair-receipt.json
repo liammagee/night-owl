@@ -1,0 +1,58 @@
+{
+  "sourceApp": "/Applications/NightOwl.app",
+  "stagedApp": "/Users/lmagee/Dev/nightowl-artifacts/rendering-demand-20261111-v4/NightOwl.app",
+  "sourceAsarSha256": "6c67a2fa719d41cf2e73c41b8af1f036748912e458f628e88ee448120def6b2f",
+  "sourceHeaderHash": "088665991482d7941b538941acffbbc2d6b3ad69a789b43ef7a873e693295ea4",
+  "repairedHeaderHash": "ba087867a01751433e85aed51b109bcf0bbb5ec93fb3380b655fcdf1f6af73fe",
+  "preservedFiles": 12439,
+  "changedFiles": [
+    {
+      "file": "orchestrator/modules/renderer-activity.js",
+      "sha256": "182dc43a890b7fd61a92e5bf8c35c29b1f195ef33ee5b40e4f71e1a02bbcfcd0"
+    },
+    {
+      "file": "css/renderer-activity.css",
+      "sha256": "8de5e06119cb0bb6c3ca9c1e1b1719ab053305dc96c712dd18b1ad281b53e16a"
+    },
+    {
+      "file": "plugins/techne-backdrop/techne-backdrop.js",
+      "sha256": "3afc57a21ddb6c89b69e035749198b16185d71c88c1e2362e3eea0d338fb8a18"
+    },
+    {
+      "file": "plugins/techne-backdrop/fauna-overlay.js",
+      "sha256": "ee4336bec850225fd361d1e3c040a59aefd1731d6e74ea3c5657a96e1227d298"
+    },
+    {
+      "file": "ipc/performanceHandlers.js",
+      "sha256": "73c737796d73a5fd70c0cfc4e3c15cd1136fe0e78ea883e2ff273e6be1a2c086"
+    },
+    {
+      "file": "ipc/fileHandlers.js",
+      "sha256": "ee569c67d96b74e20b7f568a55db805b6e773b5a6022aff5f30bbe25867fa33e"
+    },
+    {
+      "file": "orchestrator/modules/gamification/world/LibraryExplorerView.js",
+      "sha256": "f3eb8f1b7c1e9c1640eb9bdd594a1abbd3578d9fb8878b1f487b8635728f6d6a"
+    },
+    {
+      "file": "orchestrator/modules/resource-profiler.js",
+      "sha256": "a7831a010b3e480c4889279050190adccf2759291916df9c9287c1d116bee8f6"
+    },
+    {
+      "file": "css/resource-profiler.css",
+      "sha256": "74625a1bb6f8181b950c9765fdacaf888ed9039309f2651203d0932a3ae2aca2"
+    },
+    {
+      "file": "services/fileTreeSnapshot.js",
+      "sha256": "5dfba2efcdf5205d40345ffbbcbd08ad24267aaf76932cc7b15d95952997204c"
+    },
+    {
+      "file": "index.html",
+      "sha256": "646ab15121d9dee0b8678e707206e32c0f566dfb322af0bf9cea6aad5bebbedb"
+    },
+    {
+      "file": "orchestrator/renderer.js",
+      "sha256": "aa3e7ac08d3d28908ff51c3c058865d28feb7c851a2e5d6305cfd39459ff9785"
+    }
+  ]
+}

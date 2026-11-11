@@ -3,6 +3,7 @@
 
 const { ipcMain, dialog, BrowserWindow } = require('electron');
 const crypto = require('crypto');
+const { createFileTreeSnapshot } = require('../services/fileTreeSnapshot');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -218,7 +219,10 @@ function register(deps) {
     });
   }
 
+  const fileTreeSnapshot = createFileTreeSnapshot();
+
   function clearFileScanCaches() {
+    fileTreeSnapshot.clear();
     availableFilesCache.clear();
     markdownFilesCache.clear();
     workspaceIndexHandlers.invalidate('file-handler-mutation');
@@ -357,10 +361,12 @@ function register(deps) {
 
   activeRegistrationCleanup = () => {
     stopWatchingCurrentFile();
+    fileTreeSnapshot.dispose();
     clearFileScanCaches();
     fileStateMap.clear();
   };
   activeRegistrationDiagnostics = () => ({
+    ...fileTreeSnapshot.getDiagnostics(),
     watcher: currentFileWatcher ? 1 : 0,
     timers: currentFileWatchTimer ? 1 : 0,
     trackedFileStates: fileStateMap.size,
@@ -785,7 +791,7 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('request-file-tree', async (event) => {
+  ipcMain.handle('request-file-tree', async (event, options = {}) => {
     try {
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
@@ -795,9 +801,10 @@ function register(deps) {
 
       // Build trees for all folders
       const trees = [];
+      const visibleDirectories = new Set();
 
       // Primary working directory
-      const primaryTree = await buildFileTree(workingDir);
+      const primaryTree = await buildFileTree(workingDir, options, visibleDirectories);
       primaryTree.isPrimary = true; // Mark as primary folder
       trees.push(primaryTree);
 
@@ -807,7 +814,7 @@ function register(deps) {
           // Verify folder exists
           const fsSync = require('fs');
           if (fsSync.existsSync(folderPath)) {
-            const folderTree = await buildFileTree(folderPath);
+            const folderTree = await buildFileTree(folderPath, options, visibleDirectories);
             folderTree.isWorkspaceFolder = true; // Mark as workspace folder
             trees.push(folderTree);
           } else {
@@ -817,6 +824,8 @@ function register(deps) {
           console.error(`[FileHandlers] Error building tree for workspace folder ${folderPath}:`, folderError);
         }
       }
+
+      fileTreeSnapshot.retain(visibleDirectories);
 
       // If only one folder, return it directly for backward compatibility
       if (trees.length === 1) {
@@ -845,11 +854,11 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('get-file-tree-signature', async () => {
+  ipcMain.handle('get-file-tree-signature', async (_event, options = {}) => {
     try {
       return {
         success: true,
-        signature: await getWorkspaceTreeSignature()
+        signature: await getWorkspaceTreeSignature(options)
       };
     } catch (error) {
       console.error('[FileHandlers] Error getting file tree signature:', error);
@@ -2247,7 +2256,16 @@ function register(deps) {
     }
   }
 
-  async function getWorkspaceTreeSignature() {
+  async function getWorkspaceTreeSignature(options = {}) {
+    if (options.lazy === true) {
+      const workingDir = getWorkingDirectory();
+      const roots = [workingDir, ...syncWorkspaceFolders(workingDir)];
+      const visible = new Set();
+      const trees = [];
+      for (const root of roots) trees.push(await buildFileTree(root, options, visible));
+      fileTreeSnapshot.retain(visible);
+      return getWorkspaceTreeSignatureFromTrees(trees);
+    }
     const workingDir = getWorkingDirectory();
     const workspaceFolders = syncWorkspaceFolders(workingDir);
     const roots = [workingDir, ...workspaceFolders];
@@ -2266,62 +2284,14 @@ function register(deps) {
     return hash.digest('hex');
   }
 
-  async function buildFileTree(dirPath) {
-    try {
-      const stats = await fs.stat(dirPath);
-      const name = path.basename(dirPath);
-
-      if (stats.isFile()) {
-        return {
-          name: name,
-          type: 'file',
-          path: dirPath
-        };
-      }
-
-      if (stats.isDirectory()) {
-        const children = [];
-        const entries = await fs.readdir(dirPath);
-
-        for (const entry of entries) {
-          if (shouldHideFileTreeEntry(entry)) continue;
-
-          const entryPath = path.join(dirPath, entry);
-          try {
-            const childTree = await buildFileTree(entryPath);
-            children.push(childTree);
-          } catch (error) {
-            // Skip files/directories we can't access
-            console.warn(`[FileHandlers] Skipping inaccessible path: ${entryPath}`);
-          }
-        }
-        
-        // Sort children: directories first, then files, both alphabetically
-        children.sort((a, b) => {
-          // First sort by type (directories before files)
-          if (a.type === 'directory' && b.type !== 'directory') return -1;
-          if (b.type === 'directory' && a.type !== 'directory') return 1;
-          
-          // Then sort alphabetically by name (case-insensitive)
-          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-        });
-        
-        return {
-          name: name || 'Root',
-          type: 'directory',
-          path: dirPath,
-          children: children
-        };
-      }
-    } catch (error) {
-      console.error(`[FileHandlers] Error building file tree for ${dirPath}:`, error);
-      return {
-        name: path.basename(dirPath),
-        type: 'error',
-        path: dirPath,
-        error: error.message
-      };
-    }
+  async function buildFileTree(dirPath, options = {}, visible = null) {
+    const snapshot = await fileTreeSnapshot.build(dirPath, {
+      expandedPaths: Array.isArray(options.expandedPaths) ? options.expandedPaths.filter(value => typeof value === 'string') : [],
+      recursive: options.lazy !== true || options.recursive === true,
+      shouldHide: shouldHideFileTreeEntry
+    });
+    for (const directory of snapshot.visible) visible?.add(directory);
+    return snapshot.tree;
   }
 
   async function getAvailableFiles(dirPath) {

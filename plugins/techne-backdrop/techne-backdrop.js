@@ -42,14 +42,6 @@
         }
     }
 
-    const prefersReducedMotion = (() => {
-        try {
-            return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-        } catch {
-            return false;
-        }
-    })();
-
     const faunaOverlayEl = document.getElementById('fauna-overlay');
     const faunaCanvas = document.getElementById('fauna-canvas');
 
@@ -57,6 +49,9 @@
     let faunaRunning = false;
     let animationFrameId = null;
     let isDestroyed = false;
+    let running = false;
+    let frameCount = 0;
+    let releaseVisualWork = null;
 
     const getAccent = () =>
         document.body.classList.contains('techne-accent-orange') || document.body.classList.contains('theme-orange')
@@ -66,7 +61,7 @@
     const startFauna = () => {
         if (faunaRunning || isDestroyed) return;
         if (!faunaOverlayEl || !faunaCanvas) return;
-        if (prefersReducedMotion) return;
+
 
         const ctor =
             (typeof FaunaOverlay === 'function' && FaunaOverlay) ||
@@ -88,37 +83,40 @@
         });
 
         faunaInstance?.setAccent?.(accent);
+        // A paused canvas does not receive resize events. Refresh dimensions on resume.
+        if (faunaInstance.width !== window.innerWidth || faunaInstance.height !== window.innerHeight) {
+            faunaInstance.onResize?.();
+        }
         faunaInstance?.start?.();
         faunaRunning = true;
     };
 
-    const stopFauna = () => {
+    const stopFauna = (preserveFrame = false) => {
         if (!faunaRunning) return;
         faunaRunning = false;
-        faunaOverlayEl?.classList.remove('active');
-        faunaInstance?.stop?.();
+        if (!preserveFrame) faunaOverlayEl?.classList.remove('active');
+        faunaInstance?.stop?.({ preserveFrame });
     };
 
     const syncAccent = () => {
         faunaInstance?.setAccent?.(getAccent());
     };
 
-    const syncVisibility = () => {
-        if (isDestroyed) return;
-        const techneOn =
-            document.body.classList.contains('techne-theme') ||
-            document.body.classList.contains('theme-dark') ||
-            document.body.classList.contains('theme-orange');
-        if (!techneOn) {
-            stopFauna();
-            return;
-        }
-        startFauna();
-        syncAccent();
+    const isVisible = () => {
+        if (isDestroyed || !backdropRoot.isConnected) return false;
+        const style = window.getComputedStyle(backdropRoot);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     };
 
-    const bodyObserver = new MutationObserver(() => syncVisibility());
-    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    const syncVisibility = () => {
+        if (isDestroyed) return;
+        syncAccent();
+        window.nightowlRendererActivity?.refresh();
+    };
+    // Observe eligibility inputs only, never the animated descendant styles.
+    const bodyObserver = new MutationObserver(syncVisibility);
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+    bodyObserver.observe(backdropRoot, { attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
 
     // === Parallax shapes ===
     const shapesLayer = document.getElementById('shapesLayer');
@@ -146,17 +144,15 @@
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
 
-    let lastTime = performance.now();
+    let previousFrameTime = null;
+    let animationTime = 0;
     const animate = (now) => {
-        if (isDestroyed) return;
-
-        const techneOn =
-            document.body.classList.contains('techne-theme') ||
-            document.body.classList.contains('theme-dark') ||
-            document.body.classList.contains('theme-orange');
-        lastTime = now;
-
-        if (techneOn && !prefersReducedMotion) {
+        animationFrameId = null;
+        if (isDestroyed || !running) return;
+        frameCount++;
+        if (previousFrameTime !== null) animationTime += Math.min(100, now - previousFrameTime);
+        previousFrameTime = now;
+        {
             const dx = mouseX - 0.5;
             const dy = mouseY - 0.5;
 
@@ -165,21 +161,22 @@
                 const tx = dx * 80 * depth;
                 const ty = dy * 60 * depth;
                 const rot = shape.baseRot + dx * 24 * depth;
-                shape.el.style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+                const transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+                if (shape.el.style.transform !== transform) shape.el.style.transform = transform;
             }
 
             rotatingShapes.forEach((el, idx) => {
                 const depth = 0.6 + idx * 0.12;
                 const tx = dx * 22 * depth;
                 const ty = dy * 16 * depth;
-                const rot = (now / 1000) * (12 + idx * 4) * (idx % 2 === 0 ? 1 : -1);
+                const rot = (animationTime / 1000) * (12 + idx * 4) * (idx % 2 === 0 ? 1 : -1);
                 el.style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
             });
 
             if (faunaCanvas) {
                 const driftX = dx * 10;
                 const driftY = dy * 10;
-                const rot = (now / 1000) * 0.8;
+                const rot = (animationTime / 1000) * 0.8;
                 faunaCanvas.style.transform = `translate(${driftX.toFixed(2)}px, ${driftY.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
             }
         }
@@ -187,8 +184,25 @@
         animationFrameId = requestAnimationFrame(animate);
     };
 
-    animationFrameId = requestAnimationFrame(animate);
-
+    const stopVisuals = () => {
+        running = false;
+        if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+        previousFrameTime = null;
+        stopFauna(true);
+    };
+    releaseVisualWork = window.nightowlRendererActivity?.trackVisualWork({
+        name: 'theme-backdrop', isEligible: isVisible,
+        start() {
+            if (isDestroyed || running) return;
+            running = true;
+            startFauna();
+            animationFrameId = requestAnimationFrame(animate);
+        },
+        stop: stopVisuals
+    });
+    // If the activity controller is unavailable, keep the decoration static.
+    // Failing closed must never create an unmanaged perpetual render loop.
     syncVisibility();
 
     // Expose destroy function for cleanup
@@ -196,6 +210,10 @@
         destroy: () => {
             if (isDestroyed) return;
             isDestroyed = true;
+
+            releaseVisualWork?.();
+            releaseVisualWork = null;
+            stopVisuals();
 
             // Stop animation loop
             if (animationFrameId) {
@@ -205,6 +223,7 @@
 
             // Stop fauna overlay
             stopFauna();
+            faunaOverlayEl?.classList.remove('active');
             if (faunaInstance) {
                 faunaInstance = null;
             }
@@ -240,6 +259,7 @@
             // Clear global reference
             delete window.TechneBackdrop;
         },
-        isActive: () => !isDestroyed
+        isActive: () => !isDestroyed,
+        getDiagnostics: () => ({ running, frameCount, faunaRunning, pendingFrame: animationFrameId !== null })
     };
 })();

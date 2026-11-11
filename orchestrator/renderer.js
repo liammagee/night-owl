@@ -304,16 +304,22 @@ const getFileClipboardPaths = fileTreeState?.getClipboardPaths || (() => []);
 const hasFileClipboardItems = fileTreeState?.hasClipboardItems || (() => false);
 const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 files');
 const fileTreeController = window.NightOwlFileTreeController?.createFileTreeController?.({
-    requestTree: () => {
+    requestTree: async () => {
         if (!window.electronAPI?.files?.requestFileTree) throw new Error('File capability not available');
-        return window.electronAPI.files.requestFileTree();
+        const filtering = Boolean(fileTreeSearchQuery || activeTagFilters.size);
+        if (filtering) {
+            // Cross-folder tag search is explicit demand; ordinary browsing never indexes.
+            const indexed = await window.electronAPI.search?.workspaceIndexList?.({ extensions: ['.md', '.markdown'], limit: 50000 });
+            if (indexed?.success) window.tagManager?.hydrateIndexedFiles?.(indexed.files);
+        }
+        return window.electronAPI.files.requestFileTree({ lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: filtering });
     },
     renderTree: fileTree => {
         window.fileTreeData = fileTree;
         renderFileTreeData(fileTree);
         updateAvailableFiles(fileTree);
     },
-    requestSignature: () => window.electronAPI.files.getFileTreeSignature(),
+    requestSignature: () => window.electronAPI.files.getFileTreeSignature({ lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: Boolean(fileTreeSearchQuery || activeTagFilters.size) }),
     shouldPoll: context => {
         if (!window.electronAPI?.files?.getFileTreeSignature || document.visibilityState === 'hidden') return false;
         if (window.nightowlRendererActivity?.isActive() === false) return false;
@@ -4026,18 +4032,20 @@ function registerCitationAutocomplete() {
 let availableFiles = [];
 
 // Function to update the available files list
-async function updateAvailableFiles(fileTreeOverride = null) {
+async function updateAvailableFiles(fileTreeOverride = null, complete = false) {
     if (!fileTreeOverride && !window.fileTreeData && !window.electronAPI) {
         return;
     }
     
     try {
-        const fileTree = fileTreeOverride || window.fileTreeData || await window.electronAPI.files.requestFileTree();
+        const fileTree = complete
+            ? await window.electronAPI.files.requestFileTree({ lazy: true, recursive: true })
+            : fileTreeOverride || window.fileTreeData || await window.electronAPI.files.requestFileTree({ lazy: true });
         if (!fileTree) {
             return;
         }
 
-        window.fileTreeData = fileTree;
+        if (!complete) window.fileTreeData = fileTree;
         availableFiles = [];
         
         // Recursively extract all files from the tree
@@ -4076,7 +4084,7 @@ function registerFileLinkAutocomplete() {
     
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['['],
-        provideCompletionItems: function(model, position) {
+        provideCompletionItems: async function(model, position) {
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
@@ -4088,6 +4096,8 @@ function registerFileLinkAutocomplete() {
                 return { suggestions: [] };
             }
             
+            // Cross-folder completion is loaded only when a link is requested.
+            await updateAvailableFiles(null, true);
             const searchTerm = fileLinkMatch[1] || '';
             
             // Filter files based on search term
@@ -10085,7 +10095,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     const isPrimaryRoot = isPrimary && depth === 0;
 
     const isFolder = node.type === 'folder' || node.type === 'directory';
-    const hasChildren = isFolder && node.children && node.children.length > 0;
+    const hasChildren = isFolder && (node.childrenLoaded === false || (node.children && node.children.length > 0));
     const isExpanded = forceExpanded || window.expandedFolders.has(node.path);
 
     
@@ -10146,6 +10156,10 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 const wasExpanded = window.expandedFolders.has(node.path);
                 toggleFolderExpansion(node.path);
                 const isNowExpanded = window.expandedFolders.has(node.path);
+                if (isNowExpanded && node.childrenLoaded === false) {
+                    await fileTreeController.render();
+                    return;
+                }
 
                 // Find or create children container
                 let childrenContainer = nodeElement.nextElementSibling;
@@ -10609,13 +10623,14 @@ function updateTagFilterChips() {
 
 // Apply tag filters to file tree
 function applyTagFilters() {
-    rerenderFileTreeFromCache();
+    debouncedRenderFileTree();
 }
 
 // Apply name and tag filters to file tree (real-time filtering)
 function applyNameAndTagFilters(query) {
     fileTreeSearchQuery = String(query || '').trim();
-    rerenderFileTreeFromCache();
+    // Explicit search may discover collapsed folders; ordinary browsing stays shallow.
+    debouncedRenderFileTree();
 }
 
 // Show tag edit dialog for a markdown file
@@ -11144,18 +11159,7 @@ async function preProcessMarkdownTags(node) {
     const startTime = performance.now();
 
     try {
-        const indexed = await window.electronAPI.search?.workspaceIndexList?.({
-            extensions: ['.md', '.markdown'],
-            limit: 50000
-        });
-        if (indexed?.success) {
-            const visiblePaths = new Set(markdownPaths);
-            const entries = indexed.files.filter(entry => visiblePaths.has(entry.path));
-            window.tagManager.hydrateIndexedFiles?.(entries);
-            entries.forEach(entry => updateFileTreeTagsForPath(entry.path));
-            return;
-        }
-
+        // Tags are bounded to visible files; never build the whole content index for tree decoration.
         // Use batch frontmatter reading - much faster than reading full files
         const results = await window.electronAPI.files.batchReadFrontmatter(markdownPaths);
 
@@ -11198,6 +11202,7 @@ function expandCommonFolders(rootNode) {
             for (const child of rootNode.children) {
                 if (child.type === 'folder' || child.type === 'directory') {
                     const folderName = child.name.toLowerCase();
+                    if (child.childrenLoaded === false) continue;
                     const childCount = child.children ? child.children.length : 0;
 
                     // Expand if:

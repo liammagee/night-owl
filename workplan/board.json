@@ -1,15 +1,15 @@
 {
-  "generated": "2026-10-29T20:27:48.349Z",
+  "generated": "2026-11-11T18:13:42.290Z",
   "counts": {
-    "total": 33,
+    "total": 35,
     "byStatus": {
       "review": 1,
-      "done": 32
+      "done": 34
     },
     "byPriority": {
-      "P2": 14,
+      "P2": 15,
       "P0": 4,
-      "P1": 14,
+      "P1": 15,
       "P3": 1
     },
     "byArea": {
@@ -17,13 +17,13 @@
       "presentation": 5,
       "preview": 3,
       "platform": 7,
+      "performance": 3,
       "testing": 3,
       "packaging": 2,
       "security": 2,
       "architecture": 3,
       "files": 1,
-      "accessibility": 2,
-      "performance": 1
+      "accessibility": 2
     }
   },
   "items": [
@@ -178,6 +178,26 @@
       ],
       "depends_on": [
         "capability-health-and-workflow-presets"
+      ]
+    },
+    {
+      "id": "demand-driven-rendering",
+      "title": "Make idle editor rendering and file browsing demand-driven",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Matched Electron idle measurements show recurring decorative callbacks stop; focused interaction, resume, hidden views, disposal and presentation delivery are covered by regression checks.",
+      "tags": [
+        "performance",
+        "lifecycle",
+        "rendering",
+        "filesystem"
       ]
     },
     {
@@ -530,6 +550,24 @@
       "depends_on": [
         "reliable-editor-preview-transitions",
         "single-source-mode-and-pane-state"
+      ]
+    },
+    {
+      "id": "editor-resource-profiler",
+      "title": "Profile app resources inside the editor",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Real Electron profiling shows process metrics and a saved trace; automated checks cover sampling lifecycle, unavailable values, and renderer integration.",
+      "tags": [
+        "performance",
+        "diagnostics"
       ]
     },
     {

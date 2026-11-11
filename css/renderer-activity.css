@@ -9,3 +9,13 @@
     animation-play-state: paused !important;
     transition: none !important;
 }
+
+/* Idle decorations are independent of functional animations such as progress
+   indicators and slide delivery. Freeze only the background decoration tree. */
+:root[data-nightowl-decorations-paused] #techne-background,
+:root[data-nightowl-decorations-paused] #techne-background *,
+:root[data-nightowl-decorations-paused] #techne-background *::before,
+:root[data-nightowl-decorations-paused] #techne-background *::after {
+    animation-play-state: paused !important;
+    transition: none !important;
+}
