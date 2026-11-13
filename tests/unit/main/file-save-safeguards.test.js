@@ -61,6 +61,7 @@ describe('File Save Safeguards', () => {
     expect(result.success).toBe(true);
     expect(result.backupPath).toContain('.nightowl-backups');
     expect(fsApi.copyFile).toHaveBeenCalledWith(filePath, expect.stringContaining('.nightowl-backups'));
+    expect(fsApi.writeFile).toHaveBeenCalledWith(expect.stringContaining('.nightowl-backups' + path.sep + '.gitignore'), '*\n', { encoding: 'utf8', flag: 'wx' });
     expect(fsApi.writeFile).toHaveBeenCalledWith(filePath, 'updated content', 'utf8');
     expect(fileStateMap.get(filePath).mtimeMs).toBe(3000);
   });

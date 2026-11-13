@@ -6,7 +6,7 @@ const { EventEmitter } = require('events');
 describe('terminalHandlers', () => {
   let ipcMain;
   let spawnMock;
-  let execSyncMock;
+  let execMock;
   let tempRoot;
   let runtimeDir;
 
@@ -33,11 +33,11 @@ describe('terminalHandlers', () => {
       proc.pid = 1234;
       return proc;
     });
-    execSyncMock = jest.fn(() => 'ok');
+    execMock = jest.fn((command, options, callback) => callback(null, 'ok', ''));
 
     jest.doMock('child_process', () => ({
       spawn: spawnMock,
-      execSync: execSyncMock
+      exec: execMock
     }));
     jest.doMock('node-pty', () => {
       throw new Error('node-pty unavailable in fallback tests');
@@ -291,10 +291,24 @@ describe('terminalHandlers', () => {
       cwd: path.join(tempRoot, 'stale')
     })).resolves.toEqual({ success: true, output: 'ok' });
 
-    expect(execSyncMock).toHaveBeenCalledWith(
+    expect(execMock).toHaveBeenCalledWith(
       'pwd',
-      expect.objectContaining({ cwd: runtimeDir })
+      expect.objectContaining({ cwd: runtimeDir }),
+      expect.any(Function)
     );
+  });
+
+  test('terminal-exec stays asynchronous and preserves failure output', async () => {
+    let finish;
+    execMock.mockImplementation((command, options, callback) => { finish = callback; });
+    require('../../../ipc/terminalHandlers').register({ getCurrentWorkingDirectory: () => runtimeDir });
+    const pending = getRegisteredHandler('terminal-exec')({}, { command: 'example', cwd: runtimeDir });
+    let settled = false;
+    pending.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    finish(new Error('Exit 1'), 'partial output', 'command failed');
+    await expect(pending).resolves.toEqual({ success: false, output: 'partial output', error: 'command failed' });
   });
 
   test('cleanup kills every active session and is idempotent', async () => {

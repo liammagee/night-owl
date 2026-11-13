@@ -41,7 +41,7 @@ function collectRendererFiles() {
 
 describe('IPC contract coverage', () => {
   test('every fixed invoke capability has exactly one registered main handler', () => {
-    const registered = collectRegisteredChannels(/ipcMain\.handle\(\s*['"]([^'"]+)['"]/g);
+    const registered = collectRegisteredChannels(/(?:ipcMain\.handle|registerGitHandler)\(\s*['"]([^'"]+)['"]/g);
     expect([...ALLOWED_INVOKE_CHANNELS].filter(channel => !registered.has(channel))).toEqual([]);
     expect([...registered].filter(channel => !ALLOWED_INVOKE_CHANNELS.has(channel))).toEqual([]);
 

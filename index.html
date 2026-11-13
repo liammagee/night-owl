@@ -3889,6 +3889,7 @@
     <link rel="stylesheet" href="css/workspace-panels-polish.css">
     <link rel="stylesheet" href="css/workspace-polish.css">
     <script defer src="orchestrator/modules/workspace-polish.js"></script>
+    <link rel="stylesheet" href="css/git-authoring.css">
 </head>
 <body>
     <!-- Techne theme background layers (enabled via body.techne-theme) -->
@@ -4491,27 +4492,37 @@
                 </div>
                 <!-- Git Source Control Panel -->
                 <div id="git-pane" class="content-pane" style="display: none; height: 100%; flex-direction: column; overflow: hidden;">
+                    <div class="git-workspace-heading">
+                        <span class="git-eyebrow">AUTHORING / SOURCE CONTROL</span>
+                        <strong id="git-repository-name">Source control</strong>
+                        <span id="git-destination">Open a local Git checkout to get started</span>
+                    </div>
                     <!-- Header: branch + actions -->
                     <div id="git-panel-header" style="padding: 8px 12px; border-bottom: 1px solid var(--neutral-200, #e5e5e5); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
                         <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
-                            <span id="git-branch-name" style="font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Click to switch branch">main</span>
+                            <button type="button" id="git-branch-name" style="font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Switch branch">No repository</button>
                             <span id="git-sync-indicator" style="font-size: 11px; font-weight: 500; opacity: 0.7; white-space: nowrap;"></span>
                         </div>
                         <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                            <button id="git-refresh-btn" class="btn" title="Refresh" style="padding: 2px 6px; font-size: 12px;">↻</button>
-                            <button id="git-pull-btn" class="btn" title="Pull" style="padding: 2px 6px; font-size: 12px;">↓</button>
-                            <button id="git-push-btn" class="btn" title="Push" style="padding: 2px 6px; font-size: 12px;">↑</button>
+                            <button id="git-refresh-btn" class="btn" aria-label="Refresh Git status" title="Refresh local status" style="padding: 2px 6px; font-size: 12px;">↻</button>
+                            <button id="git-pull-btn" class="btn" aria-label="Pull updates" title="Fetch and fast-forward" style="padding: 2px 6px; font-size: 12px;">↓ Pull</button>
+                            <button id="git-push-btn" class="btn" aria-label="Push commits" title="Push local commits" style="padding: 2px 6px; font-size: 12px;">↑ Push</button>
                         </div>
                     </div>
                     <!-- Commit input -->
                     <div id="git-commit-area" style="padding: 8px 12px; border-bottom: 1px solid var(--neutral-200, #e5e5e5); flex-shrink: 0;">
-                        <textarea id="git-commit-message" placeholder="Commit message" rows="2" style="width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--neutral-300, #ccc); border-radius: 4px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 32px;"></textarea>
+                        <label class="git-message-label" for="git-commit-message">What changed?</label>
+                        <textarea id="git-commit-message" placeholder="e.g. Refine the Week 4 reading guide" rows="2" style="width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--neutral-300, #ccc); border-radius: 4px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 32px;"></textarea>
                         <div style="display: flex; gap: 4px; margin-top: 4px; align-items: center;">
                             <label style="font-size: 11px; display: flex; align-items: center; gap: 3px; cursor: pointer; white-space: nowrap; opacity: 0.7;">
                                 <input type="checkbox" id="git-amend-checkbox" style="margin: 0;"> Amend
                             </label>
-                            <button id="git-commit-btn" class="btn btn-primary" title="Commit Staged Changes (Ctrl+Enter)" style="padding: 4px 12px; font-size: 12px; flex: 1;">Commit</button>
+                            <button id="git-commit-btn" class="btn" title="Commit Staged Changes (Ctrl+Enter)" style="padding: 4px 12px; font-size: 12px; flex: 1;">Commit only</button>
                         </div>
+                    </div>
+                    <div class="git-publish-area">
+                        <button id="git-publish-btn" class="btn btn-primary">Commit &amp; push</button>
+                        <p id="git-operation-status" role="status" aria-live="polite">Save your edits, stage changes below, then publish.</p>
                     </div>
                     <!-- Changes area (scrollable) -->
                     <div id="git-changes-area" style="flex: 1; overflow-y: auto; padding: 0;">
