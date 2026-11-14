@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-13T01:03:37.811Z",
+  "generated": "2026-11-14T18:53:46.955Z",
   "counts": {
     "total": 33,
     "byStatus": {
@@ -300,7 +300,7 @@
       "source": "user-report",
       "evidence": "reproduced",
       "created": "2026-11-12",
-      "updated": "2026-11-12",
+      "updated": "2026-11-14",
       "verification": "Local CI, real temporary-repository Git integration tests, renderer behavior tests, and performance budgets pass.",
       "tags": [
         "git",
