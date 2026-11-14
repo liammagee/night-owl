@@ -193,6 +193,49 @@ test('@required @workflow-controllers renderer startup exposes the extracted wor
   }));
 });
 
+test('@required @file-pane file search narrows and restores the visible tree', async ({ appPage }) => {
+  const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-file-search-root-'));
+  const nestedPath = path.join(workspacePath, 'notes');
+  fs.mkdirSync(nestedPath);
+  fs.writeFileSync(path.join(workspacePath, 'paper.md'), '# Paper\n');
+  fs.writeFileSync(path.join(workspacePath, 'index.html'), '<h1>Index</h1>\n');
+  fs.writeFileSync(path.join(nestedPath, 'reading.md'), '# Reading\n');
+  const previousWorkspace = await appPage.evaluate(() => window.electronAPI.workspace.getWorkingDirectory());
+
+  try {
+    const switched = await appPage.evaluate(root => window.electronAPI.workspace.switchWorkspace(root), workspacePath);
+    expect(switched).toMatchObject({ success: true });
+    await appPage.locator('#show-files-btn').click();
+    await appPage.evaluate(async () => {
+      window.expandedFolders.clear();
+      await window.renderFileTree();
+    });
+    await expect(appPage.locator('#file-tree-view .file-tree-item.file')).toHaveCount(2);
+
+    const searchInput = appPage.locator('#tag-search-input');
+    await searchInput.fill('paper');
+    await expect(appPage.locator('#file-tree-view .file-tree-item.file')).toHaveCount(1);
+    await expect(appPage.locator('#file-tree-view')).toContainText('paper.md');
+
+    await searchInput.fill('notes/reading');
+    await expect(appPage.locator('#file-tree-view .file-tree-item.file')).toHaveCount(1);
+    await expect(appPage.locator('#file-tree-view')).toContainText('reading.md');
+
+    // The workspace directory is the search scope, not a matching result.
+    // Matching its absolute path used to leave every file visible.
+    await searchInput.fill(path.basename(workspacePath));
+    await expect(appPage.locator('#file-tree-view .file-tree-state.no-results'))
+      .toContainText('No matching files');
+
+    await searchInput.fill('');
+    await expect(appPage.locator('#file-tree-view .file-tree-item.file')).toHaveCount(2);
+  } finally {
+    await appPage.locator('#tag-search-input').fill('');
+    await appPage.evaluate(root => window.electronAPI.workspace.switchWorkspace(root), previousWorkspace);
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  }
+});
+
 test('@required @actions one registry drives commands, feature actions, shortcuts, and help', async ({ appPage }) => {
   await expect.poll(
     () => appPage.evaluate(() => window.NightOwlActions?.list().length || 0),

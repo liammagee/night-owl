@@ -49,6 +49,35 @@ describe('file-tree-filter', () => {
     ]);
   });
 
+  test('does not treat the absolute workspace path as a file-name match', () => {
+    const absoluteTree = {
+      ...tree,
+      name: 'machinespirits-ide',
+      path: '/Users/example/Dev/machinespirits-ide',
+      children: tree.children.map(child => ({
+        ...child,
+        path: `/Users/example/Dev/machinespirits-ide/${child.name}`,
+        children: child.children.map(file => ({
+          ...file,
+          path: `/Users/example/Dev/machinespirits-ide/${child.name}/${file.name}`
+        }))
+      }))
+    };
+
+    const result = fileTreeFilter.filterTree(absoluteTree, { query: 'users' });
+
+    expect(result.hasFilter).toBe(true);
+    expect(result.matchCount).toBe(0);
+    expect(result.tree).toBeNull();
+  });
+
+  test('matches workspace-relative paths without leaking the absolute root path', () => {
+    const result = fileTreeFilter.filterTree(tree, { query: 'docs/essay' });
+
+    expect(result.matchCount).toBe(1);
+    expect(result.tree.children[0].children[0].name).toBe('essay.md');
+  });
+
   test('matches active tags case-insensitively', () => {
     const tagManager = {
       getFileTags: jest.fn((filePath) => {
