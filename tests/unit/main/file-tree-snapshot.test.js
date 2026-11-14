@@ -35,10 +35,11 @@ describe('on-demand file tree snapshots', () => {
     expect(closers[0]).toHaveBeenCalledTimes(1);
   });
   test('explicit recursive search finds collapsed files without following symlink cycles', async () => {
+    await snapshot.build(root);
     const result = await snapshot.build(root, { recursive: true });
     expect(result.tree.children.find(n => n.name === 'nested').children.map(n => n.name)).toEqual(['deep.md']);
-    expect(read).toHaveBeenCalledTimes(2);
-    snapshot.retain(new Set([root]));
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(callbacks.has(path.join(root, 'nested'))).toBe(false);
     expect(snapshot.getDiagnostics().directoryWatchers).toBe(1);
     snapshot.dispose(); expect(snapshot.getDiagnostics().directoryWatchers).toBe(0);
   });

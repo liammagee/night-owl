@@ -832,7 +832,9 @@ function register(deps) {
         }
       }
 
-      fileTreeSnapshot.retain(visibleDirectories);
+      if (options.lazy === true && options.recursive !== true) {
+        fileTreeSnapshot.retain(visibleDirectories);
+      }
 
       // If only one folder, return it directly for backward compatibility
       if (trees.length === 1) {
@@ -2270,7 +2272,7 @@ function register(deps) {
       const visible = new Set();
       const trees = [];
       for (const root of roots) trees.push(await buildFileTree(root, options, visible));
-      fileTreeSnapshot.retain(visible);
+      if (options.recursive !== true) fileTreeSnapshot.retain(visible);
       return getWorkspaceTreeSignatureFromTrees(trees);
     }
     const workingDir = getWorkingDirectory();

@@ -469,6 +469,13 @@ describe('workspace directory persistence', () => {
   // 5. buildFileTree should skip heavy directories
   // ---------------------------------------------------------------------------
   describe('buildFileTree directory filtering', () => {
+    const entry = (name, directory = false) => ({
+      name,
+      isDirectory: () => directory,
+      isFile: () => !directory,
+      isSymbolicLink: () => false
+    });
+
     test('request-file-tree does not recurse into node_modules', async () => {
       const workspace = '/Users/test/project';
       const statCalls = [];
@@ -482,9 +489,9 @@ describe('workspace directory persistence', () => {
       });
 
       mockFsPromises.readdir.mockImplementation(async (p) => {
-        if (p === workspace) return ['src', 'node_modules', 'readme.md'];
-        if (p === path.join(workspace, 'src')) return ['index.js'];
-        if (p === path.join(workspace, 'node_modules')) return ['express', 'lodash'];
+        if (p === workspace) return [entry('src', true), entry('node_modules', true), entry('readme.md')];
+        if (p === path.join(workspace, 'src')) return [entry('index.js')];
+        if (p === path.join(workspace, 'node_modules')) return [entry('express'), entry('lodash')];
         return [];
       });
 
@@ -519,9 +526,9 @@ describe('workspace directory persistence', () => {
       }));
 
       mockFsPromises.readdir.mockImplementation(async (p) => {
-        if (p === workspace) return ['.git', 'docs', 'notes.md'];
-        if (p.endsWith('docs')) return ['guide.md'];
-        if (p.endsWith('.git')) return ['HEAD', 'config'];
+        if (p === workspace) return [entry('.git', true), entry('docs', true), entry('notes.md')];
+        if (p.endsWith('docs')) return [entry('guide.md')];
+        if (p.endsWith('.git')) return [entry('HEAD'), entry('config')];
         return [];
       });
 
@@ -556,9 +563,9 @@ describe('workspace directory persistence', () => {
       }));
 
       mockFsPromises.readdir.mockImplementation(async (p) => {
-        if (p === workspace) return [dirName, 'notes.md'];
+        if (p === workspace) return [entry(dirName, true), entry('notes.md')];
         // If buildFileTree enters the heavy dir, it would call readdir on it
-        if (p === path.join(workspace, dirName)) return ['should-not-appear'];
+        if (p === path.join(workspace, dirName)) return [entry('should-not-appear')];
         return [];
       });
 
@@ -579,6 +586,7 @@ describe('workspace directory persistence', () => {
 
       const childNames = (tree.children || []).map(c => c.name);
       expect(childNames).not.toContain(dirName);
+      expect(childNames).toContain('notes.md');
     });
 
     test('request-file-tree hides transient Office lock files', async () => {
@@ -590,7 +598,7 @@ describe('workspace directory persistence', () => {
       }));
 
       mockFsPromises.readdir.mockImplementation(async (p) => {
-        if (p === workspace) return ['~$machinagogy-v2.docx', 'machinagogy-v2.docx', 'machinagogy-v2.md'];
+        if (p === workspace) return ['~$machinagogy-v2.docx', 'machinagogy-v2.docx', 'machinagogy-v2.md'].map(name => entry(name));
         return [];
       });
 
@@ -632,7 +640,7 @@ describe('workspace directory persistence', () => {
             'machinagogy-v2.pdf',
             'references.bib',
             'references.pdf'
-          ];
+          ].map(name => entry(name));
         }
         return [];
       });
