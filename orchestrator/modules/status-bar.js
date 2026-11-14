@@ -216,11 +216,14 @@ async function getRuntimeWorkingDirectory() {
     return window.appSettings?.workingDirectory;
 }
 
+let gitStatusRefreshVersion = 0;
 async function updateGitStatusIndicator() {
+    const version = ++gitStatusRefreshVersion;
     const indicator = document.getElementById('git-status-indicator');
     if (!indicator || !window.electronAPI) return;
 
     const workingDir = await getRuntimeWorkingDirectory();
+    if (version !== gitStatusRefreshVersion) return;
     if (!workingDir) {
         indicator.style.display = 'none';
         return;
@@ -229,6 +232,7 @@ async function updateGitStatusIndicator() {
     try {
         // Check if working directory is in a git repo
         const repoResult = await window.electronAPI.git.findRepo(workingDir);
+        if (version !== gitStatusRefreshVersion) return;
         if (!repoResult.success) {
             indicator.style.display = 'none';
             gitStatusCache.repoRoot = null;
@@ -238,13 +242,10 @@ async function updateGitStatusIndicator() {
         const repoRoot = repoResult.repoRoot;
         gitStatusCache.repoRoot = repoRoot;
 
-        // Get branch name
-        const branchResult = await window.electronAPI.git.getBranch(repoRoot);
-        const branch = branchResult.success ? branchResult.branch : 'unknown';
-        gitStatusCache.branch = branch;
-
-        // Get status summary
         const statusResult = await window.electronAPI.git.statusSummary(repoRoot);
+        if (version !== gitStatusRefreshVersion) return;
+        const branch = statusResult.branch || 'unknown';
+        gitStatusCache.branch = branch;
 
         if (statusResult.success) {
             gitStatusCache.status = statusResult;
@@ -263,9 +264,8 @@ async function updateGitStatusIndicator() {
             if (statusResult.untracked > 0) {
                 parts.push(`?${statusResult.untracked}`);
             }
-            if (statusResult.ahead > 0) {
-                parts.push(`↑${statusResult.ahead}`);
-            }
+            if (statusResult.ahead > 0) parts.push(`↑${statusResult.ahead}`);
+            if (statusResult.behind > 0) parts.push(`↓${statusResult.behind}`);
 
             if (parts.length > 0) {
                 statusText += ` [${parts.join(' ')}]`;
@@ -299,6 +299,7 @@ async function updateGitStatusIndicator() {
             indicator.style.display = 'none';
         }
     } catch (error) {
+        if (version !== gitStatusRefreshVersion) return;
         console.error('[Git] Error updating status indicator:', error);
         indicator.style.display = 'none';
     }
@@ -320,7 +321,8 @@ function initGitStatusIndicator() {
     updateGitStatusIndicator();
 
     // Refresh every 30 seconds
-    setInterval(updateGitStatusIndicator, 30000);
+    setInterval(() => { if (!document.hidden) updateGitStatusIndicator(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) updateGitStatusIndicator(); });
 }
 
 // Export to global scope

@@ -2,7 +2,7 @@
 // Integrated terminal backed by node-pty when available, with a pipe fallback.
 
 const { ipcMain } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const os = require('os');
 const { createRuntimeWorkspaceResolver, pathExists } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
@@ -369,22 +369,18 @@ function register(deps) {
    * Run a single command and return output (non-interactive)
    */
   ipcMain.handle('terminal-exec', async (event, { command, cwd }) => {
-    try {
-      const { execSync } = require('child_process');
-      const output = execSync(command, {
+    return new Promise(resolve => {
+      exec(command, {
         cwd: pathExists(cwd) ? cwd : getWorkingDirectory(),
         encoding: 'utf8',
         timeout: 30000,
         maxBuffer: 1024 * 1024
+      }, (error, stdout, stderr) => {
+        resolve(error
+          ? { success: false, output: stdout || '', error: stderr || error.message }
+          : { success: true, output: stdout });
       });
-      return { success: true, output };
-    } catch (error) {
-      return {
-        success: false,
-        output: error.stdout || '',
-        error: error.stderr || error.message
-      };
-    }
+    });
   });
 
   debug('Registered terminal handlers');

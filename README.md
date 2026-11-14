@@ -23,6 +23,7 @@ Download the latest release for your platform:
 
 ## Features
 
+- **Git Authoring** - Review saved edits, stage files, and commit and push to the workspace repository with clear destination and retry status
 - **Monaco Editor** - Full-featured code editor with Markdown syntax highlighting and split preview
 - **Visual Markdown** - Inline image previews, collapsible code blocks, wiki-style `[[links]]`
 - **Microfiche Preview** - Scan long rendered documents as a paginated miniature grid, then select a frame to resume full-size reading at that section
@@ -116,6 +117,31 @@ Settings are stored in:
 | `Cmd/Ctrl+\` | Toggle preview |
 | `F5` | Start presentation |
 | `Cmd/Ctrl+Click` | Follow wiki link |
+
+## Publish authoring changes with Git
+
+Open the local `machinespirits-website` checkout (or a folder inside it) as your
+workspace, then open **Source Control** in the sidebar. The heading shows the
+repository, branch, and upstream destination.
+
+1. Edit and save your documents. Unsaved editor buffers must be saved before committing.
+2. Review file diffs and use **+** to stage individual files, or **Stage All**.
+3. Describe the change and choose **Commit & push**. **Commit only** keeps the
+   commit local; **Push** sends existing local commits without creating another.
+
+NightOwl uses the checkout's existing Git credentials. For a branch without an
+upstream, a single configured remote is used for the first push. If there are
+multiple remotes, choose one in **Remotes** to establish the destination. If a
+push fails after committing, the local commit is retained and **Push** retries it.
+No force push or automatic merge is performed. **Pull** requires saved,
+committed or stashed edits and fast-forwards only; divergent history needs an
+explicit merge or rebase in your Git tooling. Ahead/behind counts reflect the
+last fetched remote state.
+
+Folder **Publish to Git** includes only that folder's changes, preserving staged
+work elsewhere. A rename crossing the folder boundary must be handled from the
+repository root. Newly created recovery backups in `.nightowl-backups` ignore
+their own contents in Git; previously tracked backups remain tracked.
 
 ## Versioning
 

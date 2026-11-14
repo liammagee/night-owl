@@ -113,6 +113,8 @@ test.each([
     const context = {
         window: { NightOwlSlides: slides },
         contentSecurity: require('../../../services/contentSecurity'),
+        layoutType: 'spiral',
+        presentationViewport: require('../../../plugins/techne-presentations/presentation-viewport'),
         calculateSlidePosition: () => ({}), parseMarkdownContent: content => content
     };
     vm.runInNewContext(source.slice(start, helpersEnd) + source.slice(parserStart, parserEnd) + '\nthis.parse = parseMarkdown;', context);

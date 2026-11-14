@@ -97,6 +97,13 @@ async function createFileBackup(filePath, fsApi = fs) {
 
   const backupPath = buildBackupFilePath(filePath);
   await fsApi.mkdir(path.dirname(backupPath), { recursive: true });
+  // Recovery copies belong on disk, not in an author's published repository.
+  // Keep this local to our own directory and preserve any existing ignore file.
+  try {
+    await fsApi.writeFile(path.join(path.dirname(backupPath), '.gitignore'), '*\n', { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+  }
   await fsApi.copyFile(filePath, backupPath);
   return backupPath;
 }

@@ -228,6 +228,7 @@ async function performAutoSaveNow(target) {
         });
 
         if (result.success) {
+            window.gitPanel?.onFileSaved?.();
             // The user may have edited, closed, renamed, or switched this tab
             // while the disk write was pending. Only acknowledge the captured
             // version and never change another tab's saved/dirty state.

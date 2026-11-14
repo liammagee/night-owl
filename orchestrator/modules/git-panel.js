@@ -11,6 +11,9 @@
 
   // --- State ---
   let repoRoot = null;
+  let refreshVersion = 0;
+  let operationPending = false;
+  let panelState = null;
   let currentBranch = '';
   let historyLoaded = false;
   let historyExpanded = false;
@@ -43,6 +46,7 @@
     if (status === 'deleted') return 'D';
     if (status === 'untracked') return 'U';
     if (status === 'renamed') return 'R';
+    if (status === 'conflict') return '!';
     return 'M';
   }
 
@@ -79,79 +83,140 @@
 
   // --- Core: Refresh panel ---
   async function refresh() {
-    if (!window.electronAPI) return;
-
-    const workingDir = await getRuntimeWorkingDirectory();
-    if (!workingDir) return;
-
-    // Find repo
-    const repoResult = await window.electronAPI.git.findRepo(workingDir);
-    if (!repoResult.success) {
-      repoRoot = null;
-      renderNoRepo();
-      return;
-    }
-    repoRoot = repoResult.repoRoot;
-
-    // Get branch
-    const branchResult = await window.electronAPI.git.getBranch(repoRoot);
-    currentBranch = branchResult.success ? branchResult.branch : '??';
-    const branchEl = document.getElementById('git-branch-name');
-    if (branchEl) branchEl.textContent = currentBranch;
-
-    // Ahead/behind indicator
-    const syncEl = document.getElementById('git-sync-indicator');
-    if (syncEl) {
-      const summary = await window.electronAPI.git.statusSummary(repoRoot);
-      if (summary.success) {
-        const parts = [];
-        if (summary.ahead > 0) parts.push(`↑${summary.ahead}`);
-        if (summary.behind > 0) parts.push(`↓${summary.behind}`);
-        syncEl.textContent = parts.length ? parts.join(' ') : '';
-        syncEl.title = parts.length
-          ? `${summary.ahead || 0} ahead, ${summary.behind || 0} behind`
-          : 'Up to date with remote';
-      } else {
-        syncEl.textContent = '';
+    if (!window.electronAPI?.git) return;
+    const version = ++refreshVersion;
+    try {
+      const workingDir = await getRuntimeWorkingDirectory();
+      const repoResult = workingDir ? await window.electronAPI.git.findRepo(workingDir) : { success: false };
+      if (version !== refreshVersion) return;
+      if (!repoResult.success) {
+        repoRoot = null;
+        renderNoRepo();
+        return;
       }
-    }
-
-    // Get detailed status
-    const statusResult = await window.electronAPI.git.statusDetailed(repoRoot);
-    if (statusResult.success) {
-      renderFileList('git-staged-list', statusResult.staged, true);
-      renderFileList('git-unstaged-list', statusResult.unstaged, false);
-      const stagedCount = document.getElementById('git-staged-count');
-      const unstagedCount = document.getElementById('git-unstaged-count');
-      if (stagedCount) stagedCount.textContent = statusResult.staged.length;
-      if (unstagedCount) unstagedCount.textContent = statusResult.unstaged.length;
-
-      // Build file status map for file tree decorations
+      const root = repoResult.repoRoot;
+      const [state, remotes] = await Promise.all([
+        window.electronAPI.git.statusDetailed(root), window.electronAPI.git.listRemotes(root)
+      ]);
+      if (version !== refreshVersion) return;
+      if (!state.success) throw new Error(state.error);
+      if (repoRoot !== root) {
+        historyLoaded = false;
+        tagsLoaded = false;
+        remotesLoaded = false;
+        for (const id of ['git-history-list', 'git-tags-list', 'git-remotes-list', 'git-stash-list']) {
+          document.getElementById(id)?.replaceChildren();
+        }
+        const message = document.getElementById('git-commit-message');
+        if (message) message.value = '';
+      }
+      repoRoot = root;
+      panelState = state;
+      currentBranch = state.branch || 'HEAD';
+      const branchEl = document.getElementById('git-branch-name');
+      if (branchEl) branchEl.textContent = currentBranch === 'HEAD' ? 'Detached HEAD' : currentBranch;
+      const repoEl = document.getElementById('git-repository-name');
+      if (repoEl) { repoEl.textContent = basename(root); repoEl.title = root; }
+      const destination = document.getElementById('git-destination');
+      const remoteList = remotes.success ? remotes.remotes : [];
+      if (destination) {
+        const remote = remoteList.find(item => state.upstream?.startsWith(item.name + '/')) ||
+          (remoteList.length === 1 ? remoteList[0] : null);
+        destination.textContent = state.upstream || (remote ? `${remote.name}/${currentBranch} · first push` : 'Choose a remote below');
+        destination.title = remote?.push || remote?.fetch || 'Configure a remote in the Remotes section';
+      }
+      const syncEl = document.getElementById('git-sync-indicator');
+      if (syncEl) {
+        syncEl.textContent = [state.ahead ? `↑${state.ahead}` : '', state.behind ? `↓${state.behind}` : ''].filter(Boolean).join(' ');
+        syncEl.title = 'Compared with the last fetched remote state';
+      }
+      renderFileList('git-staged-list', state.staged, true);
+      renderFileList('git-unstaged-list', state.unstaged, false);
+      document.getElementById('git-staged-count').textContent = state.staged.length;
+      document.getElementById('git-unstaged-count').textContent = state.unstaged.length;
       const statusMap = {};
-      for (const f of statusResult.staged) {
-        statusMap[f.file] = f.status;
-      }
-      for (const f of statusResult.unstaged) {
-        statusMap[f.file] = f.status; // unstaged overrides staged for display
-      }
+      for (const file of [...state.staged, ...state.unstaged]) statusMap[file.file] = file.status;
       window.gitFileStatus = { repoRoot, files: statusMap };
       applyFileTreeGitStatus();
+      if (!operationPending) {
+        setSyncStatus(state.conflicts ? 'Resolve conflicts before committing.' : state.detached ? 'Switch to a branch to publish.' :
+          state.upstreamGone ? 'The upstream branch is missing. Check the remote before pushing.' :
+          state.behind ? `${state.behind} incoming commit${state.behind === 1 ? '' : 's'} · pull before pushing.` :
+          state.ahead ? `${state.ahead} local commit${state.ahead === 1 ? '' : 's'} ready to push.` :
+          state.total ? `${state.staged.length} staged · ${state.unstaged.length} to review` :
+          state.upstream ? 'Working tree clean · remote status as last fetched' : 'Working tree clean · no upstream yet');
+      }
+      updateActions();
+      await refreshStashes();
+      if (version === refreshVersion && historyExpanded && !historyLoaded) await loadGraphLog();
+    } catch (error) {
+      if (version !== refreshVersion) return;
+      repoRoot = null;
+      renderNoRepo();
+      setSyncStatus(`Could not read Git status: ${error.message}`, 'error');
     }
+  }
 
-    // Load stashes
-    await refreshStashes();
+  function setSyncStatus(text, kind = '') {
+    const element = document.getElementById('git-operation-status');
+    if (element) { element.textContent = text; element.dataset.kind = kind; }
+  }
 
-    // Also update the status bar indicator if it exists
-    if (typeof updateGitStatusIndicator === 'function') {
-      updateGitStatusIndicator();
+  function updateActions() {
+    const hasMessage = !!document.getElementById('git-commit-message')?.value.trim();
+    const amend = !!document.getElementById('git-amend-checkbox')?.checked;
+    for (const id of ['git-commit-btn', 'git-publish-btn', 'git-push-btn', 'git-pull-btn', 'git-stage-all-btn', 'git-unstage-all-btn']) {
+      const button = document.getElementById(id);
+      if (!button) continue;
+      button.disabled = operationPending || !repoRoot;
+      if (id === 'git-commit-btn' || id === 'git-publish-btn') {
+        button.disabled ||= !hasMessage || !!panelState?.conflicts || (!panelState?.staged?.length && !amend);
+      }
+      if (id === 'git-publish-btn') button.disabled ||= amend || !!panelState?.detached;
+      if (id === 'git-push-btn') button.disabled ||= !!panelState?.detached;
+    }
+    document.getElementById('git-pane')?.setAttribute('aria-busy', String(operationPending));
+  }
+
+  async function runOperation(label, action, onSuccess) {
+    if (operationPending || !repoRoot) return;
+    const root = repoRoot;
+    operationPending = true;
+    setSyncStatus(label, 'busy');
+    updateActions();
+    let outcome;
+    try {
+      const result = await action(root);
+      outcome = result.success ? (onSuccess?.(result) || 'Done.') : result.error || 'Git operation failed.';
+      if (!result.success) notify(outcome, result.committed ? 'warning' : 'error');
+      await refresh();
+      if (root === repoRoot) setSyncStatus(outcome, result.success ? 'success' : 'error');
+    } catch (error) {
+      if (root === repoRoot) setSyncStatus(error.message, 'error');
+      notify(error.message, 'error');
+    } finally {
+      operationPending = false;
+      updateActions();
+      window.updateGitStatusIndicator?.();
     }
   }
 
   function renderNoRepo() {
-    const stagedList = document.getElementById('git-staged-list');
-    const unstagedList = document.getElementById('git-unstaged-list');
-    if (stagedList) stagedList.innerHTML = '';
-    if (unstagedList) unstagedList.innerHTML = '<div style="padding: 12px; font-size: 12px; color: #888; text-align: center;">Not a git repository</div>';
+    panelState = null;
+    currentBranch = '';
+    window.gitFileStatus = { repoRoot: null, files: {} };
+    applyFileTreeGitStatus();
+    for (const id of ['git-staged-list', 'git-unstaged-list', 'git-history-list', 'git-tags-list', 'git-remotes-list', 'git-stash-list']) {
+      document.getElementById(id)?.replaceChildren();
+    }
+    for (const id of ['git-staged-count', 'git-unstaged-count']) {
+      const element = document.getElementById(id); if (element) element.textContent = '0';
+    }
+    for (const [id, text] of [['git-branch-name', 'No repository'], ['git-repository-name', 'Source control'], ['git-destination', 'Open a local Git checkout to get started'], ['git-sync-indicator', '']]) {
+      const element = document.getElementById(id); if (element) element.textContent = text;
+    }
+    setSyncStatus('Open your website checkout, edit and save, then stage changes here.');
+    updateActions();
   }
 
   // --- Render file list ---
@@ -159,19 +224,26 @@
     const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '';
+    if (!files.length) {
+      const empty = document.createElement('div');
+      empty.className = 'git-empty-state';
+      empty.textContent = isStaged ? 'Stage files with + to prepare your commit.' : 'No changes to review.';
+      container.appendChild(empty);
+    }
 
     for (const file of files) {
       const item = document.createElement('div');
       item.className = 'git-file-item';
-      item.title = file.file;
+      item.title = file.originalFile ? `${file.originalFile} → ${file.file}` : file.file;
+
 
       const dir = dirname(file.file);
       const name = basename(file.file);
 
       item.innerHTML = `
         <span class="git-file-status ${file.status}">${statusChar(file.status)}</span>
-        <span class="git-file-name">${name}</span>
-        ${dir ? `<span class="git-file-dir">${dir}</span>` : ''}
+        <button type="button" class="git-file-name" title="Show diff">${escapeHtml(name)}</button>
+        ${dir ? `<span class="git-file-dir">${escapeHtml(dir)}</span>` : ''}
         <span class="git-file-actions">
           ${isStaged
             ? `<button class="git-act-unstage" title="Unstage">−</button>`
@@ -183,7 +255,7 @@
       // Click to view diff
       item.addEventListener('click', (e) => {
         if (e.target.closest('.git-file-actions')) return;
-        showDiff(file.file, isStaged, file.status);
+        showDiff(file.file, isStaged, file.status, file.originalFile);
       });
 
       // Action buttons
@@ -191,8 +263,7 @@
       if (unstageBtn) {
         unstageBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          await window.electronAPI.git.unstage({ repoRoot, paths: [file.file] });
-          refresh();
+          await runOperation('Unstaging…', root => window.electronAPI.git.unstage({ repoRoot: root, paths: file.originalFile ? [file.file, file.originalFile] : [file.file] }));
         });
       }
 
@@ -200,8 +271,7 @@
       if (stageBtn) {
         stageBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          await window.electronAPI.git.stage({ repoRoot, paths: [file.file] });
-          refresh();
+          await runOperation('Staging…', root => window.electronAPI.git.stage({ repoRoot: root, paths: file.originalFile ? [file.file, file.originalFile] : [file.file] }));
         });
       }
 
@@ -233,60 +303,33 @@
   }
 
   // --- Phase 2: Diff viewer ---
-  async function showDiff(filePath, cached, status) {
+  async function showDiff(filePath, cached, status, originalFile) {
     if (!repoRoot) return;
-
-    // For unstaged modified files, offer hunk-level staging
-    if (!cached && status === 'modified') {
-      showDiffWithHunks(filePath);
-      return;
-    }
-
-    // For untracked or added files, show full content
+    const root = repoRoot;
+    if (!cached && status === 'modified') { showDiffWithHunks(filePath); return; }
     let originalContent = '';
     let modifiedContent = '';
-
-    if (status === 'untracked') {
-      // New untracked file — show full content as "added"
-      try {
-        const result = await window.electronAPI.files.readFile(repoRoot + '/' + filePath);
-        modifiedContent = typeof result === 'string' ? result : (result?.content || '');
-      } catch (e) {
-        modifiedContent = '';
-      }
-    } else if (status === 'deleted') {
-      // Deleted file — show HEAD version as "removed"
-      const headResult = await window.electronAPI.git.fileContent({
-        repoRoot, ref: 'HEAD', filePath
-      });
-      originalContent = headResult.success ? headResult.content : '';
-    } else {
-      // Get HEAD version
-      const headResult = await window.electronAPI.git.fileContent({
-        repoRoot, ref: 'HEAD', filePath
-      });
-      originalContent = headResult.success ? headResult.content : '';
-
-      // Get working copy
-      try {
-        const result = await window.electronAPI.files.readFile(repoRoot + '/' + filePath);
-        modifiedContent = typeof result === 'string' ? result : (result?.content || '');
-      } catch (e) {
-        modifiedContent = originalContent;
-      }
-
-      // If cached (staged), modified = staged content which we get from index
-      if (cached) {
-        const indexResult = await window.electronAPI.git.fileContent({
-          repoRoot, ref: ':0', filePath
+    try {
+      if (status !== 'untracked' && status !== 'added') {
+        const before = await window.electronAPI.git.fileContent({
+          repoRoot: root, ref: cached ? 'HEAD' : ':0', filePath: originalFile || filePath
         });
-        if (indexResult.success) {
-          modifiedContent = indexResult.content;
+        if (!before.success) throw new Error(before.error);
+        originalContent = before.content;
+      }
+      if (status !== 'deleted') {
+        if (cached) {
+          const after = await window.electronAPI.git.fileContent({ repoRoot: root, ref: ':0', filePath });
+          if (!after.success) throw new Error(after.error);
+          modifiedContent = after.content;
+        } else {
+          const result = await window.electronAPI.files.readFile(root + '/' + filePath);
+          if (result?.success === false) throw new Error(result.error);
+          modifiedContent = typeof result === 'string' ? result : result?.content || '';
         }
       }
-    }
-
-    openDiffModal(filePath, originalContent, modifiedContent);
+      if (root === repoRoot) openDiffModal(filePath, originalContent, modifiedContent);
+    } catch (error) { notify(`Could not read diff: ${error.message}`, 'error'); }
   }
 
   // --- Phase 9: Hunk staging in diff viewer ---
@@ -329,7 +372,7 @@
     overlay.innerHTML = `
       <div class="git-diff-modal">
         <div class="git-diff-header">
-          <span>${basename(filePath)} <span style="opacity:0.5; font-weight:normal; font-size:11px;">${dirname(filePath)}</span></span>
+          <span>${escapeHtml(basename(filePath))} <span style="opacity:0.5; font-weight:normal; font-size:11px;">${escapeHtml(dirname(filePath))}</span></span>
           <div style="display:flex;gap:8px;align-items:center;">
             <button id="git-stage-all-hunks" class="btn btn-primary" style="font-size:11px;padding:3px 10px;">Stage All</button>
             <button id="git-diff-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:inherit;">✕</button>
@@ -389,7 +432,7 @@
     overlay.innerHTML = `
       <div class="git-diff-modal">
         <div class="git-diff-header">
-          <span>${basename(filePath)} <span style="opacity:0.5; font-weight:normal; font-size:11px;">${dirname(filePath)}</span></span>
+          <span>${escapeHtml(basename(filePath))} <span style="opacity:0.5; font-weight:normal; font-size:11px;">${escapeHtml(dirname(filePath))}</span></span>
           <div style="display:flex;gap:8px;align-items:center;">
             <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:4px;">
               <input type="checkbox" id="git-diff-inline-toggle"> Inline
@@ -471,7 +514,7 @@
   function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // --- Phase 3: Branch switching ---
@@ -733,7 +776,9 @@
     const countEl = document.getElementById('git-stash-count');
     if (!section || !listEl) return;
 
-    const result = await window.electronAPI.git.stashList(repoRoot);
+    const root = repoRoot;
+    const result = await window.electronAPI.git.stashList(root);
+    if (root !== repoRoot) return;
     if (!result.success || result.stashes.length === 0) {
       section.style.display = 'none';
       return;
@@ -980,7 +1025,7 @@
         });
         await window.electronAPI.git.markResolved({ repoRoot, filePath });
         closeDiffModal();
-        notify(`Resolved: ${basename(filePath)}`, 'success');
+        notify(`Resolved: ${escapeHtml(basename(filePath))}`, 'success');
         refresh();
       } catch (e) {
         notify('Failed to resolve: ' + e.message, 'error');
@@ -999,7 +1044,7 @@
     document.getElementById('git-mark-resolved').addEventListener('click', async () => {
       await window.electronAPI.git.markResolved({ repoRoot, filePath });
       closeDiffModal();
-      notify(`Marked resolved: ${basename(filePath)}`, 'success');
+      notify(`Marked resolved: ${escapeHtml(basename(filePath))}`, 'success');
       refresh();
     });
   }
@@ -1081,14 +1126,14 @@
 
   function applyFileTreeGitStatus() {
     const info = window.gitFileStatus;
-    if (!info || !info.repoRoot) return;
-
     // Clear previous decorations
     document.querySelectorAll('.file-tree-item .file-name[data-git-status]').forEach(el => {
       el.style.color = '';
       el.removeAttribute('data-git-status');
     });
     document.querySelectorAll('.file-tree-item .git-status-badge').forEach(el => el.remove());
+
+    if (!info || !info.repoRoot) return;
 
     // Apply to each file item
     document.querySelectorAll('.file-tree-item[data-path]').forEach(el => {
@@ -1355,7 +1400,6 @@
   }
 
   // --- Phase 11: Graph log ---
-  let graphLoaded = false;
 
   async function loadGraphLog() {
     const listEl = document.getElementById('git-history-list');
@@ -1433,33 +1477,43 @@
       listEl.appendChild(item);
     }
 
-    graphLoaded = true;
+    historyLoaded = true;
   }
 
   // --- Initialize ---
   function init() {
+    updateActions();
     // Button listeners
     const commitBtn = document.getElementById('git-commit-btn');
-    if (commitBtn) {
-      commitBtn.addEventListener('click', async () => {
-        const msgEl = document.getElementById('git-commit-message');
-        const amendCheck = document.getElementById('git-amend-checkbox');
-        const amend = amendCheck?.checked || false;
-        const message = msgEl?.value?.trim();
-        if (!message) { notify('Enter a commit message', 'error'); return; }
-        if (!repoRoot) { notify('No git repository', 'error'); return; }
-
-        const result = await window.electronAPI.git.commit({ repoRoot, message, amend });
-        if (result.success) {
-          notify(`${amend ? 'Amended' : 'Committed'}: ${result.commitHash}`, 'success');
-          if (msgEl) msgEl.value = '';
+    async function commitChanges(push) {
+      const msgEl = document.getElementById('git-commit-message');
+      const amendCheck = document.getElementById('git-amend-checkbox');
+      const message = msgEl?.value.trim();
+      const amend = !!amendCheck?.checked;
+      if (!message || !repoRoot || operationPending || (push && amend)) return;
+      // Staged snapshots must not silently omit unsaved edits from open editors.
+      if (window.NightOwlWindowClose?.unsavedNames(window).length || window.hasUnsavedChanges) {
+        notify('Save your open edits, then stage them before committing.', 'warning');
+        return;
+      }
+      if (amend && !await confirmGitAction({ title: 'Amend Last Commit', message: 'Replace the last commit?', detail: 'This rewrites the last commit. Avoid amending commits already shared with others.', confirmText: 'Amend' })) return;
+      const root = repoRoot;
+      await runOperation(push ? 'Committing and pushing…' : 'Committing…', async target => {
+        const result = push
+          ? await window.electronAPI.git.publish({ repoRoot: target, message, stagedOnly: true })
+          : await window.electronAPI.git.commit({ repoRoot: target, message, amend });
+        if ((result.success || result.committed) && root === repoRoot) {
+          if (msgEl.value.trim() === message) msgEl.value = '';
           if (amendCheck) amendCheck.checked = false;
-          refresh();
-        } else {
-          notify('Commit failed: ' + result.error, 'error');
+          historyLoaded = false;
         }
-      });
+        return result;
+      }, result => push ? `Published ${result.commitHash}.` : `Committed ${result.commitHash} locally. Push when ready.`);
     }
+    commitBtn?.addEventListener('click', () => commitChanges(false));
+    document.getElementById('git-publish-btn')?.addEventListener('click', () => commitChanges(true));
+    document.getElementById('git-commit-message')?.addEventListener('input', updateActions);
+    document.getElementById('git-amend-checkbox')?.addEventListener('change', updateActions);
 
     // Amend checkbox: pre-fill last commit message when checked
     const amendCheck = document.getElementById('git-amend-checkbox');
@@ -1488,35 +1542,15 @@
       });
     }
 
-    // Push button
-    const pushBtn = document.getElementById('git-push-btn');
-    if (pushBtn) {
-      pushBtn.addEventListener('click', async () => {
-        if (!repoRoot) return;
-        notify('Pushing...', 'info');
-        const result = await window.electronAPI.git.push(repoRoot);
-        result.success ? notify('Pushed successfully', 'success') : notify('Push failed: ' + result.error, 'error');
-        refresh();
-      });
-    }
-
-    // Pull button
-    const pullBtn = document.getElementById('git-pull-btn');
-    if (pullBtn) {
-      pullBtn.addEventListener('click', async () => {
-        if (!repoRoot) return;
-        notify('Pulling...', 'info');
-        const result = await window.electronAPI.git.pull(repoRoot);
-        if (result.success) {
-          notify('Pull: ' + (result.output || 'Up to date'), 'success');
-          refresh();
-          // Check for merge conflicts after pull
-          checkConflicts();
-        } else {
-          notify('Pull failed: ' + result.error, 'error');
-        }
-      });
-    }
+    document.getElementById('git-push-btn')?.addEventListener('click', () =>
+      runOperation('Pushing local commits…', root => window.electronAPI.git.push(root), () => 'Push complete.'));
+    document.getElementById('git-pull-btn')?.addEventListener('click', () => {
+      if (window.NightOwlWindowClose?.unsavedNames(window).length || window.hasUnsavedChanges) {
+        notify('Save and commit or stash your edits before pulling.', 'warning');
+        return;
+      }
+      return runOperation('Pulling updates…', root => window.electronAPI.git.pull(root), result => result.output || 'Up to date.');
+    });
 
     // Refresh button
     const refreshBtn = document.getElementById('git-refresh-btn');
@@ -1535,8 +1569,7 @@
     if (stageAllBtn) {
       stageAllBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
-        await window.electronAPI.git.stage({ repoRoot, paths: ['.'] });
-        refresh();
+        await runOperation('Staging all changes…', root => window.electronAPI.git.stage({ repoRoot: root, paths: ['.'] }), () => 'Changes staged. Add a message, then commit and push.');
       });
     }
 
@@ -1544,8 +1577,7 @@
     if (unstageAllBtn) {
       unstageAllBtn.addEventListener('click', async () => {
         if (!repoRoot) return;
-        await window.electronAPI.git.unstage({ repoRoot, paths: ['.'] });
-        refresh();
+        await runOperation('Unstaging all changes…', root => window.electronAPI.git.unstage({ repoRoot: root, paths: ['.'] }), () => 'Changes unstaged. Your edits are still on disk.');
       });
     }
 
@@ -1711,6 +1743,9 @@
   // Expose public API
   window.gitPanel = {
     refresh,
+    onFileSaved: debounce(() => {
+      if (!operationPending && document.getElementById('git-pane')?.style.display !== 'none') refresh();
+    }, 200),
     toggleBlame,
     clearBlame,
     showBranchDialog,

@@ -14981,6 +14981,7 @@ function acknowledgeEditorSave(target, savedContent, submittedContent) {
         tm._renderTabBar();
         tm._scheduleRecoveryPersist();
     }
+    window.gitPanel?.onFileSaved?.();
     if (editorSaveTargetIsActive(target)) {
         lastSavedContent = savedContent;
         window.lastSavedContent = savedContent;
@@ -15179,6 +15180,11 @@ async function saveAsFile(capturedTarget) {
 // --- Git Publish Dialog ---
 
 async function showGitPublishDialog(folderPath, gitInfo) {
+    if (window.NightOwlWindowClose?.unsavedNames(window).length || window.hasUnsavedChanges) {
+        showNotification('Save your open edits before publishing this folder.', 'warning');
+        return null;
+    }
+    const escapeGitText = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const isDarkMode = document.body.classList.contains('dark-mode');
     const bgColor = isDarkMode ? '#252526' : 'white';
     const textColor = isDarkMode ? '#d4d4d4' : '#333';
@@ -15249,7 +15255,7 @@ async function showGitPublishDialog(folderPath, gitInfo) {
                                            c.status === 'untracked' ? '#3b82f6' : '#f59e0b';
                         return `<div style="padding: 6px 10px; border-bottom: 1px solid ${borderColor}; font-family: monospace; font-size: 12px;">
                             <span style="color: ${statusColor}; font-weight: 500;">[${c.status}]</span>
-                            <span style="margin-left: 8px;">${c.file}</span>
+                            <span style="margin-left: 8px;">${escapeGitText(c.file)}</span>
                         </div>`;
                     }).join('')}
                 </div>
@@ -15259,7 +15265,7 @@ async function showGitPublishDialog(folderPath, gitInfo) {
         dialog.innerHTML = `
             <h3 style="margin: 0 0 8px 0; font-size: 18px;">Publish to Git</h3>
             <p style="margin: 0 0 16px 0; color: ${secondaryColor}; font-size: 13px;">
-                <strong>${folderName}</strong> in <em>${repoName}</em>
+                <strong>${escapeGitText(folderName)}</strong> in <em>${escapeGitText(repoName)}</em>
             </p>
 
             <div style="margin-bottom: 16px;">
@@ -15273,7 +15279,7 @@ async function showGitPublishDialog(folderPath, gitInfo) {
                 <label style="display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px;">
                     Commit message:
                 </label>
-                <textarea id="git-commit-message" style="
+                <textarea id="git-folder-commit-message" style="
                     width: 100%;
                     height: 80px;
                     padding: 10px 12px;
@@ -15300,7 +15306,7 @@ async function showGitPublishDialog(folderPath, gitInfo) {
         document.body.appendChild(overlay);
 
         // Focus textarea
-        const textarea = dialog.querySelector('#git-commit-message');
+        const textarea = dialog.querySelector('#git-folder-commit-message');
         if (changes.length > 0) {
             textarea.focus();
         }

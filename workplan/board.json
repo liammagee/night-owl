@@ -1,13 +1,13 @@
 {
-  "generated": "2026-08-11T00:10:49.765Z",
+  "generated": "2026-11-14T18:53:46.955Z",
   "counts": {
-    "total": 32,
+    "total": 33,
     "byStatus": {
-      "done": 32
+      "done": 33
     },
     "byPriority": {
       "P0": 4,
-      "P1": 14,
+      "P1": 15,
       "P2": 13,
       "P3": 1
     },
@@ -15,7 +15,7 @@
       "presentation": 5,
       "preview": 3,
       "platform": 7,
-      "editor": 3,
+      "editor": 4,
       "testing": 3,
       "packaging": 2,
       "security": 2,
@@ -287,6 +287,26 @@
         "error-boundary",
         "loading",
         "recovery"
+      ]
+    },
+    {
+      "id": "reliable-authoring-git-sync",
+      "title": "Make authoring changes easy and reliable to commit and push",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-11-12",
+      "updated": "2026-11-14",
+      "verification": "Local CI, real temporary-repository Git integration tests, renderer behavior tests, and performance budgets pass.",
+      "tags": [
+        "git",
+        "authoring",
+        "performance",
+        "accessibility"
       ]
     },
     {

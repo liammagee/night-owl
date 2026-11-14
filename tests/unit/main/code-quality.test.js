@@ -696,12 +696,17 @@ describe('Code quality guardrails', () => {
     expect(presentationSource).not.toContain('const presentationPreflight =');
     expect(presentationSource).toContain('{!isPresenting && (');
     expect(presentationSource).toContain("data-fit-mode={isPresenting ? 'contain' : 'canvas'}");
-    expect(presentationSource).toContain('Math.min(frame.clientWidth, element.clientWidth)');
+    // Natural content dimensions must stay independent of the prior fitted scale.
+    expect(presentationSource).toContain('const availableWidth = frame.clientWidth');
+    expect(presentationSource).toContain('const availableHeight = frame.clientHeight');
+    expect(presentationSource).toContain('const contentWidth = element.scrollWidth');
+    expect(presentationSource).toContain('const contentHeight = element.scrollHeight');
+    expect(presentationSource).not.toContain('Math.min(frame.clientWidth, element.clientWidth)');
     expect(presentationSource).toContain("transformOrigin: 'top left'");
     expect(presentationSource).not.toContain('presentation-shell w-full h-screen');
     expect(presentationCss).toContain('#presentation-root .presentation-stage > .presentation-canvas');
     expect(presentationCss).toContain('body.is-presenting #presentation-root .presentation-stage .presentation-current-slide');
-    expect(presentationCss).toContain('body.is-presenting #presentation-root .slide-content-delivery');
+    expect(presentationCss).toContain('#presentation-root .slide-content-frame .slide-content');
     expect(presentationCss).toContain('body:not(.is-presenting) #presentation-root .presentation-stage .presentation-canvas .slide');
   });
 
