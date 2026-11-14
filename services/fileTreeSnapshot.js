@@ -40,14 +40,19 @@ function createFileTreeSnapshot(options = {}) {
     const expanded = new Set((options.expandedPaths || []).map(p => path.resolve(p)));
     const recursive = options.recursive === true;
     const visible = new Set();
-    let remaining = 50000;
+    let remaining = recursive ? 250000 : 50000;
     async function visit(dir, depth) {
       const node = { name: path.basename(dir) || 'Root', type: 'directory', path: dir, children: [] };
       if (depth > 0 && !recursive && !expanded.has(dir)) return { ...node, childrenLoaded: false };
       if (depth > 100 || remaining <= 0) return { ...node, childrenLoaded: false, truncated: true };
       visible.add(dir);
       try {
-        const listing = await entries(dir);
+        // A one-off deep search must not create a native watcher for every
+        // directory (or race a shallow refresh that closes those watchers).
+        if (recursive) reads++;
+        const listing = recursive
+          ? await fsApi.readdir(dir, { withFileTypes: true })
+          : await entries(dir);
         for (const entry of listing) {
           if (remaining-- <= 0) { node.truncated = true; break; }
           if (entry.isSymbolicLink() || options.shouldHide?.(entry.name)) continue;

@@ -286,6 +286,8 @@ window._setLastSavedContent = function(val) { lastSavedContent = val; };
 let activeTagFilters = new Set();
 let tagFilteringInitialized = false;
 let fileTreeSearchQuery = '';
+let fileTreeTagSearch = null;
+const recursiveFileTrees = new WeakSet();
 
 // File tree rendering state
 let fileTreeTagHydrationHandle = null;
@@ -306,24 +308,28 @@ const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 file
 const fileTreeController = window.NightOwlFileTreeController?.createFileTreeController?.({
     requestTree: async () => {
         if (!window.electronAPI?.files?.requestFileTree) throw new Error('File capability not available');
-        const filtering = Boolean(fileTreeSearchQuery || activeTagFilters.size);
-        if (filtering) {
-            // Cross-folder tag search is explicit demand; ordinary browsing never indexes.
-            const indexed = await window.electronAPI.search?.workspaceIndexList?.({ extensions: ['.md', '.markdown'], limit: 50000 });
-            if (indexed?.success) window.tagManager?.hydrateIndexedFiles?.(indexed.files);
-        }
-        return window.electronAPI.files.requestFileTree({ lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: filtering });
+        const filtering = isFileTreeFiltering();
+        const tree = await window.electronAPI.files.requestFileTree({
+            lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: filtering
+        });
+        if (filtering && tree) recursiveFileTrees.add(tree);
+        return tree;
     },
     renderTree: fileTree => {
+        // A shallow browse already in flight cannot answer a new deep search,
+        // and a completed search must not replace browsing after clearing it.
+        if (recursiveFileTrees.has(fileTree) !== isFileTreeFiltering()) return;
         window.fileTreeData = fileTree;
+        updateFileTreeSearchTags(fileTree);
         renderFileTreeData(fileTree);
         updateAvailableFiles(fileTree);
     },
-    requestSignature: () => window.electronAPI.files.getFileTreeSignature({ lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: Boolean(fileTreeSearchQuery || activeTagFilters.size) }),
+    requestSignature: () => window.electronAPI.files.getFileTreeSignature({ lazy: true, expandedPaths: [...(window.expandedFolders || [])] }),
     shouldPoll: context => {
         if (!window.electronAPI?.files?.getFileTreeSignature || document.visibilityState === 'hidden') return false;
         if (window.nightowlRendererActivity?.isActive() === false) return false;
         if (context?.starting) return true;
+        if (isFileTreeFiltering()) return false;
         const view = document.getElementById('file-tree-view');
         return window.currentStructureView === 'file' && view && view.style.display !== 'none';
     },
@@ -10019,8 +10025,8 @@ function renderFileTreeData(fileTree) {
     if (isFiltering && !fileTreeHasRenderableContent(displayTree)) {
         fileTreeView.replaceChildren(createFileTreeMessage(
             'no-results',
-            'No matching files',
-            getFileTreeFilterDescription()
+            fileTreeTagSearch?.pending && !activeTagFilters.size ? 'No matching filenames' : 'No matching files',
+            fileTreeTagSearch?.pending ? 'Checking workspace tags…' : getFileTreeFilterDescription()
         ));
         applyFileTreePostRenderDecorations();
         return;
@@ -10072,8 +10078,54 @@ function renderFileTreeData(fileTree) {
     updateDuplicateFolderButtonState();
 }
 
+function isFileTreeFiltering() {
+    return Boolean(fileTreeSearchQuery || activeTagFilters.size);
+}
+
+function getFileTreeSearchScope(tree) {
+    if (!tree || tree.type === 'error') return null;
+    return JSON.stringify(tree.isMultiFolder ? tree.children.map(root => root.path) : [tree.path]);
+}
+
+function updateFileTreeSearchTags(tree) {
+    if (!isFileTreeFiltering()) {
+        if (!fileTreeTagSearch?.pending) fileTreeTagSearch = null;
+        return;
+    }
+    const scope = getFileTreeSearchScope(tree);
+    const search = window.electronAPI?.search;
+    const tags = window.tagManager;
+    if (!scope || fileTreeTagSearch?.scope === scope ||
+        !search?.workspaceIndexList || !tags?.hydrateIndexedFiles) return;
+
+    // Content indexing enriches name/path results independently and is
+    // shared across keystrokes in this search.
+    const job = { scope, pending: true };
+    fileTreeTagSearch = job;
+    void Promise.resolve()
+        .then(() => search.workspaceIndexList({ extensions: ['.md', '.markdown'], limit: 50000 }))
+        .then(result => {
+            if (job === fileTreeTagSearch && result?.success &&
+                getFileTreeSearchScope(window.fileTreeData) === scope) {
+                tags.hydrateIndexedFiles(result.files);
+            }
+        })
+        .catch(error => {
+            if (window.DEBUG_VERBOSE) console.warn('[FileTree] Tag search unavailable:', error);
+        })
+        .finally(() => {
+            job.pending = false;
+            if (job !== fileTreeTagSearch) return;
+            if (!isFileTreeFiltering()) {
+                fileTreeTagSearch = null;
+            } else if (getFileTreeSearchScope(window.fileTreeData) === scope) {
+                rerenderFileTreeFromCache();
+            }
+        });
+}
+
 function rerenderFileTreeFromCache() {
-    if (!window.fileTreeData) return;
+    if (!recursiveFileTrees.has(window.fileTreeData)) return;
     renderFileTreeData(window.fileTreeData);
 }
 
