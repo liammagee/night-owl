@@ -177,11 +177,12 @@
       const slide = slides[slideIndex];
       if (!slide) continue;
       const scale = Number(element.querySelector('[data-content-scale]')?.dataset.contentScale || 1);
-      if (element.dataset.contentOverflow === 'true' || (Number.isFinite(scale) && scale < 0.999)) {
+      if (element.dataset.contentOverflow === 'true' ||
+        (element.dataset.contentOverflow === undefined && Number.isFinite(scale) && scale < 0.999)) {
         warnings.push(warning('overflow', slide, {
           severity: 'error',
           message: 'Slide content exceeds the 16:9 frame',
-          detail: `Shorten the slide or split it. Delivery currently scales this content to ${Math.round(scale * 100)}%.`
+          detail: `Shorten the slide or split it. The slide is fitted to ${Math.round(scale * 100)}%.`
         }));
       }
 

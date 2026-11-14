@@ -142,34 +142,32 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
     if (!frame || !element) return undefined;
     const slideElement = element.closest('.slide');
     let animationFrame = null;
+    let disposed = false;
 
     const measure = () => {
+      if (disposed) return;
       if (animationFrame) cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(() => {
         animationFrame = null;
-        const availableWidth = Math.min(frame.clientWidth, element.clientWidth);
-        const availableHeight = Math.min(frame.clientHeight, element.clientHeight);
-        const descendants = Array.from(element.querySelectorAll('*'));
-        const contentWidth = descendants.reduce(
-          (maximum, child) => Math.max(maximum, child.scrollWidth || 0),
-          Math.max(availableWidth, element.scrollWidth)
-        );
-        const contentHeight = descendants.reduce(
-          (maximum, child) => Math.max(maximum, (child.offsetTop || 0) + (child.scrollHeight || 0)),
-          Math.max(availableHeight, element.scrollHeight)
-        );
+        // Natural, untransformed dimensions stay independent of canvas pan,
+        // zoom and the previous fit. Nested offsetTop values do not share an
+        // offset parent (notably table cells), so cannot be compared directly.
+        const availableWidth = frame.clientWidth;
+        const availableHeight = frame.clientHeight;
+        const contentWidth = element.scrollWidth;
+        const contentHeight = element.scrollHeight;
         const nextScale = window.NightOwlPresentationViewport?.calculateContentScale?.({
           availableWidth,
           availableHeight,
           contentWidth,
           contentHeight
         }) ?? 1;
-        const overflows = nextScale < 0.999;
+        const overflows = contentWidth > availableWidth + 2 || contentHeight > availableHeight + 2;
 
         if (slideElement) {
           slideElement.dataset.contentOverflow = overflows ? 'true' : 'false';
         }
-        setContentScale(previous => Math.abs(previous - nextScale) > 0.001 ? nextScale : previous);
+        setContentScale(previous => Math.abs(previous - nextScale) > 0.000001 ? nextScale : previous);
       });
     };
 
@@ -179,12 +177,16 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
       : null;
     resizeObserver?.observe(frame);
     resizeObserver?.observe(element);
+    // Template changes can widen a code block without changing the outer box.
+    Array.from(element.children).forEach(child => resizeObserver?.observe(child));
     const mutationObserver = new MutationObserver(measure);
     mutationObserver.observe(element, { childList: true, subtree: true, characterData: true });
     element.querySelectorAll('img').forEach(image => image.addEventListener('load', measure));
+    document.fonts?.ready.then(measure);
     window.addEventListener('resize', measure);
 
     return () => {
+      disposed = true;
       if (animationFrame) cancelAnimationFrame(animationFrame);
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
@@ -198,7 +200,7 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
     <div
       ref={frameRef}
       className="slide-content-frame"
-      style={{ height: '100%', width: '100%', overflow: 'hidden' }}
+      style={{ height: '100%', width: '100%', overflow: 'hidden', position: 'relative' }}
     >
       <div
         ref={contentRef}
@@ -207,12 +209,15 @@ const PresentationSlideContent = ({ html, isPresenting }) => {
         style={{
           height: '100%',
           width: '100%',
-          transform: isPresenting ? `scale(${contentScale})` : 'none',
+          transform: `scale(${contentScale})`,
           transformOrigin: 'top left'
         }}
         onClick={(event) => window.handleInternalLinkClick?.(event)}
         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
+      {!isPresenting && contentScale < 0.75 && (
+        <span className="slide-density-hint">Dense slide · consider splitting</span>
+      )}
     </div>
   );
 };
@@ -707,7 +712,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, []);
 
   // Calculate slide positioning based on layout type
-  const calculateSlidePosition = (index, total) => {
+  const calculateSlidePosition = (index, total, spiralPositions) => {
     const spacing = SLIDE_SPACING;
     
     switch (layoutType) {
@@ -729,14 +734,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         };
         
       case 'spiral':
-        if (index === 0) return { x: 0, y: 0 };
-        const spiralAngle = (index / total) * 4 * Math.PI;
-        const spiralRadius = (SLIDE_HALF_WIDTH * 0.75) + (index * (SLIDE_HALF_WIDTH * 0.6));
-        return {
-          x: Math.cos(spiralAngle) * spiralRadius,
-          y: Math.sin(spiralAngle) * spiralRadius
-        };
-        
+        return spiralPositions[index];
+
       case 'tree':
         if (index === 0) return { x: 0, y: 0 };
         const level = Math.floor(Math.log2(index + 1));
@@ -1315,6 +1314,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         }));
       // Empty documents and frontmatter-only files have no slides.
       const renderSlides = sourceSlides;
+      const spiralPositions = layoutType === 'spiral'
+        ? presentationViewport.calculateSpiralPositions(renderSlides.length) : [];
       return renderSlides.map((sourceSlide, index) => {
         const text = sourceSlide.markdown;
         const { cleanContent: afterNotes, speakerNotes } = extractSpeakerNotes(text);
@@ -1327,7 +1328,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           backgroundImage: backgroundImage,
           title: sourceSlide?.title || `Slide ${index + 1}`,
           sourceLine: sourceSlide?.startLine || 1,
-          position: calculateSlidePosition(index, renderSlides.length),
+          position: calculateSlidePosition(index, renderSlides.length, spiralPositions),
           parsed: parseMarkdownContent(cleanContent)
         };
       });
@@ -1735,9 +1736,11 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   // Recalculate positions when layout changes
   useEffect(() => {
     if (slides.length > 0) {
+      const spiralPositions = layoutType === 'spiral'
+        ? presentationViewport.calculateSpiralPositions(slides.length) : [];
       const updatedSlides = slides.map((slide, index) => ({
         ...slide,
-        position: calculateSlidePosition(index, slides.length)
+        position: calculateSlidePosition(index, slides.length, spiralPositions)
       }));
       setSlides(updatedSlides);
     }

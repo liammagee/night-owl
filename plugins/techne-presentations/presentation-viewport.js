@@ -14,6 +14,32 @@
     return Number.isFinite(number) && number > 0 ? number : 0;
   };
 
+  // Walk an expanding ellipse in slide-sized units. Test the whole placed
+  // set: spacing only adjacent centers still permits collisions across turns.
+  function calculateSpiralPositions(count) {
+    const positions = [];
+    const gap = 120;
+    const stepX = SLIDE_WIDTH + gap;
+    const stepY = SLIDE_HEIGHT + gap;
+    let angle = 0;
+    for (let index = 0; index < count; index += 1) {
+      let candidate;
+      do {
+        const radius = angle / (2 * Math.PI) * 1.5;
+        candidate = {
+          x: Math.cos(angle) * radius * stepX,
+          y: Math.sin(angle) * radius * stepY
+        };
+        angle += 0.05;
+      } while (positions.some(position =>
+        Math.abs(position.x - candidate.x) < stepX &&
+        Math.abs(position.y - candidate.y) < stepY
+      ));
+      positions.push(candidate);
+    }
+    return positions;
+  }
+
   function calculateFitScale(viewportWidth, viewportHeight, options = {}) {
     const width = finiteDimension(viewportWidth);
     const height = finiteDimension(viewportHeight);
@@ -102,6 +128,7 @@
   const api = {
     SLIDE_WIDTH,
     SLIDE_HEIGHT,
+    calculateSpiralPositions,
     calculateContentScale,
     calculateFitScale,
     calculateFitTransform,
