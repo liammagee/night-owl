@@ -169,18 +169,16 @@ function register(deps) {
       
       const importedSettings = importData.settings;
       
-      // Validate basic structure
-      if (typeof importedSettings !== 'object') {
+      if (!isPlainObject(importedSettings)) {
         throw new Error('Settings must be an object');
       }
-      
-      // Merge with current settings, preserving structure
-      Object.keys(importedSettings).forEach(category => {
-        if (typeof importedSettings[category] === 'object' && !Array.isArray(importedSettings[category])) {
-          updateSettingsCategory(category, importedSettings[category]);
-        }
-      });
-      
+
+      // Use the same merge contract as full settings updates: scalar and array
+      // preferences round-trip, while live workspace/session ownership stays local.
+      replaceSettingsInPlace(importedSettings);
+      saveSettings();
+      if (isPlainObject(importedSettings.ai)) applyAISettingsUpdates(importedSettings.ai);
+
       debug('[SettingsHandlers] Settings imported successfully');
       return { success: true, message: 'Settings imported successfully' };
     } catch (error) {

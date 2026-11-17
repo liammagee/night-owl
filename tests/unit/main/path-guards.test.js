@@ -41,6 +41,10 @@ describe('IPC path guards', () => {
     expect(absoluteResult.error).toContain('must stay inside a workspace folder');
   });
 
+  test('allows ordinary names beginning with two dots', () => {
+    expect(isPathInsideRoot(path.join(workspaceRoot, '..draft.md'), workspaceRoot)).toBe(true);
+  });
+
   test('validates path segments before joining them into write targets', () => {
     expect(validatePathSegment('draft.md')).toEqual({ success: true, value: 'draft.md' });
     expect(validatePathSegment('../draft.md').success).toBe(false);

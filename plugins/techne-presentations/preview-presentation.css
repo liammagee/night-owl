@@ -211,7 +211,7 @@ body.techne-theme #presentation-root .presentation-control-btn {
 body.techne-theme #presentation-root .presentation-present-btn,
 body[data-techne-theme] #presentation-root .presentation-present-btn {
     border-color: var(--techne-black, #0a0a0a) !important;
-    color: var(--techne-black, #0a0a0a) !important;
+    color: var(--techne-text-on-accent, var(--text-on-primary, #ffffff)) !important;
     box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.12) !important;
 }
 

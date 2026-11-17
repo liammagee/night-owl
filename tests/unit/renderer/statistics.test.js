@@ -48,4 +48,18 @@ This final sentence is intentionally much longer than the others because it need
     expect(content.textContent).toContain('Unique Words');
     expect(content.innerHTML).not.toContain('background: #fff0f5');
   });
+  test('counts link labels as prose and excludes image markup and punctuation-only tokens', () => {
+    const stats = window.calculateBasicStatistics('Read [these two words](https://example.test) ![ignored image](image.png) — now.');
+    expect(stats.wordCount).toBe(5);
+    expect(stats.cleanText).toContain('these two words');
+    expect(stats.linkCount).toBe(1);
+    expect(stats.imageCount).toBe(1);
+  });
+
+  test('counts non-Latin vocabulary consistently', () => {
+    const stats = window.calculateBasicStatistics('世界 世界 café');
+    expect(stats.wordCount).toBe(3);
+    expect(stats.uniqueWordCount).toBe(2);
+  });
+
 });
