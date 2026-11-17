@@ -43,9 +43,6 @@ function showFindReplaceDialog(showReplace = false) {
         }
     }
     
-    // Focus find input and select current selection if any
-    findInput.focus();
-    
     if (window.editor && window.editor.getModel()) {
         const selection = window.editor.getSelection();
         if (selection && !selection.isEmpty()) {
@@ -53,6 +50,10 @@ function showFindReplaceDialog(showReplace = false) {
             findInput.value = selectedText;
         }
     }
+
+    // Select the final query so invoking Find is ready to replace it by typing.
+    findInput.focus();
+    findInput.select();
 }
 
 /**
@@ -365,6 +366,22 @@ function initializeFindReplace() {
     const replaceBtn = document.getElementById('replace-current');
     const replaceAllBtn = document.getElementById('replace-all');
     const findReplaceClose = document.getElementById('find-replace-close');
+
+    // Monaco creates its find field lazily, so handle focus for both fields here.
+    const findQuerySelector = '#find-input, .monaco-editor .find-widget .monaco-findInput textarea';
+    document.addEventListener('focusin', (event) => {
+        if (event.target.matches(findQuerySelector)) {
+            event.target.select();
+        }
+    });
+    document.addEventListener('mousedown', (event) => {
+        const field = event.target;
+        if (event.button !== 0 || field === document.activeElement || !field.matches(findQuerySelector)) return;
+
+        // The browser would otherwise place the caret at the click position.
+        event.preventDefault();
+        field.focus();
+    });
     
     // Event listeners
     if (findInput) {
