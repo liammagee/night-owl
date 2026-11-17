@@ -20,7 +20,7 @@ let currentDecorations = [];
 
 /**
  * Show the find/replace dialog
- * Optionally shows the replace input field and pre-fills with selected text
+ * Optionally shows the replace input field and selects the existing query
  *
  * @param {boolean} [showReplace=false] - Whether to show the replace input field
  */
@@ -43,15 +43,6 @@ function showFindReplaceDialog(showReplace = false) {
         }
     }
     
-    if (window.editor && window.editor.getModel()) {
-        const selection = window.editor.getSelection();
-        if (selection && !selection.isEmpty()) {
-            const selectedText = window.editor.getModel().getValueInRange(selection);
-            findInput.value = selectedText;
-        }
-    }
-
-    // Select the final query so invoking Find is ready to replace it by typing.
     findInput.focus();
     findInput.select();
 }
@@ -368,7 +359,7 @@ function initializeFindReplace() {
     const findReplaceClose = document.getElementById('find-replace-close');
 
     // Monaco creates its find field lazily, so handle focus for both fields here.
-    const findQuerySelector = '#find-input, .monaco-editor .find-widget .monaco-findInput textarea';
+    const findQuerySelector = '#find-input, .monaco-editor .find-widget > .find-part .monaco-findInput textarea';
     document.addEventListener('focusin', (event) => {
         if (event.target.matches(findQuerySelector)) {
             event.target.select();
