@@ -9,6 +9,7 @@
 // --- Module State ---
 /** @type {string} Current statistics scope ('document' or 'project') */
 let currentStatsScope = 'document';
+let statisticsRequest = 0;
 
 /**
  * Switch between document and project statistics scope
@@ -51,6 +52,7 @@ async function updateStatisticsPane() {
     const statisticsContent = document.getElementById('statistics-content');
     if (!statisticsContent) return;
 
+    const request = ++statisticsRequest;
     try {
         let stats;
 
@@ -79,6 +81,8 @@ async function updateStatisticsPane() {
 
             stats = calculateBasicStatistics(content);
         }
+
+        if (request !== statisticsRequest) return;
 
         // Ensure stats object exists and has required properties
         if (!stats) {
@@ -229,12 +233,12 @@ async function updateStatisticsPane() {
         `;
 
     } catch (error) {
+        if (request !== statisticsRequest) return;
         console.error('Error calculating statistics:', error);
-        statisticsContent.innerHTML = `
-            <p class="statistics-error-state" style="text-align: center; padding: 20px;">
-                Error calculating statistics: ${error.message}
-            </p>
-        `;
+        const message = document.createElement('p');
+        message.className = 'statistics-error-state';
+        message.textContent = `Error calculating statistics: ${error.message}`;
+        statisticsContent.replaceChildren(message);
     }
 }
 

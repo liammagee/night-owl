@@ -9,7 +9,7 @@ owner: "codex"
 source: "systematic-review"
 evidence: "test-failure"
 created: "2026-11-17"
-updated: "2026-11-17"
+updated: "2026-11-21"
 verification: "Release gate, real IPC replacement test, editor regressions, and broader diagnostics; record all failures and exclusions."
 tags: ["data-integrity", "search", "review"]
 ---
@@ -55,3 +55,11 @@ Final release gate: 8/8; Jest: 154 suites / 1,600 tests; required Electron: 28/2
 editor/session: 14/14; optional accessibility/theme/performance: 7/7.
 The broad pass is ready for review. Exhaustive per-feature, cross-platform, and
 external-service verification remains outside the evidence established here.
+
+## November 21 continuation
+
+User requested remaining areas and the intermittent presentation repair. Continued
+through persistence fault injection, media, settings, PDF/citation records,
+terminal lifecycle, exports, dependency/native upgrades and actual packaging.
+See the [coverage and defect ledger](../../docs/development/CODEBASE_REVIEW_2026-11-21.md).
+Validation: 159 suites / 1,623 tests; required Electron 31/31; editor 14/14; optional 7/7; packaged 7/7; dependency audit zero. No remote publication or installed-app replacement.

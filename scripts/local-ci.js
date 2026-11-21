@@ -7,7 +7,7 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const REQUIRED_NODE_MAJOR = 20;
+const REQUIRED_NODE_MAJOR = 22;
 
 function parseArgs(argv) {
   const options = { help: false, release: false };
@@ -212,9 +212,9 @@ async function main(argv = process.argv.slice(2)) {
     return [];
   }
 
-  const nodeMajor = Number(process.versions.node.split('.')[0]);
-  if (!Number.isFinite(nodeMajor) || nodeMajor < REQUIRED_NODE_MAJOR) {
-    throw new Error(`NightOwl local CI requires Node ${REQUIRED_NODE_MAJOR} or newer; found ${process.version}.`);
+  const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+  if (!Number.isFinite(nodeMajor) || nodeMajor < REQUIRED_NODE_MAJOR || (nodeMajor === REQUIRED_NODE_MAJOR && nodeMinor < 12)) {
+    throw new Error(`NightOwl local CI requires Node ${REQUIRED_NODE_MAJOR}.12 or newer; found ${process.version}.`);
   }
 
   const dependency = findNodeModules();

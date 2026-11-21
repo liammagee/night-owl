@@ -92,3 +92,9 @@ Playwright artifacts and performance measurements are under this checkout's igno
   add regression risk without evidence of a specific improvement.
 
 No installed-app replacement, publishing, remote push, or merge was performed.
+
+## Continuation
+
+The [November 21 continuation](CODEBASE_REVIEW_2026-11-21.md) supersedes the
+presentation, save durability, dependency and packaging follow-up status above.
+This November 17 report remains a historical record of its original results.

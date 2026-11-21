@@ -101,7 +101,7 @@ function createJsonResponse(res, statusCode, payload) {
 
 function readRequestBody(req, maxBytes = MAX_CAPTURE_BODY_BYTES) {
     return new Promise((resolve, reject) => {
-        let body = '';
+        const chunks = [];
         let bytesRead = 0;
 
         req.on('data', chunk => {
@@ -111,10 +111,11 @@ function readRequestBody(req, maxBytes = MAX_CAPTURE_BODY_BYTES) {
                 req.destroy();
                 return;
             }
-            body += chunk.toString('utf8');
+            chunks.push(Buffer.from(chunk));
         });
 
-        req.on('end', () => resolve(body));
+        req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        req.on('aborted', () => reject(new Error('Request aborted')));
         req.on('error', reject);
     });
 }
@@ -251,6 +252,7 @@ function createCitationCaptureServer(options = {}) {
 module.exports = {
     DEFAULT_CAPTURE_HOST,
     DEFAULT_CAPTURE_PORT,
+    readRequestBody,
     parseQueryPayload,
     parseBodyPayload,
     normalizeCapturePayload,

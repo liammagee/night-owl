@@ -60,7 +60,7 @@ function collectAppDiagnostics(electronApp = app) {
 
 function getTracePath(electronApp = app) {
   const userDataPath = electronApp.getPath ? electronApp.getPath('userData') : process.cwd();
-  return path.join(userDataPath, `nightowl-performance-${Date.now()}.json`);
+  return path.join(userDataPath, `nightowl-performance-${Date.now()}.pftrace`);
 }
 
 async function startPerformanceTrace(options = {}) {

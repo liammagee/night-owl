@@ -1593,30 +1593,26 @@ function scrollToHeadingInEditor(lineNumber) {
 }
 
 function scrollToHeadingInPreview(headingText) {
-    if (headingText) {
-        const previewId = `heading-${slugify(headingText)}`;
-        const previewElement = document.getElementById(previewId);
-        const previewContentDiv = document.getElementById('preview-content');
-
-        if (previewElement && previewContentDiv) {
-            // Wrap scroll in requestAnimationFrame to handle timing issues
-            requestAnimationFrame(() => {
-                const pane = document.getElementById('preview-pane');
-                if (!pane || !pane.contains(previewElement)) return;
-                // Themes may make the content itself scrollable instead of the pane.
-                let scroller = previewElement.parentElement;
-                while (scroller && scroller !== pane) {
-                    if (/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
-                        && scroller.scrollHeight > scroller.clientHeight) break;
-                    scroller = scroller.parentElement;
-                }
-                if (!scroller) return;
-                const top = scroller.scrollTop + previewElement.getBoundingClientRect().top
-                    - scroller.getBoundingClientRect().top - scroller.clientTop;
-                scroller.scrollTo({ top, behavior: 'smooth' });
-            });
+    if (!headingText) return;
+    const previewId = `heading-${slugify(headingText)}`;
+    // Resolve the target after the pending preview commit, not before the frame.
+    // Async rendering may replace an otherwise valid heading between those times.
+    requestAnimationFrame(() => {
+        const pane = document.getElementById('preview-pane');
+        const content = document.getElementById('preview-content');
+        const target = content?.querySelector(`#${CSS.escape(previewId)}`);
+        if (!pane || !target || !pane.contains(target)) return;
+        let scroller = target.parentElement;
+        while (scroller && scroller !== pane) {
+            if (/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+                && scroller.scrollHeight > scroller.clientHeight) break;
+            scroller = scroller.parentElement;
         }
-    }
+        if (!scroller) return;
+        const top = scroller.scrollTop + target.getBoundingClientRect().top
+            - scroller.getBoundingClientRect().top - scroller.clientTop;
+        scroller.scrollTo({ top, behavior: 'smooth' });
+    });
 }
 
 function updateStructurePane(markdownContent) {
@@ -9549,8 +9545,8 @@ function _setupScrollSync(targetEl, mode) {
 
     if (mode === 'proportional') {
         // Editor → Target (proportional ratio)
-        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
-            if (_syncingFromSource) return;
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange((event) => {
+            if (!event.scrollTopChanged || _syncingFromSource) return;
             const info = window.editor.getLayoutInfo();
             const scrollHeight = window.editor.getScrollHeight() - info.height;
             if (scrollHeight <= 0) return;
@@ -9579,8 +9575,8 @@ function _setupScrollSync(targetEl, mode) {
 
     } else if (mode === 'linemap') {
         // Editor → Preview (line-based)
-        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
-            if (_syncingFromSource) return;
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange((event) => {
+            if (!event.scrollTopChanged || _syncingFromSource) return;
             const topLine = window.editor.getVisibleRanges()?.[0]?.startLineNumber;
             if (!topLine) return;
             const el = _findPreviewElementForLine(targetEl, topLine);

@@ -6,7 +6,7 @@ Thank you for your interest in contributing to NightOwl!
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR-USERNAME/night-owl.git`
-3. Use Node.js 20 or newer and install dependencies: `npm ci`
+3. Use Node.js 22.12 or newer and install dependencies: `npm ci`
 4. Create a focused branch: `git switch -c feature/your-feature-name`
 
 ## Development
@@ -79,3 +79,11 @@ Open an issue describing:
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+
+The dependency refresh uses Electron 45 and Node 22.12+ build tooling. Linux builds
+use Ubuntu 26.04; newer Electron Linux binaries require glibc 2.41+. EPUB and
+LaTeX exports require Pandoc (the same converter used by standard exports).
+
+Electron 45 performance recordings use `.pftrace` (Perfetto protobuf). Open them
+in Perfetto, or run `traceconv json input.pftrace output.json` before using the
+JSON comparison script. See [Electron breaking changes](https://www.electronjs.org/docs/latest/breaking-changes).

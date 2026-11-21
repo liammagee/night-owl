@@ -1,10 +1,9 @@
 {
-  "generated": "2026-11-17T15:54:32.188Z",
+  "generated": "2026-11-21T22:42:07.204Z",
   "counts": {
     "total": 35,
     "byStatus": {
-      "triaged": 1,
-      "review": 1,
+      "review": 2,
       "done": 33
     },
     "byPriority": {
@@ -31,7 +30,7 @@
     {
       "id": "investigate-intermittent-presentation-navigation",
       "title": "Explain intermittent extra slide advancement in required Electron test",
-      "status": "triaged",
+      "status": "review",
       "type": "bug",
       "priority": "P1",
       "area": "presentation",
@@ -39,7 +38,7 @@
       "source": "test-failure",
       "evidence": "test-failure",
       "created": "2026-11-17",
-      "updated": "2026-11-17",
+      "updated": "2026-11-21",
       "verification": "Capture input and navigation event causality, identify the failure mechanism, and demonstrate a focused regression.",
       "tags": [
         "intermittent",
@@ -57,7 +56,7 @@
       "source": "systematic-review",
       "evidence": "test-failure",
       "created": "2026-11-17",
-      "updated": "2026-11-17",
+      "updated": "2026-11-21",
       "verification": "Release gate, real IPC replacement test, editor regressions, and broader diagnostics; record all failures and exclusions.",
       "tags": [
         "data-integrity",

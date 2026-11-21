@@ -17,6 +17,19 @@ describe('statistics module', () => {
     delete window.getStatsScope;
   });
 
+  test('late project results cannot replace newer document statistics', async () => {
+    document.body.innerHTML = '<button id="stats-scope-document"></button><button id="stats-scope-project"></button><div id="statistics-content"></div>';
+    let finish;
+    window.electronAPI = { ...window.electronAPI, files: { ...window.electronAPI.files, getMarkdownFiles: jest.fn(() => new Promise(resolve => { finish = resolve; })) } };
+    window.editor = { getValue: () => 'Current document words.' };
+    window.switchStatsScope('project');
+    window.switchStatsScope('document');
+    const expected = document.getElementById('statistics-content').innerHTML;
+    finish({ success: true, files: [] });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(document.getElementById('statistics-content').innerHTML).toBe(expected);
+  });
+
   test('calculates readability and vocabulary metrics for document statistics', () => {
     const stats = window.calculateBasicStatistics(`
 # Short Draft
