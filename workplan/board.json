@@ -1,14 +1,14 @@
 {
-  "generated": "2026-11-14T18:53:46.955Z",
+  "generated": "2026-11-17T17:20:18.800Z",
   "counts": {
-    "total": 33,
+    "total": 34,
     "byStatus": {
-      "done": 33
+      "done": 34
     },
     "byPriority": {
       "P0": 4,
       "P1": 15,
-      "P2": 13,
+      "P2": 14,
       "P3": 1
     },
     "byArea": {
@@ -17,7 +17,7 @@
       "platform": 7,
       "editor": 4,
       "testing": 3,
-      "packaging": 2,
+      "packaging": 3,
       "security": 2,
       "architecture": 3,
       "files": 1,
@@ -595,6 +595,20 @@
         "modernize-electron-e2e-harness",
         "reliable-editor-preview-transitions"
       ]
+    },
+    {
+      "id": "rebuild-and-install-local-code-on-restart",
+      "title": "Rebuild and install local code on Restart",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "manual",
+      "evidence": "opportunity",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Installer tests, static checks, and a packaged Restart that builds, installs, and reopens with an isolated profile."
     },
     {
       "id": "refresh-architecture-and-build-docs",
