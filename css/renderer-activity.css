@@ -1,0 +1,21 @@
+/* Keep decorative CSS (including pseudo-elements and newly inserted UI) still
+   while inactive. Pausing preserves progress and authored paused states.
+   Do not intercept requestAnimationFrame or timers: saves, IPC completion,
+   terminal output, and other background jobs must still run. */
+:root[data-nightowl-visuals-paused],
+:root[data-nightowl-visuals-paused] *,
+:root[data-nightowl-visuals-paused] *::before,
+:root[data-nightowl-visuals-paused] *::after {
+    animation-play-state: paused !important;
+    transition: none !important;
+}
+
+/* Idle decorations are independent of functional animations such as progress
+   indicators and slide delivery. Freeze only the background decoration tree. */
+:root[data-nightowl-decorations-paused] #techne-background,
+:root[data-nightowl-decorations-paused] #techne-background *,
+:root[data-nightowl-decorations-paused] #techne-background *::before,
+:root[data-nightowl-decorations-paused] #techne-background *::after {
+    animation-play-state: paused !important;
+    transition: none !important;
+}

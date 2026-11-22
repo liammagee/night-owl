@@ -90,22 +90,22 @@
     "pdfjs-dist": "^5.4.54",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "sqlite3": "^5.1.7",
+    "sqlite3": "^6.0.1",
     "write-good": "^1.0.8"
   },
   "devDependencies": {
-    "@electron/asar": "^3.4.1",
     "@babel/cli": "^7.28.3",
     "@babel/core": "^7.28.3",
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
+    "@electron/asar": "^3.4.1",
     "@playwright/test": "^1.55.0",
     "@types/jest": "^29.5.8",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "axe-playwright": "^2.1.0",
-    "electron": "^32.3.3",
-    "electron-builder": "^25.1.8",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "electron-reload": "^2.0.0-alpha.1",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
@@ -116,7 +116,7 @@
   "build": {
     "appId": "com.machinespirits.nightowl",
     "productName": "NightOwl",
-    "copyright": "Copyright © 2024-2025 Liam Magee",
+    "copyright": "Copyright \u00a9 2024-2025 Liam Magee",
     "directories": {
       "output": "dist"
     },
@@ -145,7 +145,8 @@
       "vs/**/*",
       "lib/**/*",
       "lectures/**/*",
-      "docs/**/*"
+      "docs/**/*",
+      "templates/**/*"
     ],
     "extraResources": [
       {
@@ -219,5 +220,19 @@
       "owner": "liammagee",
       "repo": "night-owl"
     }
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.1"
+    },
+    "@electron/universal": {
+      "minimatch": "^11.0.1"
+    },
+    "@machinespirits/tutor-core": {
+      "better-sqlite3": "^13.2.0"
+    }
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

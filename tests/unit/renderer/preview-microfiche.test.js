@@ -60,6 +60,24 @@ describe('preview microfiche mode', () => {
     return controller;
   }
 
+  test('deferred activation fitting cannot overwrite a manual zoom', () => {
+    const frames = [];
+    const original = window.requestAnimationFrame;
+    window.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+    try {
+      addLongDocument(preview);
+      const controller = createController();
+      controller.handlePreviewCommit({ filePath: '/workspace/long.md', renderer: 'markdown' });
+      controller.activate();
+      controller.zoomIn();
+      const manuallySelected = controller.getViewState().scale;
+      frames.splice(0).forEach(callback => callback());
+      expect(controller.getViewState().scale).toBe(manuallySelected);
+      expect(controller.getViewState().fitMode).toBe(false);
+      controller.deactivate();
+    } finally { window.requestAnimationFrame = original; }
+  });
+
   test('paginates rendered blocks into keyboard-accessible miniature frames', () => {
     addLongDocument(preview);
     const controller = createController();

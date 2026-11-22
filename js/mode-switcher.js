@@ -549,10 +549,8 @@ function switchToMode(modeName) {
     }
     
     // Store target slide for React component to pick up
-    if (targetSlide > 0) {
-      window.targetPresentationSlide = targetSlide;
-      console.log('[Mode Switching] Set window.targetPresentationSlide to:', targetSlide);
-    }
+    window.targetPresentationSlide = targetSlide;
+    console.log('[Mode Switching] Set window.targetPresentationSlide to:', targetSlide);
     
     const currentContent = getPresentationSourceContent();
 

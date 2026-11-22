@@ -1,5 +1,6 @@
 const http = require('http');
 const {
+  readRequestBody,
   parseQueryPayload,
   parseBodyPayload,
   normalizeCapturePayload,
@@ -113,3 +114,13 @@ describe('Citation Capture Bridge', () => {
     }
   });
 });
+
+ test('request body preserves UTF-8 split across network chunks', async () => {
+   const { PassThrough } = require('stream');
+   const req = new PassThrough();
+   const result = readRequestBody(req);
+   const bytes = Buffer.from('{"text":"哲学 🦉"}');
+   for (const byte of bytes) req.write(Buffer.from([byte]));
+   req.end();
+   expect(await result).toBe(bytes.toString('utf8'));
+ });

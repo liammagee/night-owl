@@ -13,7 +13,7 @@ function isPathInsideRoot(candidatePath, rootPath) {
   const relativePath = path.relative(resolvedRoot, resolvedCandidate);
   return relativePath === '' || (
     relativePath &&
-    !relativePath.startsWith('..') &&
+    relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) &&
     !path.isAbsolute(relativePath)
   );
 }

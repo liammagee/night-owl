@@ -201,6 +201,15 @@ function createPdfResearchService(options = {}) {
   const createReadStream = options.createReadStream || fs.createReadStream;
   const storageDirectory = path.join(userDataPath, 'pdf-research', 'documents');
   const identityCache = new Map();
+  const recordOperations = new Map();
+  async function withRecord(document, operation) {
+    const key = document.digest;
+    const previous = recordOperations.get(key) || Promise.resolve();
+    const current = previous.catch(() => {}).then(operation);
+    recordOperations.set(key, current);
+    try { return await current; }
+    finally { if (recordOperations.get(key) === current) recordOperations.delete(key); }
+  }
 
   async function identifyDocument(inputPath) {
     const filePath = requirePdfPath(inputPath);
@@ -265,63 +274,68 @@ function createPdfResearchService(options = {}) {
 
   async function loadAnnotations(inputPath) {
     const document = await identifyDocument(inputPath);
-    const record = await readRecord(document);
-    if (!record) {
+    return withRecord(document, async () => {
+      const record = await readRecord(document);
+      if (!record) {
+        return {
+          success: true,
+          found: false,
+          documentId: document.documentId,
+          filePath: document.filePath,
+          highlights: [],
+          annotations: []
+        };
+      }
+      const source = recordSource(document, record);
+      const existingAliases = Array.isArray(record.source?.aliases) ? record.source.aliases : [];
+      const aliasesChanged = source.aliases.length !== existingAliases.length ||
+        source.aliases.some(alias => !existingAliases.includes(alias));
+      if (source.lastKnownPath !== record.source?.lastKnownPath || aliasesChanged) {
+        record.source = source;
+        record.updatedAt = new Date().toISOString();
+        await writeRecord(document, record);
+      }
       return {
         success: true,
-        found: false,
+        found: true,
         documentId: document.documentId,
         filePath: document.filePath,
-        highlights: [],
-        annotations: []
+        ...flattenPages(record.pages),
+        source
       };
-    }
-    const source = recordSource(document, record);
-    const existingAliases = Array.isArray(record.source?.aliases) ? record.source.aliases : [];
-    const aliasesChanged = source.aliases.length !== existingAliases.length ||
-      source.aliases.some(alias => !existingAliases.includes(alias));
-    if (source.lastKnownPath !== record.source?.lastKnownPath || aliasesChanged) {
-      record.source = source;
-      record.updatedAt = new Date().toISOString();
-      await writeRecord(document, record);
-    }
-    return {
-      success: true,
-      found: true,
-      documentId: document.documentId,
-      filePath: document.filePath,
-      ...flattenPages(record.pages),
-      source
-    };
+    });
   }
 
   async function saveAnnotations(payload = {}) {
     const document = await identifyDocument(payload.filePath);
-    const existing = await readRecord(document);
-    const highlights = normalizeRecords(payload.highlights || [], normalizeHighlight, 'highlights');
-    const annotations = normalizeRecords(payload.annotations || [], normalizeAnnotation, 'annotations');
-    const now = new Date().toISOString();
-    const record = {
-      schemaVersion: SCHEMA_VERSION,
-      documentId: document.documentId,
-      source: recordSource(document, existing),
-      createdAt: existing?.createdAt || now,
-      updatedAt: now,
-      pages: groupByPage(highlights, annotations)
-    };
-    await writeRecord(document, record);
-    return {
-      success: true,
-      documentId: document.documentId,
-      filePath: document.filePath,
-      pageCount: Object.keys(record.pages).length,
-      highlightCount: highlights.length,
-      annotationCount: annotations.length
-    };
+    return withRecord(document, async () => {
+      const existing = await readRecord(document);
+      const highlights = normalizeRecords(payload.highlights || [], normalizeHighlight, 'highlights');
+      const annotations = normalizeRecords(payload.annotations || [], normalizeAnnotation, 'annotations');
+      const now = new Date().toISOString();
+      const record = {
+        schemaVersion: SCHEMA_VERSION,
+        documentId: document.documentId,
+        source: recordSource(document, existing),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        pages: groupByPage(highlights, annotations)
+      };
+      await writeRecord(document, record);
+      return {
+        success: true,
+        documentId: document.documentId,
+        filePath: document.filePath,
+        pageCount: Object.keys(record.pages).length,
+        highlightCount: highlights.length,
+        annotationCount: annotations.length
+      };
+    });
   }
 
   async function createResearchNote(workspaceRoot, payload = {}) {
-    const root = path.resolve(workspaceRoot || '');
+    if (typeof workspaceRoot !== 'string' || !workspaceRoot.trim()) throw new Error('Research note requires a workspace');
+    const root = path.resolve(workspaceRoot);
     const document = await identifyDocument(payload.filePath);
     const annotation = normalizeAnnotation(payload.annotation || {});
     const citation = normalizeCitation(payload.citation || annotation);
@@ -335,8 +349,26 @@ function createPdfResearchService(options = {}) {
     });
     if (!resolved.success) throw new Error(resolved.error);
     const content = buildResearchNote({ document, annotation, citation });
+    // Check the nearest existing ancestor before creating directories, then
+    // check the resulting parent again before exclusive file creation.
+    const canonicalRoot = await fsPromises.realpath(root);
+    let ancestor = path.dirname(resolved.path);
+    while (true) {
+      try {
+        const canonical = await fsPromises.realpath(ancestor);
+        if (!resolvePathWithinRoots(canonical, [canonicalRoot]).success) throw new Error('Research note path is outside the workspace');
+        break;
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) throw error;
+        ancestor = parent;
+      }
+    }
     await fsPromises.mkdir(path.dirname(resolved.path), { recursive: true });
-    await fsPromises.writeFile(resolved.path, content, 'utf8');
+    const parent = await fsPromises.realpath(path.dirname(resolved.path));
+    if (!resolvePathWithinRoots(parent, [canonicalRoot]).success) throw new Error('Research note path is outside the workspace');
+    await fsPromises.writeFile(path.join(parent, path.basename(resolved.path)), content, { encoding: 'utf8', flag: 'wx' });
     return {
       success: true,
       filePath: resolved.path,

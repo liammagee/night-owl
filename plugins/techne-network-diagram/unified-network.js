@@ -775,6 +775,8 @@ class UnifiedNetworkVisualization {
     }
 
     createSimulation() {
+        this.releaseSimulationActivity?.();
+        this.simulation?.stop();
         // Create force simulation
         this.simulation = d3.forceSimulation(this.nodes)
             .force('link', d3.forceLink(this.links)
@@ -797,6 +799,7 @@ class UnifiedNetworkVisualization {
                 .strength(0.95))
             .force('x', d3.forceX(d => d.targetX ?? this.width / 2).strength(0.12))
             .force('y', d3.forceY(d => d.targetY ?? this.height / 2).strength(0.12));
+        this.releaseSimulationActivity = window.nightowlRendererActivity?.trackSimulation(this.simulation);
     }
 
     assignNodeLayout() {
@@ -1037,7 +1040,8 @@ class UnifiedNetworkVisualization {
                 }
             });
 
-            this.simulation.alpha(1).restart();
+            this.simulation.alpha(1);
+            if (window.nightowlRendererActivity?.isActive() !== false) this.simulation.restart();
         }
     }
 
@@ -1568,6 +1572,8 @@ class UnifiedNetworkVisualization {
     }
 
     destroy() {
+        this.releaseSimulationActivity?.();
+        this.releaseSimulationActivity = null;
         if (this.simulation) {
             this.simulation.stop();
         }

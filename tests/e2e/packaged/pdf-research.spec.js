@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { PDFDocument } = require('pdf-lib');
 const { test, expect } = require('../fixtures/packaged-electron-app');
 
 test('@packaged @pdf-research bundled annotations persist and create provenance notes', async ({
@@ -65,4 +66,37 @@ test('@packaged @pdf-research bundled annotations persist and create provenance 
   const note = fs.readFileSync(result.note.filePath, 'utf8');
   expect(note).toContain('source_page: 5');
   expect(note).toContain('Citation: [@Packaged2026Research]');
+});
+
+test('@packaged @pdf-preview renders pages and searches text with the bundled worker', async ({
+  appPage,
+  packagedProfile
+}) => {
+  const workspaceRoot = path.join(packagedProfile, 'pdf-preview');
+  const pdfPath = path.join(workspaceRoot, 'Paper #100%.pdf');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  const pdf = await PDFDocument.create();
+  pdf.addPage().drawText('First page of the packaged PDF fixture');
+  pdf.addPage().drawText('NightOwl searchable phrase');
+  fs.writeFileSync(pdfPath, await pdf.save());
+
+  await appPage.waitForFunction(() => typeof window.openFilePathInEditor === 'function' && window.editor);
+  const outcome = await appPage.evaluate(async ({ workspaceRoot, pdfPath }) => {
+    const switched = await window.electronAPI.workspace.switchWorkspace(workspaceRoot);
+    if (!switched.success) throw new Error(switched.error);
+    return window.openFilePathInEditor(pdfPath, { source: 'packaged-pdf-preview-e2e' });
+  }, { workspaceRoot, pdfPath });
+
+  expect(outcome).toMatchObject({ status: 'committed', filePath: pdfPath });
+  await expect(appPage.locator('#pdf-research-status')).toHaveAttribute('data-state', 'ready');
+  await expect(appPage.locator('#pdf-page-info')).toHaveText('Page 1 of 2');
+  expect(await appPage.locator('#pdf-canvas').evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    return pixels.some((value, index) => index % 4 === 0 && value < 128 && pixels[index + 3] > 0);
+  })).toBe(true);
+
+  await appPage.locator('#pdf-next-page').click();
+  await expect(appPage.locator('#pdf-page-info')).toHaveText('Page 2 of 2');
+  await appPage.getByRole('textbox', { name: 'Search in PDF' }).fill('NightOwl searchable phrase');
+  await expect(appPage.locator('#pdf-search-results')).toHaveText('1 of 1');
 });

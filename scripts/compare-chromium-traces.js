@@ -3,8 +3,13 @@
 const fs = require('fs');
 
 function readTrace(filePath) {
-  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  return Array.isArray(parsed.traceEvents) ? parsed.traceEvents : [];
+  const content = fs.readFileSync(filePath, 'utf8');
+  if (!content.trimStart().startsWith('{')) {
+    throw new Error('Expected Chromium JSON. Electron 45 records Perfetto protobuf: convert it with traceconv json <input.pftrace> <output.json> first.');
+  }
+  const parsed = JSON.parse(content);
+  if (!Array.isArray(parsed.traceEvents)) throw new Error('Trace is missing its traceEvents array');
+  return parsed.traceEvents;
 }
 
 function summarizeTrace(events) {

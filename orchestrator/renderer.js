@@ -286,6 +286,8 @@ window._setLastSavedContent = function(val) { lastSavedContent = val; };
 let activeTagFilters = new Set();
 let tagFilteringInitialized = false;
 let fileTreeSearchQuery = '';
+let fileTreeTagSearch = null;
+const recursiveFileTrees = new WeakSet();
 
 // File tree rendering state
 let fileTreeTagHydrationHandle = null;
@@ -304,19 +306,30 @@ const getFileClipboardPaths = fileTreeState?.getClipboardPaths || (() => []);
 const hasFileClipboardItems = fileTreeState?.hasClipboardItems || (() => false);
 const describeFileClipboard = fileTreeState?.describeClipboard || (() => '0 files');
 const fileTreeController = window.NightOwlFileTreeController?.createFileTreeController?.({
-    requestTree: () => {
+    requestTree: async () => {
         if (!window.electronAPI?.files?.requestFileTree) throw new Error('File capability not available');
-        return window.electronAPI.files.requestFileTree();
+        const filtering = isFileTreeFiltering();
+        const tree = await window.electronAPI.files.requestFileTree({
+            lazy: true, expandedPaths: [...(window.expandedFolders || [])], recursive: filtering
+        });
+        if (filtering && tree) recursiveFileTrees.add(tree);
+        return tree;
     },
     renderTree: fileTree => {
+        // A shallow browse already in flight cannot answer a new deep search,
+        // and a completed search must not replace browsing after clearing it.
+        if (recursiveFileTrees.has(fileTree) !== isFileTreeFiltering()) return;
         window.fileTreeData = fileTree;
+        updateFileTreeSearchTags(fileTree);
         renderFileTreeData(fileTree);
         updateAvailableFiles(fileTree);
     },
-    requestSignature: () => window.electronAPI.files.getFileTreeSignature(),
+    requestSignature: () => window.electronAPI.files.getFileTreeSignature({ lazy: true, expandedPaths: [...(window.expandedFolders || [])] }),
     shouldPoll: context => {
         if (!window.electronAPI?.files?.getFileTreeSignature || document.visibilityState === 'hidden') return false;
+        if (window.nightowlRendererActivity?.isActive() === false) return false;
         if (context?.starting) return true;
+        if (isFileTreeFiltering()) return false;
         const view = document.getElementById('file-tree-view');
         return window.currentStructureView === 'file' && view && view.style.display !== 'none';
     },
@@ -1593,30 +1606,26 @@ function scrollToHeadingInEditor(lineNumber) {
 }
 
 function scrollToHeadingInPreview(headingText) {
-    if (headingText) {
-        const previewId = `heading-${slugify(headingText)}`;
-        const previewElement = document.getElementById(previewId);
-        const previewContentDiv = document.getElementById('preview-content');
-
-        if (previewElement && previewContentDiv) {
-            // Wrap scroll in requestAnimationFrame to handle timing issues
-            requestAnimationFrame(() => {
-                const pane = document.getElementById('preview-pane');
-                if (!pane || !pane.contains(previewElement)) return;
-                // Themes may make the content itself scrollable instead of the pane.
-                let scroller = previewElement.parentElement;
-                while (scroller && scroller !== pane) {
-                    if (/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
-                        && scroller.scrollHeight > scroller.clientHeight) break;
-                    scroller = scroller.parentElement;
-                }
-                if (!scroller) return;
-                const top = scroller.scrollTop + previewElement.getBoundingClientRect().top
-                    - scroller.getBoundingClientRect().top - scroller.clientTop;
-                scroller.scrollTo({ top, behavior: 'smooth' });
-            });
+    if (!headingText) return;
+    const previewId = `heading-${slugify(headingText)}`;
+    // Resolve the target after the pending preview commit, not before the frame.
+    // Async rendering may replace an otherwise valid heading between those times.
+    requestAnimationFrame(() => {
+        const pane = document.getElementById('preview-pane');
+        const content = document.getElementById('preview-content');
+        const target = content?.querySelector(`#${CSS.escape(previewId)}`);
+        if (!pane || !target || !pane.contains(target)) return;
+        let scroller = target.parentElement;
+        while (scroller && scroller !== pane) {
+            if (/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+                && scroller.scrollHeight > scroller.clientHeight) break;
+            scroller = scroller.parentElement;
         }
-    }
+        if (!scroller) return;
+        const top = scroller.scrollTop + target.getBoundingClientRect().top
+            - scroller.getBoundingClientRect().top - scroller.clientTop;
+        scroller.scrollTo({ top, behavior: 'smooth' });
+    });
 }
 
 function updateStructurePane(markdownContent) {
@@ -3547,17 +3556,27 @@ function resolveBibliographyPath(bibPath, baseDir) {
 
 async function loadBibliographyForMarkdownFile(filePath, content, options = {}) {
     const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
-    const frontmatter = extractFrontmatter(content);
-    const bibliographyFiles = parseBibliographyFromFrontmatter(frontmatter);
-    const signature = getBibliographySignature(filePath, bibliographyFiles);
+    const { bibliographyFiles: declaredFiles, signature } = getBibliographyConfigForContent(filePath, content);
+    const separator = filePath ? Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')) : -1;
+    const baseDir = separator >= 0 ? filePath.slice(0, separator + 1) : '';
+    const token = ++currentBibLoadToken;
+    let bibliographyFiles = declaredFiles;
+    if (!bibliographyFiles.length && baseDir) {
+        try {
+            const siblings = await window.electronAPI.files.listDirectoryFiles(baseDir);
+            bibliographyFiles = siblings.filter(file => file.isFile && /\.bib$/i.test(file.name))
+                .map(file => file.name).sort();
+        } catch (error) {
+            console.warn('[renderer.js] Could not list the document bibliography directory:', error);
+        }
+    }
 
+    if (token !== currentBibLoadToken || !isCurrent()) return true;
     if (!bibliographyFiles.length) {
-        if (isCurrent()) updateLastBibliographyConfig(filePath, signature);
+        updateLastBibliographyConfig(filePath, signature);
         return false;
     }
 
-    const baseDir = filePath?.substring(0, filePath.lastIndexOf('/')) || window.currentFileDirectory || '';
-    const token = ++currentBibLoadToken;
     const entries = [];
 
     for (const bibPath of bibliographyFiles) {
@@ -3587,8 +3606,7 @@ async function loadBibliographyForMarkdownFile(filePath, content, options = {}) 
         return true;
     }
 
-    // Sync .bib file entries into the citation database so they're searchable
-    if (entries.length > 0) {
+    if (declaredFiles.length && entries.length) {
         syncBibEntriesToDatabase(entries).catch(err =>
             console.warn('[renderer.js] Background bib→DB sync failed:', err)
         );
@@ -3612,7 +3630,7 @@ async function loadBibliographyForMarkdownFile(filePath, content, options = {}) 
 
 async function refreshBibliographyFromContent(filePath, content, options = {}) {
     const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
-    const { bibliographyFiles, signature } = getBibliographyConfigForContent(filePath, content);
+    const { signature } = getBibliographyConfigForContent(filePath, content);
     const sameFile = lastBibliographyConfig.filePath === filePath;
 
     if (sameFile && signature === lastBibliographyConfig.signature) {
@@ -3622,9 +3640,8 @@ async function refreshBibliographyFromContent(filePath, content, options = {}) {
     if (!isCurrent()) return false;
     updateLastBibliographyConfig(filePath, signature);
 
-    if (bibliographyFiles.length > 0) {
-        await loadBibliographyForMarkdownFile(filePath, content, { isCurrent });
-    } else {
+    const loaded = await loadBibliographyForMarkdownFile(filePath, content, { isCurrent });
+    if (!loaded && isCurrent()) {
         await loadBibTeXFiles({ isCurrent });
         if (isCurrent()) showBibliographyStatus(formatBibliographyStatus([]));
     }
@@ -3858,9 +3875,14 @@ async function loadBibTeXFiles(options = {}) {
     }
 }
 
-async function refreshCitationAutocompleteData(context = {}) {
+async function refreshCitationAutocompleteData() {
     try {
-        const updatedEntries = await loadBibTeXFiles();
+        const filePath = window.currentFilePath;
+        const model = window.editor?.getModel();
+        const isCurrent = () => window.currentFilePath === filePath && window.editor?.getModel() === model;
+        if (model?.getLanguageId() === 'markdown' && filePath &&
+            await loadBibliographyForMarkdownFile(filePath, model.getValue(), { isCurrent })) return;
+        if (isCurrent()) await loadBibTeXFiles({ isCurrent });
     } catch (error) {
         console.error('[renderer.js] Error refreshing citation autocomplete data:', error);
     }
@@ -3885,8 +3907,8 @@ function registerCitationAutocomplete() {
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
 
-            // Look for citation pattern: [@...] where we're after the [@
-            const citationMatch = textBeforePointer.match(/\[@([^\]]*)?$/);
+            // Replace only the key after the last @ in the open citation group.
+            const citationMatch = textBeforePointer.match(/\[[^[\]]*?@-?([\w-]*)$/);
 
             if (!citationMatch) {
                 return { suggestions: [] };
@@ -3897,7 +3919,11 @@ function registerCitationAutocomplete() {
             // Filter entries based on search term (supports fuzzy matching)
             const searchLower = (searchTerm || '').toLowerCase();
             const _fuzzyMatch = typeof fuzzyMatchBest === 'function' ? fuzzyMatchBest : null;
-            const scoredEntries = bibEntries
+            const entriesByKey = new Map();
+            for (const entry of bibEntries) {
+                if (!entriesByKey.has(entry.key)) entriesByKey.set(entry.key, entry);
+            }
+            const scoredEntries = Array.from(entriesByKey.values())
                 .map(entry => {
                     if (!searchLower) return { entry, score: 0, match: true };
 
@@ -3974,7 +4000,7 @@ function registerCitationAutocomplete() {
                     const completionItem = {
                         label: entry.key,
                         kind: kind,
-                        insertText: entry.key + ']',
+                        insertText: entry.key + (currentLine[position.column - 1] === ']' ? '' : ']'),
                         detail: detail,
                         documentation: {
                             value: documentationParts.join('\n\n'),
@@ -3997,7 +4023,8 @@ function registerCitationAutocomplete() {
                     return completionItem;
                 });
             
-            return { suggestions: suggestions };
+            // Monaco must query again after @, since the first page is limited.
+            return { suggestions, incomplete: true };
         }
     });
     
@@ -4007,18 +4034,20 @@ function registerCitationAutocomplete() {
 let availableFiles = [];
 
 // Function to update the available files list
-async function updateAvailableFiles(fileTreeOverride = null) {
+async function updateAvailableFiles(fileTreeOverride = null, complete = false) {
     if (!fileTreeOverride && !window.fileTreeData && !window.electronAPI) {
         return;
     }
     
     try {
-        const fileTree = fileTreeOverride || window.fileTreeData || await window.electronAPI.files.requestFileTree();
+        const fileTree = complete
+            ? await window.electronAPI.files.requestFileTree({ lazy: true, recursive: true })
+            : fileTreeOverride || window.fileTreeData || await window.electronAPI.files.requestFileTree({ lazy: true });
         if (!fileTree) {
             return;
         }
 
-        window.fileTreeData = fileTree;
+        if (!complete) window.fileTreeData = fileTree;
         availableFiles = [];
         
         // Recursively extract all files from the tree
@@ -4057,7 +4086,7 @@ function registerFileLinkAutocomplete() {
     
     monaco.languages.registerCompletionItemProvider('markdown', {
         triggerCharacters: ['['],
-        provideCompletionItems: function(model, position) {
+        provideCompletionItems: async function(model, position) {
             // Get current line text
             const currentLine = model.getLineContent(position.lineNumber);
             const textBeforePointer = currentLine.substring(0, position.column - 1);
@@ -4069,6 +4098,8 @@ function registerFileLinkAutocomplete() {
                 return { suggestions: [] };
             }
             
+            // Cross-folder completion is loaded only when a link is requested.
+            await updateAvailableFiles(null, true);
             const searchTerm = fileLinkMatch[1] || '';
             
             // Filter files based on search term
@@ -4429,14 +4460,7 @@ async function initializeMonacoEditor() {
                 if (settings?.editor?.enableCitationAutocomplete !== false) {
                     citationOptions.autoClosingBrackets = 'never'; // Disable auto-closing brackets for citation autocomplete
                     
-                    // Load BibTeX files and register citation autocomplete
-                    loadBibTeXFiles().then(() => {
-                        registerCitationAutocomplete();
-                    }).catch(error => {
-                        console.error('[renderer.js] Error loading BibTeX files:', error);
-                        // Still try to register autocomplete even if loading fails
-                        registerCitationAutocomplete();
-                    });
+                    registerCitationAutocomplete();
                 } else {
                     citationOptions.autoClosingBrackets = 'beforeWhitespace';
                 }
@@ -4455,12 +4479,7 @@ async function initializeMonacoEditor() {
                 editor.updateOptions({
                     autoClosingBrackets: 'never'
                 });
-                loadBibTeXFiles().then(() => {
-                    registerCitationAutocomplete();
-                }).catch(error => {
-                    console.error('[renderer.js] Fallback BibTeX loading error:', error);
-                    registerCitationAutocomplete();
-                });
+                registerCitationAutocomplete();
                 
                 // Update available files and register file link autocomplete
                 updateAvailableFiles().then(() => {
@@ -7124,6 +7143,18 @@ function setPDFResearchStatus(message, state = 'ready') {
 
 window.updatePDFResearchStatus = setPDFResearchStatus;
 
+let pdfJsReady;
+
+function loadPackagedPDFJS() {
+    const buildUrl = new URL('node_modules/pdfjs-dist/legacy/build/', document.baseURI);
+    pdfJsReady ??= import(new URL('pdf.min.mjs', buildUrl).href).then(pdfjs => {
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.mjs', buildUrl).href;
+        window.pdfjsLib = pdfjs;
+        return pdfjs;
+    });
+    return pdfJsReady;
+}
+
 // Initialize PDF.js viewer
 async function initializePDFViewer(filePath, transition = null) {
     
@@ -7132,31 +7163,9 @@ async function initializePDFViewer(filePath, transition = null) {
             throw new Error('Packaged PDF annotation tools are unavailable. Reinstall or update NightOwl.');
         }
 
-        // The PDF.js module is packaged, but its ES module initialization is asynchronous.
-        if (typeof window.pdfjsLib === 'undefined') {
-            const startedAt = Date.now();
-            await new Promise((resolve, reject) => {
-                const checkPdfJs = () => {
-                    if (!isTransitionCurrent(transition) || typeof window.pdfjsLib !== 'undefined') {
-                        resolve();
-                    } else if (Date.now() - startedAt > 10000) {
-                        reject(new Error('Packaged PDF text extraction did not become available.'));
-                    } else {
-                        setTimeout(checkPdfJs, 100);
-                    }
-                };
-                checkPdfJs();
-            });
-        }
+        const pdfjsLib = await loadPackagedPDFJS();
         if (!isTransitionCurrent(transition)) return;
-        
-        const pdfjsLib = window.pdfjsLib;
-        
-        // Set up PDF.js worker (should already be set in HTML, but ensure it's correct)
-        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdfjs/pdf.worker.min.js';
-        }
-        
+
         // Initialize canvas and context
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
@@ -7169,7 +7178,12 @@ async function initializePDFViewer(filePath, transition = null) {
         
         loadingElement.style.display = 'block';
         
-        const pdf = await pdfjsLib.getDocument(`file://${filePath}`).promise;
+        const normalizedPath = window.electronAPI.platform === 'win32'
+            ? filePath.replace(/\\/g, '/')
+            : filePath;
+        const encodedPath = encodeURI(normalizedPath).replace(/#/g, '%23');
+        const fileUrl = normalizedPath.startsWith('//') ? `file:${encodedPath}` : `file://${encodedPath}`;
+        const pdf = await pdfjsLib.getDocument({ url: fileUrl, isEvalSupported: false }).promise;
         if (!isTransitionCurrent(transition)) return;
         pdfViewerState.doc = pdf;
         pdfViewerState.totalPages = pdf.numPages;
@@ -9549,8 +9563,8 @@ function _setupScrollSync(targetEl, mode) {
 
     if (mode === 'proportional') {
         // Editor → Target (proportional ratio)
-        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
-            if (_syncingFromSource) return;
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange((event) => {
+            if (!event.scrollTopChanged || _syncingFromSource) return;
             const info = window.editor.getLayoutInfo();
             const scrollHeight = window.editor.getScrollHeight() - info.height;
             if (scrollHeight <= 0) return;
@@ -9579,8 +9593,8 @@ function _setupScrollSync(targetEl, mode) {
 
     } else if (mode === 'linemap') {
         // Editor → Preview (line-based)
-        _scrollSyncEditorDispose = window.editor.onDidScrollChange(() => {
-            if (_syncingFromSource) return;
+        _scrollSyncEditorDispose = window.editor.onDidScrollChange((event) => {
+            if (!event.scrollTopChanged || _syncingFromSource) return;
             const topLine = window.editor.getVisibleRanges()?.[0]?.startLineNumber;
             if (!topLine) return;
             const el = _findPreviewElementForLine(targetEl, topLine);
@@ -10007,8 +10021,8 @@ function renderFileTreeData(fileTree) {
     if (isFiltering && !fileTreeHasRenderableContent(displayTree)) {
         fileTreeView.replaceChildren(createFileTreeMessage(
             'no-results',
-            'No matching files',
-            getFileTreeFilterDescription()
+            fileTreeTagSearch?.pending && !activeTagFilters.size ? 'No matching filenames' : 'No matching files',
+            fileTreeTagSearch?.pending ? 'Checking workspace tags…' : getFileTreeFilterDescription()
         ));
         applyFileTreePostRenderDecorations();
         return;
@@ -10060,8 +10074,54 @@ function renderFileTreeData(fileTree) {
     updateDuplicateFolderButtonState();
 }
 
+function isFileTreeFiltering() {
+    return Boolean(fileTreeSearchQuery || activeTagFilters.size);
+}
+
+function getFileTreeSearchScope(tree) {
+    if (!tree || tree.type === 'error') return null;
+    return JSON.stringify(tree.isMultiFolder ? tree.children.map(root => root.path) : [tree.path]);
+}
+
+function updateFileTreeSearchTags(tree) {
+    if (!isFileTreeFiltering()) {
+        if (!fileTreeTagSearch?.pending) fileTreeTagSearch = null;
+        return;
+    }
+    const scope = getFileTreeSearchScope(tree);
+    const search = window.electronAPI?.search;
+    const tags = window.tagManager;
+    if (!scope || fileTreeTagSearch?.scope === scope ||
+        !search?.workspaceIndexList || !tags?.hydrateIndexedFiles) return;
+
+    // Content indexing enriches name/path results independently and is
+    // shared across keystrokes in this search.
+    const job = { scope, pending: true };
+    fileTreeTagSearch = job;
+    void Promise.resolve()
+        .then(() => search.workspaceIndexList({ extensions: ['.md', '.markdown'], limit: 50000 }))
+        .then(result => {
+            if (job === fileTreeTagSearch && result?.success &&
+                getFileTreeSearchScope(window.fileTreeData) === scope) {
+                tags.hydrateIndexedFiles(result.files);
+            }
+        })
+        .catch(error => {
+            if (window.DEBUG_VERBOSE) console.warn('[FileTree] Tag search unavailable:', error);
+        })
+        .finally(() => {
+            job.pending = false;
+            if (job !== fileTreeTagSearch) return;
+            if (!isFileTreeFiltering()) {
+                fileTreeTagSearch = null;
+            } else if (getFileTreeSearchScope(window.fileTreeData) === scope) {
+                rerenderFileTreeFromCache();
+            }
+        });
+}
+
 function rerenderFileTreeFromCache() {
-    if (!window.fileTreeData) return;
+    if (!recursiveFileTrees.has(window.fileTreeData)) return;
     renderFileTreeData(window.fileTreeData);
 }
 
@@ -10083,7 +10143,7 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
     const isPrimaryRoot = isPrimary && depth === 0;
 
     const isFolder = node.type === 'folder' || node.type === 'directory';
-    const hasChildren = isFolder && node.children && node.children.length > 0;
+    const hasChildren = isFolder && (node.childrenLoaded === false || (node.children && node.children.length > 0));
     const isExpanded = forceExpanded || window.expandedFolders.has(node.path);
 
     
@@ -10144,6 +10204,10 @@ function renderFileTreeNode(node, container, depth, isWorkspaceFolder = false, i
                 const wasExpanded = window.expandedFolders.has(node.path);
                 toggleFolderExpansion(node.path);
                 const isNowExpanded = window.expandedFolders.has(node.path);
+                if (isNowExpanded && node.childrenLoaded === false) {
+                    await fileTreeController.render();
+                    return;
+                }
 
                 // Find or create children container
                 let childrenContainer = nodeElement.nextElementSibling;
@@ -10395,6 +10459,7 @@ function shouldPollFileTreeSignature() {
         state.rendered &&
         !state.rendering &&
         document.visibilityState !== 'hidden' &&
+        window.nightowlRendererActivity?.isActive() !== false &&
         fileTreeView &&
         fileTreeView.style.display !== 'none'
     );
@@ -10606,13 +10671,14 @@ function updateTagFilterChips() {
 
 // Apply tag filters to file tree
 function applyTagFilters() {
-    rerenderFileTreeFromCache();
+    debouncedRenderFileTree();
 }
 
 // Apply name and tag filters to file tree (real-time filtering)
 function applyNameAndTagFilters(query) {
     fileTreeSearchQuery = String(query || '').trim();
-    rerenderFileTreeFromCache();
+    // Explicit search may discover collapsed folders; ordinary browsing stays shallow.
+    debouncedRenderFileTree();
 }
 
 // Show tag edit dialog for a markdown file
@@ -11141,18 +11207,7 @@ async function preProcessMarkdownTags(node) {
     const startTime = performance.now();
 
     try {
-        const indexed = await window.electronAPI.search?.workspaceIndexList?.({
-            extensions: ['.md', '.markdown'],
-            limit: 50000
-        });
-        if (indexed?.success) {
-            const visiblePaths = new Set(markdownPaths);
-            const entries = indexed.files.filter(entry => visiblePaths.has(entry.path));
-            window.tagManager.hydrateIndexedFiles?.(entries);
-            entries.forEach(entry => updateFileTreeTagsForPath(entry.path));
-            return;
-        }
-
+        // Tags are bounded to visible files; never build the whole content index for tree decoration.
         // Use batch frontmatter reading - much faster than reading full files
         const results = await window.electronAPI.files.batchReadFrontmatter(markdownPaths);
 
@@ -11195,6 +11250,7 @@ function expandCommonFolders(rootNode) {
             for (const child of rootNode.children) {
                 if (child.type === 'folder' || child.type === 'directory') {
                     const folderName = child.name.toLowerCase();
+                    if (child.childrenLoaded === false) continue;
                     const childCount = child.children ? child.children.length : 0;
 
                     // Expand if:
@@ -12874,8 +12930,8 @@ if (window.electronAPI) {
         }
     });
 
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
+    window.addEventListener('nightowl-activity-changed', () => {
+        if (window.nightowlRendererActivity?.isActive() === false) {
             stopFileTreeAutoRefreshPolling();
             return;
         }

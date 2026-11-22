@@ -9,6 +9,7 @@
 // --- Module State ---
 /** @type {string} Current statistics scope ('document' or 'project') */
 let currentStatsScope = 'document';
+let statisticsRequest = 0;
 
 /**
  * Switch between document and project statistics scope
@@ -51,6 +52,7 @@ async function updateStatisticsPane() {
     const statisticsContent = document.getElementById('statistics-content');
     if (!statisticsContent) return;
 
+    const request = ++statisticsRequest;
     try {
         let stats;
 
@@ -79,6 +81,8 @@ async function updateStatisticsPane() {
 
             stats = calculateBasicStatistics(content);
         }
+
+        if (request !== statisticsRequest) return;
 
         // Ensure stats object exists and has required properties
         if (!stats) {
@@ -229,12 +233,12 @@ async function updateStatisticsPane() {
         `;
 
     } catch (error) {
+        if (request !== statisticsRequest) return;
         console.error('Error calculating statistics:', error);
-        statisticsContent.innerHTML = `
-            <p class="statistics-error-state" style="text-align: center; padding: 20px;">
-                Error calculating statistics: ${error.message}
-            </p>
-        `;
+        const message = document.createElement('p');
+        message.className = 'statistics-error-state';
+        message.textContent = `Error calculating statistics: ${error.message}`;
+        statisticsContent.replaceChildren(message);
     }
 }
 
@@ -297,15 +301,15 @@ function calculateBasicStatistics(content) {
     const cleanText = content
         .replace(/```[\s\S]*?```/g, '') // Remove code blocks
         .replace(/`[^`]+`/g, '') // Remove inline code
-        .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
         .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove images
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // Keep visible link labels
         .replace(/[#*_`\[\]()]/g, ' ') // Remove markdown symbols
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim();
 
-    const words = cleanText ? cleanText.split(' ').filter(Boolean) : [];
+    const words = cleanText ? cleanText.split(' ').filter(word => /[\p{L}\p{N}]/u.test(word)) : [];
     const normalizedWords = words
-        .map(word => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ''))
+        .map(word => word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
         .filter(Boolean);
 
     // Word count
@@ -347,7 +351,7 @@ function calculateBasicStatistics(content) {
     ).length;
 
     // Links
-    const linkCount = (content.match(/\[.*?\]\(.*?\)/g) || []).length;
+    const linkCount = (content.match(/(?<!!)\[.*?\]\(.*?\)/g) || []).length;
 
     // Code blocks
     const codeBlockCount = (content.match(/```/g) || []).length / 2;
@@ -453,13 +457,13 @@ async function calculateProjectStatistics() {
                     if (fileStats.cleanText) {
                         fileStats.cleanText
                             .split(/\s+/)
-                            .map(word => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ''))
+                            .map(word => word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
                             .filter(Boolean)
                             .forEach(word => projectUniqueWords.add(word));
                     }
 
                     // For averaging calculations
-                    aggregatedStats.totalCharacters += contentResponse.content.replace(/\s/g, '').length;
+                    aggregatedStats.totalCharacters += fileStats.cleanText.replace(/\s/g, '').length;
                     aggregatedStats.totalWords += fileStats.wordCount;
                 }
             } catch (fileError) {

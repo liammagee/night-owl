@@ -80,7 +80,11 @@ async function enterPresentation(page, content = DECK) {
   const expectedHeading = content.match(/^#\s+(.+)$/m)?.[1] || '';
   await page.evaluate(() => window.switchToMode('editor'));
   await openMarkdown(page, '/virtual-workspace/deck.md', content);
-  await page.evaluate(() => window.switchToMode('presentation'));
+  // Reopened tabs restore their caret. This helper promises a deck at slide 0.
+  await page.evaluate(() => {
+    window.editor?.setPosition({ lineNumber: 1, column: 1 });
+    window.switchToMode('presentation');
+  });
   await expect(page.locator('#presentation-root')).toHaveAttribute('data-presentation-load-state', 'ready');
   await expect(page.locator('#presentation-root [data-slide-index]')).toHaveCount(2);
   if (expectedHeading) {
@@ -1513,6 +1517,8 @@ test('@required @presentation-tools preflight and presenter state survive conten
   await appPage.getByRole('button', { name: 'Previous slide' }).click();
   await expect.poll(() => appPage.evaluate(() => window.NightOwlPresentationTools.getState().currentSlide)).toBe(0);
   await preflightPanel.getByRole('button', { name: 'Close presentation preflight' }).click();
+  // A previous deck's legacy cache must not overwrite the current parsed notes.
+  await appPage.evaluate(() => { window.speakerNotesData = { allNotes: ['Stale deck notes'], currentSlide: 0 }; });
   await appPage.getByRole('button', { name: 'Start presentation' }).click();
   let notesWindow = electronApp.windows().find(page => page.url().includes('speaker-notes-window.html'));
   if (!notesWindow) {
