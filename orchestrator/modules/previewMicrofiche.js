@@ -289,10 +289,11 @@
             this.window?.addEventListener?.('resize', this._boundResize);
             this._fitAllFrameContents();
             const schedule = this.window?.requestAnimationFrame || (callback => this.window?.setTimeout?.(callback, 0));
+            const activatedCanvas = this.canvas;
             schedule?.(() => {
-                if (!this.active) return;
+                if (!this.active || this.canvas !== activatedCanvas) return;
                 this._fitAllFrameContents();
-                this.fitToViewport({ announce: false });
+                if (this.fitMode) this.fitToViewport({ announce: false });
             });
             this.document?.fonts?.ready?.then?.(() => {
                 if (this.active) this._fitAllFrameContents();
@@ -300,6 +301,7 @@
             this._setButtonState();
             this._setScrollSyncDisabled(true);
             this._setCompanionControlsHidden(true);
+            this.fitToViewport({ announce: false });
             this._dispatch('preview-microfiche-enter', { pageCount: pages.length, filePath: this.currentFilePath });
             return true;
         }

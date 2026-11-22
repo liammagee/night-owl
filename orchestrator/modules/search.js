@@ -665,23 +665,29 @@ async function performGlobalReplace(previewOnly = false) {
             previewOnly: previewOnly
         };
         
+        const found = await window.electronAPI.search.globalSearch({ query: searchQuery, options });
+        if (!found.success || found.isFilePatternSearch) {
+            showSearchStatus(found.error || 'Enter a content search before replacing');
+            return;
+        }
         const result = await window.electronAPI.search.globalReplace({
             searchQuery,
             replaceText,
+            searchResults: found.results,
             options
         });
         
         if (result.success) {
             if (previewOnly) {
                 displayReplacePreview(result.results, searchQuery, replaceText);
-                showSearchStatus(`Preview: ${result.results.length} replacements found`);
+                showSearchStatus(`Preview: ${result.replacedCount} replacements found`);
             } else {
                 displayReplaceResults(result.results, searchQuery, replaceText);
-                showSearchStatus(`Replaced ${result.results.length} occurrences`);
+                showSearchStatus(`Replaced ${result.replacedCount} occurrences`);
                 
                 // Refresh the current file if it was modified
-                if (window.currentFilePath && result.modifiedFiles && 
-                    result.modifiedFiles.includes(window.currentFilePath)) {
+                if (window.currentFilePath && result.modifiedFilePaths &&
+                    result.modifiedFilePaths.includes(window.currentFilePath)) {
                     // Optionally reload the current file
                     if (await window.showAppConfirm({
                         title: 'Reload Current File',
@@ -747,7 +753,7 @@ function displayReplacePreview(results, searchQuery, replaceText) {
         const fileHeader = document.createElement('div');
         fileHeader.className = 'search-file-header';
         fileHeader.innerHTML = `
-            <span class="search-file-name">${fileResults[0].fileName}</span>
+            <span class="search-file-name">${escapeHtml(fileResults[0].fileName)}</span>
             <span class="search-file-count">${fileResults.length} to replace</span>
         `;
         fileSection.appendChild(fileHeader);
@@ -809,7 +815,7 @@ function displayReplaceResults(resultsData, searchQuery, replaceText) {
         const fileHeader = document.createElement('div');
         fileHeader.className = 'search-file-header';
         fileHeader.innerHTML = `
-            <span class="search-file-name">${fileResults[0].fileName}</span>
+            <span class="search-file-name">${escapeHtml(fileResults[0].fileName)}</span>
             <span class="search-file-count">${fileResults.length} replaced</span>
         `;
         fileSection.appendChild(fileHeader);

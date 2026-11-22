@@ -1,13 +1,12 @@
 "use strict";
 
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
-function _readOnlyError(r) { throw new TypeError('"' + r + '" is read-only'); }
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
-function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
+function _toPrimitive(t, e) { if ("object" != _typeof(t) || !t) return t; var r; if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) { var i = r.call(t, e || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === e ? String : Number)(t); }
+function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? (c > 1 && (G.n = c < 3 ? -1 : u), d(c, u)) : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
 function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
@@ -521,7 +520,7 @@ var PauseIcon = function PauseIcon() {
   }));
 };
 var MarkdownPreziApp = function MarkdownPreziApp() {
-  var _slides$currentSlide9, _slides, _slides$currentSlide0;
+  var _slides$currentSlide6, _slides, _slides$currentSlide7;
   var _ref3 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
     _ref3$markdown = _ref3.markdown,
     markdown = _ref3$markdown === void 0 ? '' : _ref3$markdown,
@@ -727,6 +726,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   var presenterStartedAtRef = useRef(null);
   var previousFocusRef = useRef(null);
   var currentSlideRef = useRef(currentSlide);
+  var navigationRevisionRef = useRef(0);
+  var navigationMountedRef = useRef(true);
+  useEffect(function () {
+    navigationMountedRef.current = true;
+    return function () {
+      navigationMountedRef.current = false;
+      navigationRevisionRef.current += 1;
+    };
+  }, []);
   var pendingContentSlideRef = useRef(null);
   var zoomInteractionTimeoutRef = useRef(null);
   var zoomRef = useRef(zoom);
@@ -1553,6 +1561,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Navigate to specific slide with smooth transition
   var goToSlide = useCallback(function (slideIndex) {
     var _retries = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+    var revision = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+    if (!navigationMountedRef.current) return;
+    if (_retries === 0) revision = ++navigationRevisionRef.current;
+    if (revision !== navigationRevisionRef.current) return;
     if (slideIndex < 0 || slideIndex >= slides.length) return;
     var MAX_RETRIES = 20;
     var slide = slides[slideIndex];
@@ -1564,7 +1576,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       if (!canvas) {
         if (_retries < MAX_RETRIES) {
           setTimeout(function () {
-            return goToSlide(slideIndex, _retries + 1);
+            return goToSlide(slideIndex, _retries + 1, revision);
           }, 50);
         }
         return;
@@ -1572,7 +1584,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
         if (_retries < MAX_RETRIES) {
           setTimeout(function () {
-            return goToSlide(slideIndex, _retries + 1);
+            return goToSlide(slideIndex, _retries + 1, revision);
           }, 50);
         }
         return;
@@ -1599,18 +1611,6 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       var slideTitle = ((_slides$slideIndex = slides[slideIndex]) === null || _slides$slideIndex === void 0 ? void 0 : _slides$slideIndex.content.split('\n')[0]) || "Slide ".concat(slideIndex + 1);
       window.videoRecordingService.markSlideTransition(slideIndex + 1, slideTitle);
       console.log('[VIDEO] Marked slide transition:', slideIndex + 1, slideTitle);
-    }
-
-    // Ensure speaker notes are updated immediately when slide changes
-    // This is especially important on second presentation load
-    if (isPresenting && window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function' && slides.length > 0) {
-      var currentContent = slides.map(function (slide) {
-        return slide.content;
-      }).join('\n\n---\n\n');
-      // Use setTimeout to ensure state update completes first
-      setTimeout(function () {
-        window.updateSpeakerNotes(slideIndex, currentContent);
-      }, 50);
     }
   }, [slides, isPresenting, isRecording, markZoomInteraction, calculateAuthoringFocus]);
   var runPreflight = useCallback(/*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
@@ -1827,8 +1827,12 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         var nextSlideIndex = Math.min(currentSlideRef.current, Math.max(0, newSlides.length - 1));
         setSourceMarkdown(newContent);
         setSlides(newSlides);
+        navigationRevisionRef.current += 1;
         currentSlideRef.current = nextSlideIndex;
-        pendingContentSlideRef.current = nextSlideIndex;
+        pendingContentSlideRef.current = {
+          index: nextSlideIndex,
+          revision: navigationRevisionRef.current
+        };
         setCurrentSlide(nextSlideIndex);
         authoringPreferredZoomRef.current = 1.2;
         zoomRef.current = 1;
@@ -1861,8 +1865,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // immediately after a live content refresh.
   useEffect(function () {
     if (pendingContentSlideRef.current === null || slides.length === 0) return;
-    var slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
+    var pending = pendingContentSlideRef.current;
     pendingContentSlideRef.current = null;
+    if (pending.revision !== navigationRevisionRef.current) return;
+    var slideIndex = Math.min(pending.index, slides.length - 1);
     // Delivery mode has no overview canvas to reconcile. The state and ref were
     // committed in handleContentUpdate; navigating again from this passive
     // effect can race a presenter Next/Previous action after live reload.
@@ -1893,14 +1899,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           var newSlides = parseMarkdown(content);
           setSourceMarkdown(content);
           setSlides(newSlides);
+          currentSlideRef.current = 0;
+          navigationRevisionRef.current += 1;
           setCurrentSlide(0);
-          // Ensure canvas is ready before centering first slide
-          setTimeout(function () {
-            if (canvasRef.current && newSlides.length > 0) {
-              console.log('[Presentation] Centering first slide on presentation start');
-              goToSlide(0);
-            }
-          }, 100); // Give more time for canvas to be ready
+          pendingContentSlideRef.current = {
+            index: 0,
+            revision: navigationRevisionRef.current
+          };
         }
       }));
 
@@ -2042,6 +2047,8 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     markZoomInteraction();
     var targetZoom = 2;
     var targetPan = computeCenteredPan(slide, targetZoom);
+    navigationRevisionRef.current += 1;
+    currentSlideRef.current = slideIndex;
     setCurrentSlide(slideIndex);
     setFocusedSlide(slideIndex);
     zoomRef.current = targetZoom;
@@ -2101,17 +2108,11 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     setZoom(targetZoom);
     setPan(centeredPan);
     if (slides.length > 0) {
+      navigationRevisionRef.current += 1;
+      currentSlideRef.current = baseSlideIndex;
       setCurrentSlide(baseSlideIndex);
     }
     setFocusedSlide(null);
-    if (slides.length > 0 && isPresenting && window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function') {
-      var currentContent = slides.map(function (slide) {
-        return slide.content;
-      }).join('\n\n---\n\n');
-      setTimeout(function () {
-        window.updateSpeakerNotes(baseSlideIndex, currentContent);
-      }, 50);
-    }
   };
 
   // Wheel zoom effect with cursor-aware panning
@@ -2168,10 +2169,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
-        goToSlide(currentSlide + 1);
+        goToSlide(currentSlideRef.current + 1);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        goToSlide(currentSlide - 1);
+        goToSlide(currentSlideRef.current - 1);
       } else if (e.key === 'Home') {
         e.preventDefault();
         goToSlide(0);
@@ -2200,6 +2201,15 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Control body class for presenting mode
   useEffect(function () {
+    var timers = new Set();
+    var active = true;
+    var schedule = function schedule(callback, delay) {
+      var timer = setTimeout(function () {
+        timers.delete(timer);
+        if (active) callback();
+      }, delay);
+      timers.add(timer);
+    };
     if (isPresenting) {
       if (!previousFocusRef.current) previousFocusRef.current = document.activeElement;
       document.body.classList.add('is-presenting');
@@ -2227,9 +2237,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       });
 
       // Additional focus attempts to override any focus stealing
-      setTimeout(focusMainWindow, 100);
-      setTimeout(focusMainWindow, 300);
-      setTimeout(focusMainWindow, 600);
+      schedule(focusMainWindow, 100);
+      schedule(focusMainWindow, 300);
+      schedule(focusMainWindow, 600);
 
       // Hide sidebar speaker notes pane when entering presentation mode
       var sidebarPane = document.getElementById('speaker-notes-pane');
@@ -2296,7 +2306,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       }
 
       // Wait for legacy system to open window, then sync React state with it
-      setTimeout(function () {
+      schedule(function () {
         if (window.speakerNotesData && window.SPEAKER_NOTES_WINDOW_OPEN) {
           var _window$electronAPI5;
           // Legacy system opened the window, sync our state
@@ -2313,7 +2323,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
           }
 
           // Add additional aggressive focus attempts
-          setTimeout(function () {
+          schedule(function () {
             var _window$electronAPI6;
             if ((_window$electronAPI6 = window.electronAPI) !== null && _window$electronAPI6 !== void 0 && (_window$electronAPI6 = _window$electronAPI6.presentation) !== null && _window$electronAPI6 !== void 0 && _window$electronAPI6.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
@@ -2321,7 +2331,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
             }
           }, 500); // 1.5 seconds total
 
-          setTimeout(function () {
+          schedule(function () {
             var _window$electronAPI7;
             if ((_window$electronAPI7 = window.electronAPI) !== null && _window$electronAPI7 !== void 0 && (_window$electronAPI7 = _window$electronAPI7.presentation) !== null && _window$electronAPI7 !== void 0 && _window$electronAPI7.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
@@ -2354,6 +2364,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
         });
       }
     }
+    return function () {
+      active = false;
+      timers.forEach(clearTimeout);
+    };
   }, [isPresenting]);
 
   // Listen for external exit presentation events
@@ -2408,80 +2422,61 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     }
   }, [isElectron]);
 
-  // Speak notes when slide changes if TTS is enabled
+  // Each narration belongs to one slide/mode generation. Navigation and
+  // cleanup invalidate callbacks even if the speech backend finishes late.
+  var speechRevisionRef = useRef(0);
   useEffect(function () {
-    var _slides$currentSlide, _slides$currentSlide5;
-    console.log('[PRESENTATION-TTS] ⚡ useEffect triggered - currentSlide:', currentSlide, 'ttsEnabled:', ttsEnabled, 'isSpeaking:', isSpeaking, 'isAdvancing:', ttsStateRef.current.isAdvancing);
-
-    // Only trigger TTS on slide changes, not on isSpeaking state changes
-    if (ttsEnabled && (_slides$currentSlide = slides[currentSlide]) !== null && _slides$currentSlide !== void 0 && _slides$currentSlide.speakerNotes) {
-      // Stop any current speech before starting new one
-      if (window.ttsService && window.ttsService.isSpeaking) {
-        console.log('[PRESENTATION-TTS] 🛑 Stopping previous TTS before starting new slide');
-        window.ttsService.stop();
-        setIsSpeaking(false);
+    var _window$ttsService;
+    var revision = ++speechRevisionRef.current;
+    ttsStateRef.current.isAdvancing = false;
+    setIsSpeaking(false);
+    setIsLoadingTTS(false);
+    if (ttsEnabled) (_window$ttsService = window.ttsService) === null || _window$ttsService === void 0 || _window$ttsService.stop();
+    var timer;
+    if (ttsEnabled) {
+      var _slides$currentSlide;
+      if ((_slides$currentSlide = slides[currentSlide]) !== null && _slides$currentSlide !== void 0 && _slides$currentSlide.speakerNotes) {
+        timer = setTimeout(function () {
+          return speakText(slides[currentSlide].speakerNotes, currentSlide);
+        }, 100);
+      } else if (currentSlide < slides.length - 1) {
+        timer = setTimeout(function () {
+          if (speechRevisionRef.current === revision && currentSlideRef.current === currentSlide) goToSlide(currentSlide + 1);
+        }, 10000);
       }
-
-      // Start TTS for new slide after a brief delay to ensure state is clean
-      setTimeout(function () {
-        var _slides$currentSlide2, _slides$currentSlide3, _slides$currentSlide4;
-        var currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined ? ttsStateRef.current.ttsEnabled : ttsEnabled;
-        console.log('[PRESENTATION-TTS] 🔍 Checking TTS start conditions:', {
-          currentTtsEnabled: currentTtsEnabled,
-          ttsEnabled: ttsEnabled,
-          hasNotes: !!((_slides$currentSlide2 = slides[currentSlide]) !== null && _slides$currentSlide2 !== void 0 && _slides$currentSlide2.speakerNotes),
-          isAdvancing: ttsStateRef.current.isAdvancing,
-          currentSlide: currentSlide,
-          noteLength: (_slides$currentSlide3 = slides[currentSlide]) === null || _slides$currentSlide3 === void 0 || (_slides$currentSlide3 = _slides$currentSlide3.speakerNotes) === null || _slides$currentSlide3 === void 0 ? void 0 : _slides$currentSlide3.length
-        });
-        if (currentTtsEnabled && (_slides$currentSlide4 = slides[currentSlide]) !== null && _slides$currentSlide4 !== void 0 && _slides$currentSlide4.speakerNotes && !ttsStateRef.current.isAdvancing) {
-          console.log('[PRESENTATION-TTS] 📢 Starting TTS for slide:', currentSlide);
-          speakText(slides[currentSlide].speakerNotes, currentSlide);
-        } else {
-          console.log('[PRESENTATION-TTS] ❌ TTS start blocked - conditions not met');
-        }
-      }, 100);
-    } else if (ttsEnabled && !((_slides$currentSlide5 = slides[currentSlide]) !== null && _slides$currentSlide5 !== void 0 && _slides$currentSlide5.speakerNotes) && !ttsStateRef.current.isAdvancing) {
-      console.log('[PRESENTATION-TTS] 📝 Slide', currentSlide, 'has no speaker notes, scheduling 10-second auto-advance');
-      // If current slide has no notes but TTS is enabled, auto-advance after 10 seconds
-      if (currentSlide < slides.length - 1) {
-        ttsStateRef.current.isAdvancing = true;
-        setTimeout(function () {
-          // Get current ttsEnabled state to avoid closure issues
-          var currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined ? ttsStateRef.current.ttsEnabled : ttsEnabled;
-          if (currentTtsEnabled) {
-            console.log('[PRESENTATION-TTS] ⏩ Auto-advancing past slide with no notes:', currentSlide, '→', currentSlide + 1);
-            goToSlide(currentSlide + 1);
-            ttsStateRef.current.isAdvancing = false;
-          } else {
-            console.log('[PRESENTATION-TTS] ❌ Auto-advance canceled - TTS disabled');
-            ttsStateRef.current.isAdvancing = false;
-          }
-        }, 10000); // 10 seconds
-      }
-    } else {
-      var _slides$currentSlide6;
-      console.log('[PRESENTATION-TTS] ⏸️ Conditions not met for TTS:', {
-        ttsEnabled: ttsEnabled,
-        hasNotes: !!((_slides$currentSlide6 = slides[currentSlide]) !== null && _slides$currentSlide6 !== void 0 && _slides$currentSlide6.speakerNotes),
-        isSpeaking: isSpeaking,
-        isAdvancing: ttsStateRef.current.isAdvancing
-      });
     }
-  }, [currentSlide, ttsEnabled]); // Removed isSpeaking from dependency array to prevent loops
+    return function () {
+      var _window$ttsService2;
+      clearTimeout(timer);
+      ++speechRevisionRef.current;
+      if (ttsEnabled) (_window$ttsService2 = window.ttsService) === null || _window$ttsService2 === void 0 || _window$ttsService2.stop();
+    };
+  }, [currentSlide, ttsEnabled, slides, isPresenting]);
 
   // Update speaker notes display when current slide changes
   useEffect(function () {
     var updateSpeakerNotes = /*#__PURE__*/function () {
       var _ref6 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
-        var notesPanel, notesContent, noteText, formattedNotes, currentContent, shouldShowInlinePanel, presentationContent, currentSlideNotes, _t2;
+        var notesPanel, notesContent, noteText, formattedNotes, shouldShowInlinePanel, presentationContent, _slides$currentSlide2, currentSlideNotes, _t2;
         return _regenerator().w(function (_context2) {
           while (1) switch (_context2.p = _context2.n) {
             case 0:
               notesPanel = document.getElementById('speaker-notes-panel');
-              notesContent = document.getElementById('current-slide-notes'); // Update separate speaker notes window if in presenting mode and window is visible
+              notesContent = document.getElementById('current-slide-notes'); // React owns the parsed deck; legacy caches may belong to another file.
+              window.speakerNotesData = {
+                allNotes: slides.map(function (slide) {
+                  return slide.speakerNotes || '';
+                }),
+                currentSlide: currentSlide,
+                content: slides.map(function (slide) {
+                  return slide.content;
+                }).join('\n\n---\n\n')
+              };
+              window.REACT_CONTROLS_SPEAKER_NOTES = true;
+
+              // Update separate speaker notes window if in presenting mode and window is visible
               if (!(isPresenting && speakerNotesWindowVisible && window.electronAPI && window.speakerNotesData)) {
-                _context2.n = 5;
+                _context2.n = 4;
                 break;
               }
               _context2.p = 1;
@@ -2514,23 +2509,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 slideNumber: currentSlide + 1
               });
             case 2:
-              if (!(window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function')) {
-                _context2.n = 3;
-                break;
-              }
-              currentContent = slides.map(function (slide) {
-                return slide.content;
-              }).join('\n\n---\n\n');
-              _context2.n = 3;
-              return window.updateSpeakerNotes(currentSlide, currentContent);
-            case 3:
-              _context2.n = 5;
+              _context2.n = 4;
               break;
-            case 4:
-              _context2.p = 4;
+            case 3:
+              _context2.p = 3;
               _t2 = _context2.v;
               console.error('[React Presentation] Failed to update separate speaker notes window:', _t2);
-            case 5:
+            case 4:
               // Update inline panel if it's visible (when separate window is hidden)  
               // Only show inline panel if explicitly requested (not during initial setup)
               shouldShowInlinePanel = !speakerNotesWindowVisible && isPresenting && window.speakerNotesData && !window.explicitlySeparateWindow && window.REACT_READY_FOR_INLINE;
@@ -2540,14 +2525,14 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   presentationContent = document.getElementById('presentation-content');
                   if (presentationContent) {
                     presentationContent.insertAdjacentHTML('beforeend', window.speakerNotesPanel_HTML);
-                    document.getElementById('speaker-notes-panel'), _readOnlyError("notesPanel");
-                    document.getElementById('current-slide-notes'), _readOnlyError("notesContent");
+                    notesPanel = document.getElementById('speaker-notes-panel');
+                    notesContent = document.getElementById('current-slide-notes');
                   }
                 }
                 if (notesPanel && notesContent) {
                   // Only show inline panel when separate window is not visible
                   notesPanel.style.setProperty('display', 'block', 'important');
-                  currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+                  currentSlideNotes = ((_slides$currentSlide2 = slides[currentSlide]) === null || _slides$currentSlide2 === void 0 ? void 0 : _slides$currentSlide2.speakerNotes) || '';
                   if (currentSlideNotes) {
                     // Use HTML conversion for inline panel too
                     if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
@@ -2565,10 +2550,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                   notesPanel.style.setProperty('display', 'none', 'important');
                 }
               }
-            case 6:
+            case 5:
               return _context2.a(2);
           }
-        }, _callee2, null, [[1, 4]]);
+        }, _callee2, null, [[1, 3]]);
       }));
       return function updateSpeakerNotes() {
         return _ref6.apply(this, arguments);
@@ -2594,11 +2579,9 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
       // Jump to the target slide if it's valid and different from current
       if (targetSlide >= 0 && targetSlide < slides.length) {
         console.log('[Presentation] Navigating to target slide:', targetSlide, 'current:', currentSlide);
-        // Use a longer delay to avoid conflicts with initial centering
-        setTimeout(function () {
-          console.log('[Presentation] Executing goToSlide for target:', targetSlide);
-          goToSlide(targetSlide);
-        }, 300);
+        // Commit the editor target while handling entry. A delayed callback
+        // can otherwise overwrite a newer presenter Next/Previous action.
+        goToSlide(targetSlide);
       }
     }
   }, [slides, goToSlide]);
@@ -2628,36 +2611,30 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   // Toggle between separate speaker notes window and inline panel
   // Handle TTS toggle
   var handleTtsToggle = function handleTtsToggle() {
-    var _slides$currentSlide7, _slides$currentSlide8;
+    var _slides$currentSlide3;
     console.log('[PRESENTATION-TTS] === TTS Toggle Clicked ===');
     console.log('[PRESENTATION-TTS] Current ttsEnabled:', ttsEnabled);
     console.log('[PRESENTATION-TTS] Current slide:', currentSlide);
-    console.log('[PRESENTATION-TTS] Has speaker notes:', !!((_slides$currentSlide7 = slides[currentSlide]) !== null && _slides$currentSlide7 !== void 0 && _slides$currentSlide7.speakerNotes));
+    console.log('[PRESENTATION-TTS] Has speaker notes:', !!((_slides$currentSlide3 = slides[currentSlide]) !== null && _slides$currentSlide3 !== void 0 && _slides$currentSlide3.speakerNotes));
     var newTtsEnabled = !ttsEnabled;
     setTtsEnabled(newTtsEnabled);
     // Also store in ref to avoid closure issues in completion callbacks
     ttsStateRef.current.ttsEnabled = newTtsEnabled;
-
-    // If turning on TTS, speak the current slide's speaker notes
-    if (!ttsEnabled && (_slides$currentSlide8 = slides[currentSlide]) !== null && _slides$currentSlide8 !== void 0 && _slides$currentSlide8.speakerNotes) {
-      console.log('[PRESENTATION-TTS] Enabling TTS and starting speech');
-      ttsStateRef.current.isAdvancing = false; // Reset state
-      speakText(slides[currentSlide].speakerNotes, currentSlide);
-    } else if (ttsEnabled) {
-      // If turning off TTS, stop any current speech
-      console.log('[PRESENTATION-TTS] Disabling TTS and stopping speech');
-      stopSpeaking();
-      ttsStateRef.current.isAdvancing = false; // Reset state
-    }
+    if (!newTtsEnabled) stopSpeaking();
   };
 
   // Speak text using TTS with auto-advance
   var speakText = /*#__PURE__*/function () {
     var _ref7 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(text, slideIndex) {
-      var completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
+      var revision, navigationRevision, isCurrentSpeech, completionHandled, handleCompletion, ttsOptions, ttsPromise, pollCount, maxPollCount, _checkCompletion;
       return _regenerator().w(function (_context3) {
         while (1) switch (_context3.n) {
           case 0:
+            revision = speechRevisionRef.current;
+            navigationRevision = navigationRevisionRef.current;
+            isCurrentSpeech = function isCurrentSpeech() {
+              return navigationMountedRef.current && speechRevisionRef.current === revision && navigationRevisionRef.current === navigationRevision && currentSlideRef.current === slideIndex;
+            };
             console.log('[PRESENTATION-TTS] === speakText called ===');
             console.log('[PRESENTATION-TTS] Text length:', (text === null || text === void 0 ? void 0 : text.length) || 0);
             console.log('[PRESENTATION-TTS] Slide index:', slideIndex);
@@ -2695,7 +2672,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 // Try to use TTS service with callback if available
                 completionHandled = false;
                 handleCompletion = function handleCompletion() {
-                  if (completionHandled) return; // Prevent duplicate calls
+                  if (completionHandled || !isCurrentSpeech()) return; // Ignore obsolete speech
                   completionHandled = true;
                   console.log('[PRESENTATION-TTS] ✅ TTS completed via callback for slide:', slideIndex);
                   setIsSpeaking(false);
@@ -2719,7 +2696,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                       // Get current ttsEnabled state to avoid closure issues
                       var currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined ? ttsStateRef.current.ttsEnabled : ttsEnabled; // fallback to state if ref not set
 
-                      if (currentTtsEnabled) {
+                      if (currentTtsEnabled && isCurrentSpeech()) {
                         console.log('[PRESENTATION-TTS] 🚀 ADVANCING to slide:', slideIndex + 1);
                         goToSlide(slideIndex + 1);
                         // Clear isAdvancing flag immediately so TTS can start on the new slide
@@ -2737,11 +2714,13 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 ttsOptions = {
                   voice: selectedVoice,
                   onStart: function onStart() {
+                    if (!isCurrentSpeech()) return;
                     console.log('[PRESENTATION-TTS] 🎵 Audio started playing - clearing loading state');
                     setIsLoadingTTS(false);
                   },
                   onEnd: handleCompletion,
                   onError: function onError(err) {
+                    if (!isCurrentSpeech()) return;
                     console.error('[PRESENTATION-TTS] ❌ TTS error:', err);
                     setIsLoadingTTS(false);
                     handleCompletion();
@@ -2750,12 +2729,16 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
                 console.log('[PRESENTATION-TTS] 📞 Starting TTS with options:', {
                   voice: selectedVoice
                 });
-                ttsPromise = window.ttsService.speak(text, ttsOptions); // Only use polling if no callback support
+                ttsPromise = window.ttsService.speak(text, ttsOptions);
+                Promise.resolve(ttsPromise).catch(ttsOptions.onError);
+
+                // Only use polling if no callback support
                 if (window.ttsService.speak.length <= 1) {
                   // Poll the TTS service to check when it's done speaking (fallback method)
                   pollCount = 0;
                   maxPollCount = 120; // 120 * 500ms = 60 seconds max
                   _checkCompletion = function checkCompletion() {
+                    if (completionHandled || !isCurrentSpeech()) return;
                     pollCount++;
                     var ttsIsSpeaking = window.ttsService.isSpeaking;
                     var ttsIsLoading = window.ttsService.isLoading;
@@ -2775,7 +2758,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
                 // Also set a maximum timeout fallback
                 setTimeout(function () {
-                  if (isSpeaking) {
+                  if (isCurrentSpeech() && !completionHandled) {
                     console.log('[PRESENTATION-TTS] 🚨 Maximum timeout reached, forcing completion');
                     setIsSpeaking(false);
                     setIsLoadingTTS(false);
@@ -2808,6 +2791,10 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
 
   // Stop speaking
   var stopSpeaking = function stopSpeaking() {
+    ttsStateRef.current.ttsEnabled = false;
+    setTtsEnabled(false);
+    ++speechRevisionRef.current;
+    setIsLoadingTTS(false);
     console.log('[PRESENTATION-TTS] === stopSpeaking called ===');
     if (window.ttsService) {
       console.log('[PRESENTATION-TTS] Calling ttsService.stop()');
@@ -3033,7 +3020,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   };
   var toggleSpeakerNotesWindow = /*#__PURE__*/function () {
     var _ref9 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee5() {
-      var panel, presentationContent, notesContainer, currentSlideNotes, _panel, sidebarPane, allNotes, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t4, _t5;
+      var panel, presentationContent, notesContainer, _slides$currentSlide4, currentSlideNotes, _panel, sidebarPane, allNotes, _slides$currentSlide5, _currentSlideNotes, formattedNotes, _panel2, _panel4, _t4, _t5;
       return _regenerator().w(function (_context5) {
         while (1) switch (_context5.p = _context5.n) {
           case 0:
@@ -3083,7 +3070,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               // Update the inline panel with current slide notes
               notesContainer = document.getElementById('current-slide-notes');
               if (notesContainer) {
-                currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+                currentSlideNotes = ((_slides$currentSlide4 = slides[currentSlide]) === null || _slides$currentSlide4 === void 0 ? void 0 : _slides$currentSlide4.speakerNotes) || '';
                 if (currentSlideNotes && window.markdownToHtml) {
                   setSanitizedHTML(notesContainer, window.markdownToHtml(currentSlideNotes));
                 } else {
@@ -3145,7 +3132,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
               _context5.n = 9;
               break;
             }
-            _currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+            _currentSlideNotes = ((_slides$currentSlide5 = slides[currentSlide]) === null || _slides$currentSlide5 === void 0 ? void 0 : _slides$currentSlide5.speakerNotes) || '';
             if (_currentSlideNotes) {
               if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {
                 formattedNotes = window.markdownToHtml(_currentSlideNotes);
@@ -3594,7 +3581,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
     "aria-labelledby": "presenter-current-title"
   }, /*#__PURE__*/React.createElement("small", null, "Current \xB7 ", currentSlide + 1, " / ", slides.length), /*#__PURE__*/React.createElement("h2", {
     id: "presenter-current-title"
-  }, ((_slides$currentSlide9 = slides[currentSlide]) === null || _slides$currentSlide9 === void 0 ? void 0 : _slides$currentSlide9.title) || "Slide ".concat(currentSlide + 1)), /*#__PURE__*/React.createElement("p", null, slideTextPreview(slides[currentSlide]) || 'No visible slide text.')), /*#__PURE__*/React.createElement("section", {
+  }, ((_slides$currentSlide6 = slides[currentSlide]) === null || _slides$currentSlide6 === void 0 ? void 0 : _slides$currentSlide6.title) || "Slide ".concat(currentSlide + 1)), /*#__PURE__*/React.createElement("p", null, slideTextPreview(slides[currentSlide]) || 'No visible slide text.')), /*#__PURE__*/React.createElement("section", {
     "aria-labelledby": "presenter-next-title",
     className: "presentation-presenter-next"
   }, /*#__PURE__*/React.createElement("small", null, "Next"), /*#__PURE__*/React.createElement("h2", {
@@ -3605,7 +3592,7 @@ var MarkdownPreziApp = function MarkdownPreziApp() {
   }, /*#__PURE__*/React.createElement("small", {
     id: "presenter-notes-title"
   }, "Speaker notes"), /*#__PURE__*/React.createElement(SpeakerNotesContent, {
-    notes: (_slides$currentSlide0 = slides[currentSlide]) === null || _slides$currentSlide0 === void 0 ? void 0 : _slides$currentSlide0.speakerNotes
+    notes: (_slides$currentSlide7 = slides[currentSlide]) === null || _slides$currentSlide7 === void 0 ? void 0 : _slides$currentSlide7.speakerNotes
   })), /*#__PURE__*/React.createElement("nav", {
     "aria-label": "Presenter console navigation"
   }, /*#__PURE__*/React.createElement("button", {

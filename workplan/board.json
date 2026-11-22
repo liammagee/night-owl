@@ -1,20 +1,21 @@
 {
-  "generated": "2026-11-14T18:53:46.955Z",
+  "generated": "2026-11-21T22:42:07.204Z",
   "counts": {
-    "total": 33,
+    "total": 35,
     "byStatus": {
+      "review": 2,
       "done": 33
     },
     "byPriority": {
+      "P1": 17,
       "P0": 4,
-      "P1": 15,
       "P2": 13,
       "P3": 1
     },
     "byArea": {
-      "presentation": 5,
+      "presentation": 6,
+      "platform": 8,
       "preview": 3,
-      "platform": 7,
       "editor": 4,
       "testing": 3,
       "packaging": 2,
@@ -26,6 +27,43 @@
     }
   },
   "items": [
+    {
+      "id": "investigate-intermittent-presentation-navigation",
+      "title": "Explain intermittent extra slide advancement in required Electron test",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "presentation",
+      "owner": "unassigned",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-11-17",
+      "updated": "2026-11-21",
+      "verification": "Capture input and navigation event causality, identify the failure mechanism, and demonstrate a focused regression.",
+      "tags": [
+        "intermittent",
+        "navigation"
+      ]
+    },
+    {
+      "id": "review-codebase-reliability-and-refactor-confirmed-failure-boundaries",
+      "title": "Review codebase reliability and refactor confirmed failure boundaries",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "test-failure",
+      "created": "2026-11-17",
+      "updated": "2026-11-21",
+      "verification": "Release gate, real IPC replacement test, editor regressions, and broader diagnostics; record all failures and exclusions.",
+      "tags": [
+        "data-integrity",
+        "search",
+        "review"
+      ]
+    },
     {
       "id": "fit-presentation-slides-to-viewport",
       "title": "Fit complete presentation slides inside the viewport",
