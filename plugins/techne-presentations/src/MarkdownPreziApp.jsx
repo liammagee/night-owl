@@ -410,6 +410,15 @@ const MarkdownPreziApp = ({ markdown = '', onPresentationError = null } = {}) =>
   const presenterStartedAtRef = useRef(null);
   const previousFocusRef = useRef(null);
   const currentSlideRef = useRef(currentSlide);
+  const navigationRevisionRef = useRef(0);
+  const navigationMountedRef = useRef(true);
+  useEffect(() => {
+    navigationMountedRef.current = true;
+    return () => {
+      navigationMountedRef.current = false;
+      navigationRevisionRef.current += 1;
+    };
+  }, []);
   const pendingContentSlideRef = useRef(null);
   const zoomInteractionTimeoutRef = useRef(null);
   const zoomRef = useRef(zoom);
@@ -1360,7 +1369,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   }, []);
 
   // Navigate to specific slide with smooth transition
-  const goToSlide = useCallback((slideIndex, _retries = 0) => {
+  const goToSlide = useCallback((slideIndex, _retries = 0, revision = null) => {
+    if (!navigationMountedRef.current) return;
+    if (_retries === 0) revision = ++navigationRevisionRef.current;
+    if (revision !== navigationRevisionRef.current) return;
     if (slideIndex < 0 || slideIndex >= slides.length) return;
 
     const MAX_RETRIES = 20;
@@ -1373,13 +1385,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // makes presenter Next/Previous silently exhaust their retries.
       if (!canvas) {
         if (_retries < MAX_RETRIES) {
-          setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+          setTimeout(() => goToSlide(slideIndex, _retries + 1, revision), 50);
         }
         return;
       }
       if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
         if (_retries < MAX_RETRIES) {
-          setTimeout(() => goToSlide(slideIndex, _retries + 1), 50);
+          setTimeout(() => goToSlide(slideIndex, _retries + 1, revision), 50);
         }
         return;
       }
@@ -1406,15 +1418,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       console.log('[VIDEO] Marked slide transition:', slideIndex + 1, slideTitle);
     }
     
-    // Ensure speaker notes are updated immediately when slide changes
-    // This is especially important on second presentation load
-    if (isPresenting && window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function' && slides.length > 0) {
-      const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
-      // Use setTimeout to ensure state update completes first
-      setTimeout(() => {
-        window.updateSpeakerNotes(slideIndex, currentContent);
-      }, 50);
-    }
   }, [slides, isPresenting, isRecording, markZoomInteraction, calculateAuthoringFocus]);
 
   const runPreflight = useCallback(async () => {
@@ -1600,8 +1603,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
         setSourceMarkdown(newContent);
         setSlides(newSlides);
+        navigationRevisionRef.current += 1;
         currentSlideRef.current = nextSlideIndex;
-        pendingContentSlideRef.current = nextSlideIndex;
+        pendingContentSlideRef.current = { index: nextSlideIndex, revision: navigationRevisionRef.current };
         setCurrentSlide(nextSlideIndex);
         authoringPreferredZoomRef.current = 1.2;
         zoomRef.current = 1;
@@ -1628,8 +1632,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
   // immediately after a live content refresh.
   useEffect(() => {
     if (pendingContentSlideRef.current === null || slides.length === 0) return;
-    const slideIndex = Math.min(pendingContentSlideRef.current, slides.length - 1);
+    const pending = pendingContentSlideRef.current;
     pendingContentSlideRef.current = null;
+    if (pending.revision !== navigationRevisionRef.current) return;
+    const slideIndex = Math.min(pending.index, slides.length - 1);
     // Delivery mode has no overview canvas to reconcile. The state and ref were
     // committed in handleContentUpdate; navigating again from this passive
     // effect can race a presenter Next/Previous action after live reload.
@@ -1658,14 +1664,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           const newSlides = parseMarkdown(content);
           setSourceMarkdown(content);
           setSlides(newSlides);
+          currentSlideRef.current = 0;
+          navigationRevisionRef.current += 1;
           setCurrentSlide(0);
-          // Ensure canvas is ready before centering first slide
-          setTimeout(() => {
-            if (canvasRef.current && newSlides.length > 0) {
-              console.log('[Presentation] Centering first slide on presentation start');
-              goToSlide(0);
-            }
-          }, 100); // Give more time for canvas to be ready
+          pendingContentSlideRef.current = { index: 0, revision: navigationRevisionRef.current };
         }
       }));
 
@@ -1813,6 +1815,8 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     const targetZoom = 2;
     const targetPan = computeCenteredPan(slide, targetZoom);
 
+    navigationRevisionRef.current += 1;
+    currentSlideRef.current = slideIndex;
     setCurrentSlide(slideIndex);
     setFocusedSlide(slideIndex);
     zoomRef.current = targetZoom;
@@ -1876,21 +1880,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     setZoom(targetZoom);
     setPan(centeredPan);
     if (slides.length > 0) {
+      navigationRevisionRef.current += 1;
+      currentSlideRef.current = baseSlideIndex;
       setCurrentSlide(baseSlideIndex);
     }
     setFocusedSlide(null);
 
-    if (
-      slides.length > 0 &&
-      isPresenting &&
-      window.updateSpeakerNotes &&
-      typeof window.updateSpeakerNotes === 'function'
-    ) {
-      const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
-      setTimeout(() => {
-        window.updateSpeakerNotes(baseSlideIndex, currentContent);
-      }, 50);
-    }
+
   };
 
   // Wheel zoom effect with cursor-aware panning
@@ -1961,10 +1957,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
-        goToSlide(currentSlide + 1);
+        goToSlide(currentSlideRef.current + 1);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        goToSlide(currentSlide - 1);
+        goToSlide(currentSlideRef.current - 1);
       } else if (e.key === 'Home') {
         e.preventDefault();
         goToSlide(0);
@@ -1994,6 +1990,15 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Control body class for presenting mode
   useEffect(() => {
+    const timers = new Set();
+    let active = true;
+    const schedule = (callback, delay) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (active) callback();
+      }, delay);
+      timers.add(timer);
+    };
     if (isPresenting) {
       if (!previousFocusRef.current) previousFocusRef.current = document.activeElement;
       document.body.classList.add('is-presenting');
@@ -2019,9 +2024,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       });
       
       // Additional focus attempts to override any focus stealing
-      setTimeout(focusMainWindow, 100);
-      setTimeout(focusMainWindow, 300);
-      setTimeout(focusMainWindow, 600);
+      schedule(focusMainWindow, 100);
+      schedule(focusMainWindow, 300);
+      schedule(focusMainWindow, 600);
       
       // Hide sidebar speaker notes pane when entering presentation mode
       const sidebarPane = document.getElementById('speaker-notes-pane');
@@ -2079,7 +2084,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       }
       
       // Wait for legacy system to open window, then sync React state with it
-      setTimeout(() => {
+      schedule(() => {
         if (window.speakerNotesData && window.SPEAKER_NOTES_WINDOW_OPEN) {
           // Legacy system opened the window, sync our state
           setSpeakerNotesWindowVisible(true);
@@ -2095,14 +2100,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           }
           
           // Add additional aggressive focus attempts
-          setTimeout(() => {
+          schedule(() => {
             if (window.electronAPI?.presentation?.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Additional focus attempt at 1.5s');
             }
           }, 500); // 1.5 seconds total
           
-          setTimeout(() => {
+          schedule(() => {
             if (window.electronAPI?.presentation?.focusMainWindow) {
               window.electronAPI.presentation.focusMainWindow();
               console.log('[Presentation] Final focus attempt at 2s');
@@ -2134,6 +2139,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         });
       }
     }
+    return () => {
+      active = false;
+      timers.forEach(clearTimeout);
+    };
   }, [isPresenting]);
 
   // Listen for external exit presentation events
@@ -2187,78 +2196,44 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     }
   }, [isElectron]);
 
-  // Speak notes when slide changes if TTS is enabled
+  // Each narration belongs to one slide/mode generation. Navigation and
+  // cleanup invalidate callbacks even if the speech backend finishes late.
+  const speechRevisionRef = useRef(0);
   useEffect(() => {
-    console.log('[PRESENTATION-TTS] ⚡ useEffect triggered - currentSlide:', currentSlide, 'ttsEnabled:', ttsEnabled, 'isSpeaking:', isSpeaking, 'isAdvancing:', ttsStateRef.current.isAdvancing);
-    
-    // Only trigger TTS on slide changes, not on isSpeaking state changes
-    if (ttsEnabled && slides[currentSlide]?.speakerNotes) {
-      // Stop any current speech before starting new one
-      if (window.ttsService && window.ttsService.isSpeaking) {
-        console.log('[PRESENTATION-TTS] 🛑 Stopping previous TTS before starting new slide');
-        window.ttsService.stop();
-        setIsSpeaking(false);
+    const revision = ++speechRevisionRef.current;
+    ttsStateRef.current.isAdvancing = false;
+    setIsSpeaking(false);
+    setIsLoadingTTS(false);
+    if (ttsEnabled) window.ttsService?.stop();
+    let timer;
+    if (ttsEnabled) {
+      if (slides[currentSlide]?.speakerNotes) {
+        timer = setTimeout(() => speakText(slides[currentSlide].speakerNotes, currentSlide), 100);
+      } else if (currentSlide < slides.length - 1) {
+        timer = setTimeout(() => {
+          if (speechRevisionRef.current === revision && currentSlideRef.current === currentSlide) goToSlide(currentSlide + 1);
+        }, 10000);
       }
-      
-      // Start TTS for new slide after a brief delay to ensure state is clean
-      setTimeout(() => {
-        const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
-          ? ttsStateRef.current.ttsEnabled 
-          : ttsEnabled;
-        
-        console.log('[PRESENTATION-TTS] 🔍 Checking TTS start conditions:', {
-          currentTtsEnabled,
-          ttsEnabled,
-          hasNotes: !!slides[currentSlide]?.speakerNotes,
-          isAdvancing: ttsStateRef.current.isAdvancing,
-          currentSlide,
-          noteLength: slides[currentSlide]?.speakerNotes?.length
-        });
-        
-        if (currentTtsEnabled && slides[currentSlide]?.speakerNotes && !ttsStateRef.current.isAdvancing) {
-          console.log('[PRESENTATION-TTS] 📢 Starting TTS for slide:', currentSlide);
-          speakText(slides[currentSlide].speakerNotes, currentSlide);
-        } else {
-          console.log('[PRESENTATION-TTS] ❌ TTS start blocked - conditions not met');
-        }
-      }, 100);
-      
-    } else if (ttsEnabled && !slides[currentSlide]?.speakerNotes && !ttsStateRef.current.isAdvancing) {
-      console.log('[PRESENTATION-TTS] 📝 Slide', currentSlide, 'has no speaker notes, scheduling 10-second auto-advance');
-      // If current slide has no notes but TTS is enabled, auto-advance after 10 seconds
-      if (currentSlide < slides.length - 1) {
-        ttsStateRef.current.isAdvancing = true;
-        setTimeout(() => {
-          // Get current ttsEnabled state to avoid closure issues
-          const currentTtsEnabled = ttsStateRef.current.ttsEnabled !== undefined 
-            ? ttsStateRef.current.ttsEnabled 
-            : ttsEnabled;
-            
-          if (currentTtsEnabled) {
-            console.log('[PRESENTATION-TTS] ⏩ Auto-advancing past slide with no notes:', currentSlide, '→', currentSlide + 1);
-            goToSlide(currentSlide + 1);
-            ttsStateRef.current.isAdvancing = false;
-          } else {
-            console.log('[PRESENTATION-TTS] ❌ Auto-advance canceled - TTS disabled');
-            ttsStateRef.current.isAdvancing = false;
-          }
-        }, 10000); // 10 seconds
-      }
-    } else {
-      console.log('[PRESENTATION-TTS] ⏸️ Conditions not met for TTS:', {
-        ttsEnabled,
-        hasNotes: !!slides[currentSlide]?.speakerNotes,
-        isSpeaking,
-        isAdvancing: ttsStateRef.current.isAdvancing
-      });
     }
-  }, [currentSlide, ttsEnabled]); // Removed isSpeaking from dependency array to prevent loops
+    return () => {
+      clearTimeout(timer);
+      ++speechRevisionRef.current;
+      if (ttsEnabled) window.ttsService?.stop();
+    };
+  }, [currentSlide, ttsEnabled, slides, isPresenting]);
 
   // Update speaker notes display when current slide changes
   useEffect(() => {
     const updateSpeakerNotes = async () => {
-      const notesPanel = document.getElementById('speaker-notes-panel');
-      const notesContent = document.getElementById('current-slide-notes');
+      let notesPanel = document.getElementById('speaker-notes-panel');
+      let notesContent = document.getElementById('current-slide-notes');
+      // React owns the parsed deck; legacy caches may belong to another file.
+      window.speakerNotesData = {
+        allNotes: slides.map(slide => slide.speakerNotes || ''),
+        currentSlide,
+        content: slides.map(slide => slide.content).join('\n\n---\n\n')
+      };
+      window.REACT_CONTROLS_SPEAKER_NOTES = true;
       
       // Update separate speaker notes window if in presenting mode and window is visible
       if (isPresenting && speakerNotesWindowVisible && window.electronAPI && window.speakerNotesData) {
@@ -2291,11 +2266,6 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
             slideNumber: currentSlide + 1
           });
           
-          // Also call the global updateSpeakerNotes function to ensure consistency
-          if (window.updateSpeakerNotes && typeof window.updateSpeakerNotes === 'function') {
-            const currentContent = slides.map(slide => slide.content).join('\n\n---\n\n');
-            await window.updateSpeakerNotes(currentSlide, currentContent);
-          }
         } catch (error) {
           console.error('[React Presentation] Failed to update separate speaker notes window:', error);
         }
@@ -2319,7 +2289,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         if (notesPanel && notesContent) {
           // Only show inline panel when separate window is not visible
           notesPanel.style.setProperty('display', 'block', 'important');
-          const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+          const currentSlideNotes = slides[currentSlide]?.speakerNotes || '';
           
           if (currentSlideNotes) {
             // Use HTML conversion for inline panel too
@@ -2360,11 +2330,9 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
       // Jump to the target slide if it's valid and different from current
       if (targetSlide >= 0 && targetSlide < slides.length) {
         console.log('[Presentation] Navigating to target slide:', targetSlide, 'current:', currentSlide);
-        // Use a longer delay to avoid conflicts with initial centering
-        setTimeout(() => {
-          console.log('[Presentation] Executing goToSlide for target:', targetSlide);
-          goToSlide(targetSlide);
-        }, 300);
+        // Commit the editor target while handling entry. A delayed callback
+        // can otherwise overwrite a newer presenter Next/Previous action.
+        goToSlide(targetSlide);
       }
     }
   }, [slides, goToSlide]);
@@ -2404,21 +2372,14 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
     // Also store in ref to avoid closure issues in completion callbacks
     ttsStateRef.current.ttsEnabled = newTtsEnabled;
     
-    // If turning on TTS, speak the current slide's speaker notes
-    if (!ttsEnabled && slides[currentSlide]?.speakerNotes) {
-      console.log('[PRESENTATION-TTS] Enabling TTS and starting speech');
-      ttsStateRef.current.isAdvancing = false; // Reset state
-      speakText(slides[currentSlide].speakerNotes, currentSlide);
-    } else if (ttsEnabled) {
-      // If turning off TTS, stop any current speech
-      console.log('[PRESENTATION-TTS] Disabling TTS and stopping speech');
-      stopSpeaking();
-      ttsStateRef.current.isAdvancing = false; // Reset state
-    }
+    if (!newTtsEnabled) stopSpeaking();
   };
 
   // Speak text using TTS with auto-advance
   const speakText = async (text, slideIndex) => {
+    const revision = speechRevisionRef.current;
+    const navigationRevision = navigationRevisionRef.current;
+    const isCurrentSpeech = () => navigationMountedRef.current && speechRevisionRef.current === revision && navigationRevisionRef.current === navigationRevision && currentSlideRef.current === slideIndex;
     console.log('[PRESENTATION-TTS] === speakText called ===');
     console.log('[PRESENTATION-TTS] Text length:', text?.length || 0);
     console.log('[PRESENTATION-TTS] Slide index:', slideIndex);
@@ -2455,7 +2416,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         // Try to use TTS service with callback if available
         let completionHandled = false;
         const handleCompletion = () => {
-          if (completionHandled) return; // Prevent duplicate calls
+          if (completionHandled || !isCurrentSpeech()) return; // Ignore obsolete speech
           completionHandled = true;
           
           console.log('[PRESENTATION-TTS] ✅ TTS completed via callback for slide:', slideIndex);
@@ -2486,7 +2447,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
                 ? ttsStateRef.current.ttsEnabled 
                 : ttsEnabled; // fallback to state if ref not set
                 
-              if (currentTtsEnabled) {
+              if (currentTtsEnabled && isCurrentSpeech()) {
                 console.log('[PRESENTATION-TTS] 🚀 ADVANCING to slide:', slideIndex + 1);
                 goToSlide(slideIndex + 1);
                 // Clear isAdvancing flag immediately so TTS can start on the new slide
@@ -2506,11 +2467,13 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         const ttsOptions = {
           voice: selectedVoice,
           onStart: () => {
+            if (!isCurrentSpeech()) return;
             console.log('[PRESENTATION-TTS] 🎵 Audio started playing - clearing loading state');
             setIsLoadingTTS(false);
           },
           onEnd: handleCompletion,
           onError: (err) => {
+            if (!isCurrentSpeech()) return;
             console.error('[PRESENTATION-TTS] ❌ TTS error:', err);
             setIsLoadingTTS(false);
             handleCompletion();
@@ -2519,6 +2482,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
         console.log('[PRESENTATION-TTS] 📞 Starting TTS with options:', { voice: selectedVoice });
         const ttsPromise = window.ttsService.speak(text, ttsOptions);
+        Promise.resolve(ttsPromise).catch(ttsOptions.onError);
         
         // Only use polling if no callback support
         if (window.ttsService.speak.length <= 1) {
@@ -2526,6 +2490,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           let pollCount = 0;
           const maxPollCount = 120; // 120 * 500ms = 60 seconds max
           const checkCompletion = () => {
+            if (completionHandled || !isCurrentSpeech()) return;
             pollCount++;
             const ttsIsSpeaking = window.ttsService.isSpeaking;
             const ttsIsLoading = window.ttsService.isLoading;
@@ -2547,7 +2512,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
         // Also set a maximum timeout fallback
         setTimeout(() => {
-          if (isSpeaking) {
+          if (isCurrentSpeech() && !completionHandled) {
             console.log('[PRESENTATION-TTS] 🚨 Maximum timeout reached, forcing completion');
             setIsSpeaking(false);
             setIsLoadingTTS(false);
@@ -2573,6 +2538,10 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
 
   // Stop speaking
   const stopSpeaking = () => {
+    ttsStateRef.current.ttsEnabled = false;
+    setTtsEnabled(false);
+    ++speechRevisionRef.current;
+    setIsLoadingTTS(false);
     console.log('[PRESENTATION-TTS] === stopSpeaking called ===');
     
     if (window.ttsService) {
@@ -2829,7 +2798,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
           // Update the inline panel with current slide notes
           const notesContainer = document.getElementById('current-slide-notes');
           if (notesContainer) {
-            const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+            const currentSlideNotes = slides[currentSlide]?.speakerNotes || '';
             if (currentSlideNotes && window.markdownToHtml) {
               setSanitizedHTML(notesContainer, window.markdownToHtml(currentSlideNotes));
             } else {
@@ -2877,7 +2846,7 @@ Note: You can press 'N' to toggle these speaker notes on/off during presentation
         
         // Open the separate window with current slide data
         if (window.speakerNotesData) {
-          const currentSlideNotes = window.speakerNotesData.allNotes[currentSlide] || '';
+          const currentSlideNotes = slides[currentSlide]?.speakerNotes || '';
           let formattedNotes;
           if (currentSlideNotes) {
             if (window.markdownToHtml && typeof window.markdownToHtml === 'function') {

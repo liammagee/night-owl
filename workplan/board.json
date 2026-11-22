@@ -1,32 +1,107 @@
 {
-  "generated": "2026-11-17T15:47:17.866Z",
+  "generated": "2026-11-22T02:44:41.386Z",
   "counts": {
-    "total": 34,
+    "total": 42,
     "byStatus": {
-      "review": 1,
-      "done": 33
+      "review": 5,
+      "done": 37
     },
     "byPriority": {
-      "P2": 14,
+      "P1": 20,
+      "P2": 17,
       "P0": 4,
-      "P1": 15,
       "P3": 1
     },
     "byArea": {
-      "editor": 5,
-      "presentation": 5,
+      "presentation": 6,
+      "platform": 8,
+      "editor": 7,
       "preview": 3,
-      "platform": 7,
+      "performance": 4,
       "testing": 3,
-      "packaging": 2,
+      "packaging": 3,
       "security": 2,
       "architecture": 3,
       "files": 1,
-      "accessibility": 2,
-      "performance": 1
+      "accessibility": 2
     }
   },
   "items": [
+    {
+      "id": "investigate-intermittent-presentation-navigation",
+      "title": "Explain intermittent extra slide advancement in required Electron test",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "presentation",
+      "owner": "unassigned",
+      "source": "test-failure",
+      "evidence": "test-failure",
+      "created": "2026-11-17",
+      "updated": "2026-11-21",
+      "verification": "Capture input and navigation event causality, identify the failure mechanism, and demonstrate a focused regression.",
+      "tags": [
+        "intermittent",
+        "navigation"
+      ]
+    },
+    {
+      "id": "review-codebase-reliability-and-refactor-confirmed-failure-boundaries",
+      "title": "Review codebase reliability and refactor confirmed failure boundaries",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "platform",
+      "owner": "codex",
+      "source": "systematic-review",
+      "evidence": "test-failure",
+      "created": "2026-11-17",
+      "updated": "2026-11-21",
+      "verification": "Release gate, real IPC replacement test, editor regressions, and broader diagnostics; record all failures and exclusions.",
+      "tags": [
+        "data-integrity",
+        "search",
+        "review"
+      ]
+    },
+    {
+      "id": "settings-save",
+      "title": "Preserve settings edits across categories and report save failures",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Regression tests for category drafts, AI preservation and failure reporting.",
+      "tags": [
+        "settings",
+        "ai",
+        "persistence"
+      ]
+    },
+    {
+      "id": "pause-inactive-rendering",
+      "title": "Pause decorative rendering while NightOwl is inactive",
+      "status": "review",
+      "type": "bug",
+      "priority": "P2",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-10-29",
+      "updated": "2026-10-29",
+      "verification": "Electron checks show CSS animations and graph ticks pause on blur/hide, resume on focus, background saves continue, and visible presentations remain live.",
+      "tags": [
+        "performance",
+        "electron",
+        "regression"
+      ]
+    },
     {
       "id": "typo-suggestions",
       "title": "Correct spelling directly from underlined words",
@@ -180,6 +255,26 @@
       ]
     },
     {
+      "id": "demand-driven-rendering",
+      "title": "Make idle editor rendering and file browsing demand-driven",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Matched Electron idle measurements show recurring decorative callbacks stop; focused interaction, resume, hidden views, disposal and presentation delivery are covered by regression checks.",
+      "tags": [
+        "performance",
+        "lifecycle",
+        "rendering",
+        "filesystem"
+      ]
+    },
+    {
       "id": "labelling-review-workbench",
       "title": "Expand structured records into a labelling and review workbench",
       "status": "done",
@@ -244,6 +339,25 @@
       "depends_on": [
         "unify-command-and-shortcut-registry",
         "minimize-electron-privilege-surface"
+      ]
+    },
+    {
+      "id": "opt-in-library-rooms",
+      "title": "Disable Library room generation by default",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-11-12",
+      "updated": "2026-11-12",
+      "verification": "Missing and false roomGeneration settings produce no room growth or architect work; explicit opt-in retains the feature.",
+      "tags": [
+        "performance",
+        "gamification",
+        "reliability"
       ]
     },
     {
@@ -552,6 +666,24 @@
       ]
     },
     {
+      "id": "editor-resource-profiler",
+      "title": "Profile app resources inside the editor",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Real Electron profiling shows process metrics and a saved trace; automated checks cover sampling lifecycle, unavailable values, and renderer integration.",
+      "tags": [
+        "performance",
+        "diagnostics"
+      ]
+    },
+    {
       "id": "hermetic-tests-across-worktrees",
       "title": "Make unit and integration tests portable across worktrees",
       "status": "done",
@@ -614,6 +746,20 @@
         "modernize-electron-e2e-harness",
         "reliable-editor-preview-transitions"
       ]
+    },
+    {
+      "id": "rebuild-and-install-local-code-on-restart",
+      "title": "Rebuild and install local code on Restart",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "manual",
+      "evidence": "opportunity",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Installer tests, static checks, and a packaged Restart that builds, installs, and reopens with an isolated profile."
     },
     {
       "id": "refresh-architecture-and-build-docs",

@@ -16,12 +16,33 @@ function register(deps) {
   const {
     appSettings,
     defaultSettings,
-    saveSettings
+    saveSettings: persistSettings
   } = deps;
   const aiRuntime = deps.tutorBridge || deps.aiService || null;
 
+  function saveSettings() {
+    if (persistSettings() === false) {
+      throw new Error('Could not write settings to disk. Check available space and file permissions.');
+    }
+  }
+
+
   const isPlainObject = (value) =>
     Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+  const validateSettingsKey = (key) => {
+    if (typeof key !== 'string' || !key || ['__proto__', 'prototype', 'constructor'].includes(key)) {
+      throw new TypeError('Invalid settings key');
+    }
+  };
+  const validateSettingsValue = (value, depth = 0) => {
+    if (depth > 50) throw new TypeError('Settings nesting is too deep');
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      validateSettingsKey(key);
+      validateSettingsValue(child, depth + 1);
+    }
+  };
 
   const deepMergeSettings = (target, source) => {
     if (!isPlainObject(target) || !isPlainObject(source)) return source;
@@ -44,6 +65,7 @@ function register(deps) {
   const MAIN_PROCESS_AUTHORITATIVE_KEYS = ['workingDirectory', 'workspaceFolders', 'currentFile', 'editorTabs'];
 
   const replaceSettingsInPlace = (nextSettings) => {
+    validateSettingsValue(nextSettings);
     // Preserve main-process-authoritative values before merging
     const preserved = {};
     for (const key of MAIN_PROCESS_AUTHORITATIVE_KEYS) {
@@ -52,7 +74,9 @@ function register(deps) {
       }
     }
 
-    const merged = deepMergeSettings(appSettings, nextSettings);
+    const preferences = { ...nextSettings };
+    for (const key of MAIN_PROCESS_AUTHORITATIVE_KEYS) delete preferences[key];
+    const merged = deepMergeSettings(appSettings, preferences);
 
     // Mutate in place so any other references remain valid
     Object.keys(appSettings).forEach((key) => {
@@ -114,6 +138,8 @@ function register(deps) {
   }
 
   function updateSettingsCategory(category, updates) {
+    validateSettingsKey(category);
+    validateSettingsValue(updates);
     // Allow setting primitives at the top-level (e.g., theme: 'dark')
     if (!isPlainObject(updates)) {
       appSettings[category] = updates;
@@ -137,6 +163,7 @@ function register(deps) {
   }
 
   function resetSettingsCategory(category) {
+    validateSettingsKey(category);
     if (defaultSettings[category]) {
       appSettings[category] = JSON.parse(JSON.stringify(defaultSettings[category]));
       saveSettings();
@@ -169,18 +196,16 @@ function register(deps) {
       
       const importedSettings = importData.settings;
       
-      // Validate basic structure
-      if (typeof importedSettings !== 'object') {
+      if (!isPlainObject(importedSettings)) {
         throw new Error('Settings must be an object');
       }
-      
-      // Merge with current settings, preserving structure
-      Object.keys(importedSettings).forEach(category => {
-        if (typeof importedSettings[category] === 'object' && !Array.isArray(importedSettings[category])) {
-          updateSettingsCategory(category, importedSettings[category]);
-        }
-      });
-      
+
+      // Use the same merge contract as full settings updates: scalar and array
+      // preferences round-trip, while live workspace/session ownership stays local.
+      replaceSettingsInPlace(importedSettings);
+      saveSettings();
+      if (isPlainObject(importedSettings.ai)) applyAISettingsUpdates(importedSettings.ai);
+
       debug('[SettingsHandlers] Settings imported successfully');
       return { success: true, message: 'Settings imported successfully' };
     } catch (error) {
@@ -224,6 +249,7 @@ function register(deps) {
   });
   
   ipcMain.handle('set-settings', (event, category, newSettings) => {
+    const previous = JSON.parse(JSON.stringify(appSettings));
     try {
       if (typeof category === 'string') {
         updateSettingsCategory(category, newSettings);
@@ -242,6 +268,8 @@ function register(deps) {
 
       return { success: true };
     } catch (error) {
+      Object.keys(appSettings).forEach(key => delete appSettings[key]);
+      Object.assign(appSettings, previous);
       console.error('[SettingsHandlers] Error in set-settings:', error);
       return { success: false, error: error.message };
     }

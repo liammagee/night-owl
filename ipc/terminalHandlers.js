@@ -215,6 +215,10 @@ function createPipeSession({ spawnConfig, cwd, env, sender, sessionId, onExit })
     onExit(session);
   });
 
+  child.stdin?.on('error', (err) => {
+    if (!session?.suppressExit) sendTerminalOutput(sender, sessionId, `\n[Input error: ${err.message}]\n`, 'error', { pid: child.pid });
+  });
+
   child.on('error', (err) => {
     if (!session?.suppressExit) {
       sendTerminalOutput(sender, sessionId, `\n[Error: ${err.message}]\n`, 'error', { pid: child.pid });

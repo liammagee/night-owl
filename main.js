@@ -10,10 +10,12 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 require('dotenv').config({ quiet: true }); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, shell } = require('electron');
 const path = require('path');
+const { trackWindowActivity, focusVisibleWindow } = require('./services/windowActivityService');
 const { pathToFileURL } = require('url');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const { execFile } = require('child_process');
+const { prepareRebuild, validateSource } = require('./services/localRebuild');
 const tutorBridge = require('./orchestrator/modules/tutor-bridge');
 const ImageService = require('./services/imageService');
 const {
@@ -608,6 +610,7 @@ Content to analyze:
     
     // === Gamification Settings ===
     gamification: {
+        roomGeneration: false,
         focusSessionsEnabled: true,
         defaultFocusDuration: 25, // minutes
         breakReminders: true,
@@ -962,7 +965,7 @@ function saveSettings() {
         fsSync.writeFileSync(tempFile, settingsJson);
         fsSync.renameSync(tempFile, SETTINGS_FILE);
         
-        // Settings saved successfully
+        return true;
     } catch (err) {
         console.error('[main.js] Failed to save settings:', err);
         
@@ -976,6 +979,7 @@ function saveSettings() {
                 console.warn('[main.js] Could not clean up temp settings file:', cleanupErr);
             }
         }
+        return false;
     }
 }
 
@@ -1434,6 +1438,7 @@ function createWindow(options = {}) {
     show: false
   });
   mainWindow = win;
+  trackWindowActivity(win);
 
   const indexPath = path.join(__dirname, 'index.html');
   if (!deferLoad) {
@@ -1496,6 +1501,37 @@ function createWindow(options = {}) {
 
   // Prompt to save unsaved changes before closing the window
   let isForceClosing = false;
+  let restartRequested = false;
+  let restartAfterSave = false;
+  let finishingClose = false;
+  const finishClose = async (restart, destroy = false) => {
+    if (finishingClose) return;
+    finishingClose = true;
+    if (restart && typeof restart === 'object') {
+      try { await restart.handoff(); }
+      catch (error) {
+        restart.discard();
+        finishingClose = false;
+        dialog.showErrorBox('Restart failed', error.message);
+        return;
+      }
+    }
+    isForceClosing = true;
+    if (restart) {
+      win.once('closed', () => {
+        if (restart === true) app.relaunch();
+        app.quit();
+      });
+    }
+    if (!win.isDestroyed()) {
+      if (destroy) win.destroy();
+      else win.close();
+    }
+  };
+  win.on('restart-requested', (_event, prepared = true) => {
+    restartRequested = prepared;
+    win.close();
+  });
   win.on('close', async (e) => {
     if (isForceClosing) {
       saveSettings();
@@ -1503,14 +1539,18 @@ function createWindow(options = {}) {
     }
 
     e.preventDefault();
+    if (finishingClose) return;
+    const restart = restartRequested;
+    restartRequested = false;
+    if (restartAfterSave && typeof restartAfterSave === 'object') restartAfterSave.discard();
+    restartAfterSave = false;
 
     // If the renderer is already gone (crashed, navigated, or being torn down),
     // don't try to talk to it — just save settings and tear the window down.
     const wc = win.webContents;
     if (!wc || wc.isDestroyed() || wc.isCrashed?.()) {
       saveSettings();
-      isForceClosing = true;
-      if (!win.isDestroyed()) win.destroy();
+      finishClose(restart, true);
       return;
     }
 
@@ -1545,8 +1585,7 @@ function createWindow(options = {}) {
 
       if (dirtyFiles.length === 0) {
         // No unsaved changes — close immediately
-        isForceClosing = true;
-        win.close();
+        finishClose(restart);
         return;
       }
 
@@ -1566,31 +1605,27 @@ function createWindow(options = {}) {
 
       if (response === 0) {
         // Save — tell renderer to save all, then close
+        restartAfterSave = restart;
         if (!wc.isDestroyed()) wc.send('save-all-and-close');
       } else if (response === 1) {
         // Don't Save — close without saving
-        isForceClosing = true;
-        win.close();
+        finishClose(restart);
       }
-      // response === 2 (Cancel) — do nothing, window stays open
+      if (response === 2 && restart && typeof restart === 'object') restart.discard();
+      // Cancel keeps the current app and discards the prepared replacement.
     } catch (err) {
       console.error('[main.js] Error checking unsaved changes:', err);
       // Renderer is unreachable (disposed frame, timeout, crash). Don't trap the user —
       // persist settings, then destroy() to bypass the close-event re-entry that close() triggers.
       saveSettings();
-      isForceClosing = true;
-      if (!win.isDestroyed()) {
-        win.destroy();
-      }
+      finishClose(restart, true);
     }
   });
 
   // Renderer signals that all saves completed — now close the window
   const handleSavesCompletedClose = (event) => {
     if (!event?.sender || event.sender !== win.webContents) return;
-    ipcMain.removeListener('saves-completed-close', handleSavesCompletedClose);
-    isForceClosing = true;
-    if (!win.isDestroyed()) win.close();
+    finishClose(restartAfterSave);
   };
   ipcMain.on('saves-completed-close', handleSavesCompletedClose);
   win.on('closed', () => {
@@ -1885,10 +1920,84 @@ function createEditMenuItems() {
     ];
 }
 
+const rebuildStateDir = () => path.join(app.getPath('appData'), 'NightOwl', 'local-rebuild');
+let rebuilding = false;
+
+async function chooseRestartSource() {
+    const result = await dialog.showOpenDialog({
+      title: 'Choose the local NightOwl source to rebuild on Restart',
+      defaultPath: path.join(app.getPath('home'), 'Dev'),
+      properties: ['openDirectory'],
+      buttonLabel: 'Use for Restart'
+    });
+    if (result.canceled) return null;
+    const source = validateSource(result.filePaths[0]);
+    fsSync.mkdirSync(rebuildStateDir(), { recursive: true });
+    fsSync.writeFileSync(path.join(rebuildStateDir(), 'source.json'), JSON.stringify({ source }, null, 2));
+    return source;
+}
+
+async function restartWithLatestCode(item) {
+    if (rebuilding) return;
+    if (!app.isPackaged) {
+      if (isUsableBrowserWindow(mainWindow)) mainWindow.emit('restart-requested', null, true);
+      else { app.relaunch(); app.quit(); }
+      return;
+    }
+    rebuilding = true;
+    item.enabled = false;
+    let prepared;
+    let logPath;
+    const win = mainWindow;
+    try {
+      const configPath = path.join(rebuildStateDir(), 'source.json');
+      const source = fsSync.existsSync(configPath)
+        ? JSON.parse(fsSync.readFileSync(configPath, 'utf8')).source
+        : await chooseRestartSource();
+      if (!source) return;
+      prepared = await prepareRebuild({
+        source,
+        target: path.resolve(process.execPath, '../../..'),
+        stateDir: rebuildStateDir(),
+        userData: app.getPath('userData'),
+        args: parseNightOwlLaunchArgs(process.argv.slice(1), { appRoot: app.getAppPath() }).paths.map(file => path.resolve(file)),
+        onProgress: (label, log) => {
+          item.label = label;
+          logPath = log;
+          if (isUsableBrowserWindow(win)) win.setProgressBar(2);
+        }
+      });
+      if (isUsableBrowserWindow(win)) win.emit('restart-requested', null, prepared);
+      else prepared.discard();
+    } catch (error) {
+      if (prepared) prepared.discard();
+      const result = await dialog.showMessageBox({
+        type: 'error', title: 'Restart build failed',
+        message: 'NightOwl could not build the latest code. The current app has been kept.',
+        detail: `${error.message}${logPath ? '\n\nBuild log: ' + logPath : ''}`,
+        buttons: logPath ? ['OK', 'Open Build Log'] : ['OK']
+      });
+      if (result.response === 1 && logPath) shell.openPath(logPath);
+    } finally {
+      rebuilding = false;
+      item.enabled = true;
+      item.label = 'Restart';
+      if (isUsableBrowserWindow(win)) win.setProgressBar(-1);
+    }
+}
+
 function createViewMenuItems() {
     return [
       { role: 'reload' },
       { role: 'forceReload' },
+      {
+        label: 'Restart',
+        click: (item) => restartWithLatestCode(item)
+      },
+      {
+        label: 'Choose Restart Source…',
+        click: () => chooseRestartSource().catch(error => dialog.showErrorBox('Restart source', error.message))
+      },
       { role: 'toggleDevTools' },
       { type: 'separator' },
       {
@@ -3358,14 +3467,7 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
-  ipcMain.handle('focus-main-window', async () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.focus();
-      mainWindow.show();
-      return { success: true };
-    }
-    return { success: false, error: 'Main window not available' };
-  });
+  ipcMain.handle('focus-main-window', async () => focusVisibleWindow(mainWindow));
 
   // Get recent workspaces for the renderer dropdown
   ipcMain.handle('get-recent-workspaces', () => {

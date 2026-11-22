@@ -1,9 +1,10 @@
 // === Video Recording IPC Handlers ===
 // Handles video recording operations in Electron
 
-const { ipcMain, desktopCapturer, dialog } = require('electron');
+const { ipcMain, desktopCapturer, dialog, shell, app } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { validatePathSegment } = require('./pathGuards');
 const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('VideoHandlers');
@@ -78,38 +79,25 @@ function register(deps) {
   // Save video recording to file
   ipcMain.handle('save-video-recording', async (event, { buffer, filename, metadata }) => {
     try {
-      // Get default videos directory
-      const videosDir = path.join(
-        require('os').homedir(),
-        'Documents',
-        'NightOwl',
-        'Recordings'
-      );
-
-      // Create directory if it doesn't exist
-      if (!fs.existsSync(videosDir)) {
-        fs.mkdirSync(videosDir, { recursive: true });
-      }
-
-      const videoPath = path.join(videosDir, filename);
-      const metadataPath = videoPath.replace(/\.[^.]+$/, '-metadata.json');
+      const validated = validatePathSegment(filename, 'Recording filename');
+      if (!validated.success) throw new Error(validated.error);
+      const videosDir = path.join(app.getPath('videos'), 'NightOwl', 'Recordings');
+      await fs.promises.mkdir(videosDir, { recursive: true });
+      const videoPath = path.join(videosDir, validated.value);
+      const metadataPath = `${videoPath}-metadata.json`;
 
       // Save video file
-      fs.writeFileSync(videoPath, Buffer.from(buffer));
+      await fs.promises.writeFile(videoPath, Buffer.from(buffer), { flag: 'wx' });
       debug('Video saved to:', videoPath);
 
       // Save metadata file
       if (metadata) {
-        fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+        await fs.promises.writeFile(metadataPath, JSON.stringify(metadata, null, 2), { flag: 'wx' });
         debug('Metadata saved to:', metadataPath);
       }
 
-      // Show in finder/explorer
-      if (process.platform === 'darwin') {
-        require('child_process').exec(`open -R "${videoPath}"`);
-      } else if (process.platform === 'win32') {
-        require('child_process').exec(`explorer /select,"${videoPath}"`);
-      }
+      // Native reveal treats filenames as data on every platform.
+      shell.showItemInFolder(videoPath);
 
       return {
         success: true,
@@ -132,8 +120,7 @@ function register(deps) {
       const result = await dialog.showSaveDialog(mainWindow, {
         title: 'Save Recording',
         defaultPath: path.join(
-          require('os').homedir(),
-          'Documents',
+          app.getPath('videos'),
           `presentation-${new Date().toISOString().split('T')[0]}.webm`
         ),
         filters: [
@@ -171,7 +158,7 @@ function register(deps) {
         audioSource: 'system',
         includeMouseCursor: true,
         autoSave: true,
-        saveLocation: path.join(require('os').homedir(), 'Documents', 'NightOwl', 'Recordings')
+        saveLocation: path.join(app.getPath('videos'), 'NightOwl', 'Recordings')
       };
 
       return {

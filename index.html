@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="css/accessibility.css">
     <link rel="stylesheet" href="css/diagnostics.css">
     <link rel="stylesheet" href="css/capability-health.css">
+    <link rel="stylesheet" href="css/resource-profiler.css">
     <link rel="stylesheet" href="css/workflow-presets.css">
     <link rel="stylesheet" href="css/static-publishing.css">
     <link id="nightowl-presentations-preview-css" rel="stylesheet" href="plugins/techne-presentations/preview-presentation.css">
@@ -42,7 +43,10 @@
 		    <link rel="stylesheet" href="css/techne-theme-adapter.css">
 		    <link rel="stylesheet" href="plugins/techne-theme-manager/theme-gallery.css">
 	    
-	    <!-- Scripts -->
+	    <link rel="stylesheet" href="css/renderer-activity.css">
+    <script src="orchestrator/modules/renderer-activity.js"></script>
+
+    <!-- Scripts -->
 	    <script id="marked-script" src="lib/marked.min.js"></script>
 	    <script src="node_modules/dompurify/dist/purify.min.js"></script>
 	    <script src="services/contentSecurity.js"></script>
@@ -87,12 +91,6 @@
     <script src="lib/react-dom.production.min.js"></script>
     <script src="lib/html2canvas.min.js"></script>
     
-    <!-- PDF.js for PDF viewing and search -->
-    <script type="module">
-        import * as pdfjsLib from './lib/pdfjs/pdf.min.js';
-        pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdfjs/pdf.worker.min.js';
-        window.pdfjsLib = pdfjsLib;
-    </script>
     <!-- D3.js v7.8.5 (local copy) for visualizations and whole/part diagrams -->
     <script src="lib/d3.min.js"></script>
     <!-- Babel no longer needed - using pre-compiled components -->
@@ -4929,6 +4927,7 @@
                     </div>
                     <div id="status-right" style="display: flex; align-items: center; gap: 12px;">
                         <button type="button" id="git-status-indicator" style="display: none; cursor: pointer; border: 0; background: transparent; padding: 0; font: inherit;" title="Open Source Control"></button>
+                        <button type="button" id="resource-profiler-toggle" aria-controls="resource-profiler" aria-expanded="false" title="Open Resource Profiler">Resources</button>
                         <span id="cursor-position">Ln 1, Col 1</span>
                         <span id="file-status">Markdown (.md)</span>
                         <span id="load-status" style="display: none; color: #0f766e;"></span>
@@ -5231,6 +5230,7 @@
     <script src="orchestrator/modules/static-site.js" defer></script>
     <script src="orchestrator/modules/publishing-workflows.js" defer></script>
     <script src="orchestrator/modules/capability-health.js" defer></script>
+    <script src="orchestrator/modules/resource-profiler.js" defer></script>
     <script src="orchestrator/modules/workflow-presets.js" defer></script>
     <script src="orchestrator/modules/ai-writing-coach.js" defer></script>
     <script src="orchestrator/modules/proofreader.js" defer></script>

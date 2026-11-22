@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { validatePathSegment } = require('./pathGuards');
 const { createDebugLogger } = require('./logging');
 
 const debug = createDebugLogger('ImageHandlers');
@@ -107,7 +108,7 @@ function register(deps) {
       const buffer = image.toPNG();
       
       // Save the image
-      await fs.writeFile(filePath, buffer);
+      await fs.writeFile(filePath, buffer, { flag: 'wx' });
       
       
       // Return the relative path for markdown
@@ -149,8 +150,10 @@ function register(deps) {
       const imagesDir = await ensureImagesDirectory();
       
       // Generate filename
-      const extension = path.extname(originalFilename) || '.png';
-      const filename = originalFilename || generateImageFilename(extension.slice(1));
+      const proposedName = originalFilename || generateImageFilename('png');
+      const validated = validatePathSegment(proposedName, 'Image filename');
+      if (!validated.success) throw new Error(validated.error);
+      const filename = validated.value;
       const filePath = path.join(imagesDir, filename);
       
       // Convert imageData to buffer if needed
@@ -166,7 +169,7 @@ function register(deps) {
       }
       
       // Save the image
-      await fs.writeFile(filePath, buffer);
+      await fs.writeFile(filePath, buffer, { flag: 'wx' });
       
       
       // Return the relative path for markdown
@@ -228,7 +231,7 @@ function register(deps) {
         const targetFilePath = path.join(imagesDir, filename);
 
         // Copy the file
-        await fs.copyFile(sourceFilePath, targetFilePath);
+        await fs.copyFile(sourceFilePath, targetFilePath, fsSync.constants.COPYFILE_EXCL);
 
         debug(`Image copied successfully: ${sourceFilePath} -> ${targetFilePath}`);
 
@@ -265,7 +268,7 @@ function register(deps) {
       try {
         // Use node-fetch or the built-in fetch (Node 18+) to get the page
         const response = await fetch(url, {
-          timeout: 5000,
+          signal: AbortSignal.timeout(5000),
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; NightOwl/1.0)'
           }

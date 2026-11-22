@@ -3,6 +3,7 @@
 
 const { ipcMain, dialog, BrowserWindow } = require('electron');
 const crypto = require('crypto');
+const { createFileTreeSnapshot } = require('../services/fileTreeSnapshot');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -29,7 +30,7 @@ const { convertWithDocling, findDoclingRuntime } = require('../services/doclingR
 const debug = createDebugLogger('FileHandlers');
 
 const SAVE_BACKUP_DIR_NAME = '.nightowl-backups';
-const SAVE_CONFLICT_CODE = 'FILE_MODIFIED_EXTERNALLY';
+const { SAVE_CONFLICT_CODE, statOrNull, lstatOrNull, hasExternalModification, buildBackupFilePath, createFileBackup, guardedWriteFile } = require('../services/fileWrites');
 let activeRegistrationCleanup = null;
 let activeRegistrationDiagnostics = null;
 
@@ -56,100 +57,6 @@ function getDiagnostics() {
     timers: 0,
     trackedFileStates: 0,
     cachedScans: 0
-  };
-}
-
-async function statOrNull(filePath, fsApi = fs) {
-  try {
-    return await fsApi.stat(filePath);
-  } catch (error) {
-    if (error && error.code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
-async function lstatOrNull(filePath, fsApi = fs) {
-  try {
-    return await fsApi.lstat(filePath);
-  } catch (error) {
-    if (error && error.code === 'ENOENT') return null;
-    throw error;
-  }
-}
-
-function hasExternalModification(currentStat, baselineMtimeMs) {
-  if (!currentStat || !Number.isFinite(baselineMtimeMs)) return false;
-  // Small epsilon handles fs precision differences.
-  return Math.abs(currentStat.mtimeMs - baselineMtimeMs) > 1;
-}
-
-function buildBackupFilePath(filePath, timestamp = Date.now()) {
-  const directory = path.dirname(filePath);
-  const backupDir = path.join(directory, SAVE_BACKUP_DIR_NAME);
-  const parsed = path.parse(filePath);
-  const backupName = `${parsed.name}.${timestamp}${parsed.ext || '.md'}.bak`;
-  return path.join(backupDir, backupName);
-}
-
-async function createFileBackup(filePath, fsApi = fs) {
-  const existingStat = await statOrNull(filePath, fsApi);
-  if (!existingStat) return null;
-
-  const backupPath = buildBackupFilePath(filePath);
-  await fsApi.mkdir(path.dirname(backupPath), { recursive: true });
-  // Recovery copies belong on disk, not in an author's published repository.
-  // Keep this local to our own directory and preserve any existing ignore file.
-  try {
-    await fsApi.writeFile(path.join(path.dirname(backupPath), '.gitignore'), '*\n', { encoding: 'utf8', flag: 'wx' });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-  }
-  await fsApi.copyFile(filePath, backupPath);
-  return backupPath;
-}
-
-async function guardedWriteFile(filePath, content, options = {}, context = {}) {
-  const fsApi = context.fsApi || fs;
-  const fileStateMap = context.fileStateMap || new Map();
-  const expectedMtimeMs = Number.isFinite(options.expectedMtimeMs) ? options.expectedMtimeMs : null;
-  const force = Boolean(options.force);
-  const knownState = fileStateMap.get(filePath);
-  const baselineMtimeMs = expectedMtimeMs ?? (knownState ? knownState.mtimeMs : null);
-  const currentStat = await statOrNull(filePath, fsApi);
-  let externallyModified = currentStat
-    ? hasExternalModification(currentStat, baselineMtimeMs)
-    : Number.isFinite(baselineMtimeMs);
-
-  // Recovered buffers can predate this process's mtime cache. Compare their
-  // saved content with disk before autosave is allowed to replace newer work.
-  if (!force && !externallyModified && typeof options.expectedContent === 'string') {
-    const diskContent = currentStat ? await fsApi.readFile(filePath, 'utf8') : null;
-    externallyModified = diskContent !== options.expectedContent;
-  }
-
-  if (!force && externallyModified) {
-    return {
-      success: false,
-      code: SAVE_CONFLICT_CODE,
-      error: 'File has changed on disk since it was opened. Review changes before overwriting.',
-      filePath,
-      currentMtimeMs: currentStat ? currentStat.mtimeMs : null,
-      expectedMtimeMs: baselineMtimeMs
-    };
-  }
-
-  const backupPath = await createFileBackup(filePath, fsApi);
-  await fsApi.writeFile(filePath, content, 'utf8');
-  const updatedStat = await statOrNull(filePath, fsApi);
-  if (updatedStat) {
-    fileStateMap.set(filePath, { mtimeMs: updatedStat.mtimeMs, size: updatedStat.size });
-  }
-
-  return {
-    success: true,
-    filePath,
-    backupPath,
-    mtimeMs: updatedStat ? updatedStat.mtimeMs : null
   };
 }
 
@@ -225,7 +132,10 @@ function register(deps) {
     });
   }
 
+  const fileTreeSnapshot = createFileTreeSnapshot();
+
   function clearFileScanCaches() {
+    fileTreeSnapshot.clear();
     availableFilesCache.clear();
     markdownFilesCache.clear();
     workspaceIndexHandlers.invalidate('file-handler-mutation');
@@ -364,10 +274,12 @@ function register(deps) {
 
   activeRegistrationCleanup = () => {
     stopWatchingCurrentFile();
+    fileTreeSnapshot.dispose();
     clearFileScanCaches();
     fileStateMap.clear();
   };
   activeRegistrationDiagnostics = () => ({
+    ...fileTreeSnapshot.getDiagnostics(),
     watcher: currentFileWatcher ? 1 : 0,
     timers: currentFileWatchTimer ? 1 : 0,
     trackedFileStates: fileStateMap.size,
@@ -792,7 +704,7 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('request-file-tree', async (event) => {
+  ipcMain.handle('request-file-tree', async (event, options = {}) => {
     try {
       const workingDir = getWorkingDirectory();
       const workspaceFolders = syncWorkspaceFolders(workingDir);
@@ -802,9 +714,10 @@ function register(deps) {
 
       // Build trees for all folders
       const trees = [];
+      const visibleDirectories = new Set();
 
       // Primary working directory
-      const primaryTree = await buildFileTree(workingDir);
+      const primaryTree = await buildFileTree(workingDir, options, visibleDirectories);
       primaryTree.isPrimary = true; // Mark as primary folder
       trees.push(primaryTree);
 
@@ -814,7 +727,7 @@ function register(deps) {
           // Verify folder exists
           const fsSync = require('fs');
           if (fsSync.existsSync(folderPath)) {
-            const folderTree = await buildFileTree(folderPath);
+            const folderTree = await buildFileTree(folderPath, options, visibleDirectories);
             folderTree.isWorkspaceFolder = true; // Mark as workspace folder
             trees.push(folderTree);
           } else {
@@ -823,6 +736,10 @@ function register(deps) {
         } catch (folderError) {
           console.error(`[FileHandlers] Error building tree for workspace folder ${folderPath}:`, folderError);
         }
+      }
+
+      if (options.lazy === true && options.recursive !== true) {
+        fileTreeSnapshot.retain(visibleDirectories);
       }
 
       // If only one folder, return it directly for backward compatibility
@@ -852,11 +769,11 @@ function register(deps) {
     }
   });
 
-  ipcMain.handle('get-file-tree-signature', async () => {
+  ipcMain.handle('get-file-tree-signature', async (_event, options = {}) => {
     try {
       return {
         success: true,
-        signature: await getWorkspaceTreeSignature()
+        signature: await getWorkspaceTreeSignature(options)
       };
     } catch (error) {
       console.error('[FileHandlers] Error getting file tree signature:', error);
@@ -2254,7 +2171,16 @@ function register(deps) {
     }
   }
 
-  async function getWorkspaceTreeSignature() {
+  async function getWorkspaceTreeSignature(options = {}) {
+    if (options.lazy === true) {
+      const workingDir = getWorkingDirectory();
+      const roots = [workingDir, ...syncWorkspaceFolders(workingDir)];
+      const visible = new Set();
+      const trees = [];
+      for (const root of roots) trees.push(await buildFileTree(root, options, visible));
+      if (options.recursive !== true) fileTreeSnapshot.retain(visible);
+      return getWorkspaceTreeSignatureFromTrees(trees);
+    }
     const workingDir = getWorkingDirectory();
     const workspaceFolders = syncWorkspaceFolders(workingDir);
     const roots = [workingDir, ...workspaceFolders];
@@ -2273,62 +2199,14 @@ function register(deps) {
     return hash.digest('hex');
   }
 
-  async function buildFileTree(dirPath) {
-    try {
-      const stats = await fs.stat(dirPath);
-      const name = path.basename(dirPath);
-
-      if (stats.isFile()) {
-        return {
-          name: name,
-          type: 'file',
-          path: dirPath
-        };
-      }
-
-      if (stats.isDirectory()) {
-        const children = [];
-        const entries = await fs.readdir(dirPath);
-
-        for (const entry of entries) {
-          if (shouldHideFileTreeEntry(entry)) continue;
-
-          const entryPath = path.join(dirPath, entry);
-          try {
-            const childTree = await buildFileTree(entryPath);
-            children.push(childTree);
-          } catch (error) {
-            // Skip files/directories we can't access
-            console.warn(`[FileHandlers] Skipping inaccessible path: ${entryPath}`);
-          }
-        }
-        
-        // Sort children: directories first, then files, both alphabetically
-        children.sort((a, b) => {
-          // First sort by type (directories before files)
-          if (a.type === 'directory' && b.type !== 'directory') return -1;
-          if (b.type === 'directory' && a.type !== 'directory') return 1;
-          
-          // Then sort alphabetically by name (case-insensitive)
-          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-        });
-        
-        return {
-          name: name || 'Root',
-          type: 'directory',
-          path: dirPath,
-          children: children
-        };
-      }
-    } catch (error) {
-      console.error(`[FileHandlers] Error building file tree for ${dirPath}:`, error);
-      return {
-        name: path.basename(dirPath),
-        type: 'error',
-        path: dirPath,
-        error: error.message
-      };
-    }
+  async function buildFileTree(dirPath, options = {}, visible = null) {
+    const snapshot = await fileTreeSnapshot.build(dirPath, {
+      expandedPaths: Array.isArray(options.expandedPaths) ? options.expandedPaths.filter(value => typeof value === 'string') : [],
+      recursive: options.lazy !== true || options.recursive === true,
+      shouldHide: shouldHideFileTreeEntry
+    });
+    for (const directory of snapshot.visible) visible?.add(directory);
+    return snapshot.tree;
   }
 
   async function getAvailableFiles(dirPath) {

@@ -3,18 +3,21 @@
 
 let settingsDialog = null;
 let currentSettings = null;
+let savedSettings = null;
 
 async function openSettingsDialog(category = 'general') {
     try {
         // Load current settings
         currentSettings = await window.electronAPI.settings.getSettings();
+        savedSettings = JSON.parse(JSON.stringify(currentSettings));
         
         // Create dialog if it doesn't exist
         if (!settingsDialog) {
             createSettingsDialog();
         }
         
-        // Show the appropriate category
+        // Do not collect stale controls left over from the previous opening.
+        document.getElementById('settings-content').innerHTML = '';
         showSettingsCategory(category);
         
         // Show the dialog
@@ -223,6 +226,10 @@ function createSettingsSidebar() {
 }
 
 function showSettingsCategory(category) {
+    // Keep a dialog-local draft before replacing the visible controls.
+    if (currentSettings && document.getElementById('settings-content')?.children.length) {
+        currentSettings = collectSettingsFromForm();
+    }
     // Update sidebar selection
     document.querySelectorAll('.settings-nav-item').forEach(item => {
         item.style.backgroundColor = item.dataset.category === category ? 
@@ -811,6 +818,13 @@ function generateGamificationSettings() {
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Channel your words into lexicon shards, awaken stacks, and unlock quiet lore instead of loud rewards.
                 </p>
+                <label>
+                    <input type="checkbox" id="room-generation" ${gamificationSettings.roomGeneration === true ? 'checked' : ''}>
+                    <span>Generate Library rooms while writing</span>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Off by default. Existing rooms are preserved. Turning this off stops room generation immediately; restart NightOwl after turning it on.
+                </p>
             </div>
         </div>
         
@@ -974,7 +988,7 @@ function generateAISettings() {
                     <label>
                         <select id="ash-model">
                             <option value="auto">Auto (Provider Default)</option>
-                            <!-- Models will be populated dynamically -->
+                            ${getAssistantModel('ash') !== 'auto' ? `<option value="${escapeSettingsHtml(getAssistantModel('ash'))}" selected>${escapeSettingsHtml(getAssistantModel('ash'))}</option>` : ''}
                         </select>
                         <span>AI Model</span>
                     </label>
@@ -1022,7 +1036,7 @@ function generateAISettings() {
                     <label>
                         <select id="chen-model">
                             <option value="auto">Auto (Provider Default)</option>
-                            <!-- Models will be populated dynamically -->
+                            ${getAssistantModel('chen') !== 'auto' ? `<option value="${escapeSettingsHtml(getAssistantModel('chen'))}" selected>${escapeSettingsHtml(getAssistantModel('chen'))}</option>` : ''}
                         </select>
                         <span>AI Model</span>
                     </label>
@@ -2501,20 +2515,24 @@ function injectAssistantTabStyles() {
 
 async function saveSettingsDialog() {
     try {
-        const previousHideGeneratedArtifacts = currentSettings?.navigation?.hideGeneratedArtifacts === true;
+        const previousHideGeneratedArtifacts = savedSettings?.navigation?.hideGeneratedArtifacts === true;
 
         // Collect all form values
         const updatedSettings = collectSettingsFromForm();
         const nextHideGeneratedArtifacts = updatedSettings?.navigation?.hideGeneratedArtifacts === true;
         
         // Update settings via IPC
-        await window.electronAPI.settings.setSettings(updatedSettings);
+        const result = await window.electronAPI.settings.setSettings(updatedSettings);
+        if (!result || result.success !== true) {
+            throw new Error(result?.error || 'Settings could not be saved');
+        }
         
         // Update global settings object
         window.appSettings = updatedSettings;
         
         // Update currentSettings to reflect the changes (used by helper functions)
         currentSettings = updatedSettings;
+        savedSettings = JSON.parse(JSON.stringify(updatedSettings));
         
         // Apply editor settings immediately
         if (window.applyEditorSettings) {
@@ -2583,7 +2601,7 @@ async function saveSettingsDialog() {
         
     } catch (error) {
         console.error('[Renderer] Error saving settings:', error);
-        showNotification('Error saving settings', 'error');
+        showNotification(`Error saving settings: ${error.message}`, 'error');
     }
 }
 
@@ -2729,6 +2747,12 @@ function collectSettingsFromForm() {
     }
 
     // Gamification settings
+    const roomGeneration = document.getElementById('room-generation')?.checked;
+    if (roomGeneration !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.roomGeneration = roomGeneration;
+    }
+
     const gamificationEnabled = document.getElementById('gamification-enabled')?.checked;
     if (gamificationEnabled !== undefined) {
         if (!updatedSettings.gamification) updatedSettings.gamification = {};
@@ -2835,10 +2859,10 @@ function collectSettingsFromForm() {
     if (!updatedSettings.ai.assistants.ash) updatedSettings.ai.assistants.ash = {};
     if (!updatedSettings.ai.assistants.ash.aiSettings) updatedSettings.ai.assistants.ash.aiSettings = {};
     
-    updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider || 'auto';
-    updatedSettings.ai.assistants.ash.aiSettings.model = ashModel || 'auto';
-    updatedSettings.ai.assistants.ash.aiSettings.temperature = ashTemperature ? parseFloat(ashTemperature) : 0.7;
-    updatedSettings.ai.assistants.ash.aiSettings.maxTokens = ashMaxTokens ? parseInt(ashMaxTokens) : 200;
+    if (ashProvider !== undefined) updatedSettings.ai.assistants.ash.aiSettings.provider = ashProvider || 'auto';
+    if (ashModel !== undefined && !document.getElementById('ash-model').disabled) updatedSettings.ai.assistants.ash.aiSettings.model = ashModel || 'auto';
+    if (ashTemperature !== undefined) updatedSettings.ai.assistants.ash.aiSettings.temperature = ashTemperature ? parseFloat(ashTemperature) : 0.7;
+    if (ashMaxTokens !== undefined) updatedSettings.ai.assistants.ash.aiSettings.maxTokens = ashMaxTokens ? parseInt(ashMaxTokens) : 200;
     
     // System prompt for Ash
     const ashSystemPrompt = document.getElementById('ash-system-prompt')?.value;
@@ -2857,10 +2881,10 @@ function collectSettingsFromForm() {
     if (!updatedSettings.ai.assistants.chen) updatedSettings.ai.assistants.chen = {};
     if (!updatedSettings.ai.assistants.chen.aiSettings) updatedSettings.ai.assistants.chen.aiSettings = {};
     
-    updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider || 'auto';
-    updatedSettings.ai.assistants.chen.aiSettings.model = chenModel || 'auto';
-    updatedSettings.ai.assistants.chen.aiSettings.temperature = chenTemperature ? parseFloat(chenTemperature) : 0.8;
-    updatedSettings.ai.assistants.chen.aiSettings.maxTokens = chenMaxTokens ? parseInt(chenMaxTokens) : 1000;
+    if (chenProvider !== undefined) updatedSettings.ai.assistants.chen.aiSettings.provider = chenProvider || 'auto';
+    if (chenModel !== undefined && !document.getElementById('chen-model').disabled) updatedSettings.ai.assistants.chen.aiSettings.model = chenModel || 'auto';
+    if (chenTemperature !== undefined) updatedSettings.ai.assistants.chen.aiSettings.temperature = chenTemperature ? parseFloat(chenTemperature) : 0.8;
+    if (chenMaxTokens !== undefined) updatedSettings.ai.assistants.chen.aiSettings.maxTokens = chenMaxTokens ? parseInt(chenMaxTokens) : 1000;
     
     // System prompt for Dr. Chen
     const chenSystemPrompt = document.getElementById('chen-system-prompt')?.value;
@@ -3415,8 +3439,12 @@ async function updateModelOptions(assistantKey) {
         
         const provider = providerSelect.value;
         
-        // Get the current saved model for this assistant
-        const currentModel = getAssistantModel(assistantKey);
+        // Retain unavailable saved models and ignore older provider requests.
+        const currentModel = getAssistantProvider(assistantKey) === provider
+            ? getAssistantModel(assistantKey) : 'auto';
+        const request = {};
+        modelSelect._settingsRequest = request;
+        modelSelect.disabled = true;
 
         // Update model options
         if (provider === 'auto') {
@@ -3424,7 +3452,12 @@ async function updateModelOptions(assistantKey) {
         } else {
             try {
                 const modelOptions = await generateModelOptions(provider, currentModel);
+                if (modelSelect._settingsRequest !== request || !modelSelect.isConnected) return;
                 modelSelect.innerHTML = '<option value="auto">Auto (Provider Default)</option>' + modelOptions;
+                if (currentModel && currentModel !== 'auto' &&
+                    !Array.from(modelSelect.options).some(option => option.value === currentModel)) {
+                    modelSelect.add(new Option(currentModel, currentModel));
+                }
 
                 // Ensure the correct model is selected
                 if (currentModel && currentModel !== 'auto') {
@@ -3436,6 +3469,8 @@ async function updateModelOptions(assistantKey) {
             }
         }
         
+        modelSelect.disabled = false;
+
         // Update local AI visibility
         updateLocalAIVisibility();
         

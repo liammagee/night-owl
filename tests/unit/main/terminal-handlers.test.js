@@ -28,7 +28,7 @@ describe('terminalHandlers', () => {
       const proc = new EventEmitter();
       proc.stdout = new EventEmitter();
       proc.stderr = new EventEmitter();
-      proc.stdin = { writable: true, write: jest.fn() };
+      proc.stdin = Object.assign(new EventEmitter(), { writable: true, write: jest.fn() });
       proc.kill = jest.fn();
       proc.pid = 1234;
       return proc;
@@ -51,6 +51,17 @@ describe('terminalHandlers', () => {
     jest.dontMock('child_process');
     jest.dontMock('node-pty');
     fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  test('a closed input pipe reports an error instead of crashing the main process', async () => {
+    const terminalHandlers = require('../../../ipc/terminalHandlers');
+    terminalHandlers.register({ getCurrentWorkingDirectory: () => runtimeDir });
+    const sender = { send: jest.fn() };
+    await getRegisteredHandler('terminal-spawn')({ sender }, {});
+    const child = spawnMock.mock.results[0].value;
+    expect(() => child.stdin.emit('error', Object.assign(new Error('broken pipe'), { code: 'EPIPE' }))).not.toThrow();
+    expect(sender.send).toHaveBeenCalledWith('terminal-output', expect.objectContaining({ stream: 'error' }));
+    terminalHandlers.cleanup();
   });
 
   test('terminal-spawn falls back to live workspace when requested cwd is stale', async () => {

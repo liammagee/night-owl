@@ -43,7 +43,14 @@ function verifyPackagedRuntime(appPath, options = {}) {
 
   if (!exists(asarPath)) missing.push('app.asar');
   for (const relativePath of REQUIRED_NATIVE_RUNTIME_FILES) {
-    if (!exists(path.join(unpackedPath, relativePath))) missing.push(relativePath);
+    if (exists(path.join(unpackedPath, relativePath))) continue;
+    if (relativePath === 'node_modules/better-sqlite3/build/Release/better_sqlite3.node') {
+      const platform = options.platform || process.platform;
+      const arch = options.arch || process.arch;
+      const prebuilt = `node_modules/better-sqlite3/prebuilds/${platform}-${arch}.node`;
+      if (exists(path.join(unpackedPath, prebuilt))) continue;
+    }
+    missing.push(relativePath);
   }
 
   return {

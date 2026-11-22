@@ -1,4 +1,7 @@
 const path = require('path');
+const { performance } = require('perf_hooks');
+const v8 = require('v8');
+const os = require('os');
 const { app, contentTracing, ipcMain } = require('electron');
 const { createDebugLogger } = require('./logging');
 
@@ -14,6 +17,47 @@ const DEFAULT_TRACE_CATEGORIES = [
 ];
 
 let tracingActive = false;
+let traceOperation = null;
+let traceTimer = null;
+let lastTrace = null;
+
+const finite = value => Number.isFinite(value) && value >= 0 ? value : null;
+
+// Demand-driven: no background timer or process inspection while the panel is closed.
+function createResourceSampler(electronApp = app) {
+  let previous = new Set();
+  let lastTime = null;
+  let lastLoop = performance.eventLoopUtilization();
+  return function sample() {
+    const now = performance.now();
+    const metrics = electronApp.getAppMetrics?.();
+    const processes = (metrics || []).map(item => {
+      const key = `${item.pid}:${item.creationTime}`;
+      return {
+        pid: item.pid, type: item.type, name: item.name || item.type,
+        creationTime: item.creationTime,
+        cpuPercent: previous.has(key) ? finite(item.cpu?.percentCPUUsage) : null,
+        wakeupsPerSecond: process.platform === 'win32' || !previous.has(key)
+          ? null : finite(item.cpu?.idleWakeupsPerSecond),
+        workingSetBytes: finite(item.memory?.workingSetSize) === null ? null : item.memory.workingSetSize * 1024,
+        peakWorkingSetBytes: finite(item.memory?.peakWorkingSetSize) === null ? null : item.memory.peakWorkingSetSize * 1024
+      };
+    });
+    const loop = performance.eventLoopUtilization();
+    const delta = performance.eventLoopUtilization(loop, lastLoop);
+    const result = {
+      sampledAt: new Date().toISOString(), intervalMs: lastTime === null ? null : now - lastTime,
+      available: Array.isArray(metrics), processes,
+      logicalCPUs: os.cpus().length,
+      main: { memory: process.memoryUsage(), heap: v8.getHeapStatistics(), eventLoopUtilization: lastTime === null ? null : delta.utilization },
+      trace: { active: tracingActive, busy: Boolean(traceOperation), last: lastTrace }
+    };
+    previous = new Set((metrics || []).map(item => `${item.pid}:${item.creationTime}`));
+    lastTime = now;
+    lastLoop = loop;
+    return result;
+  };
+}
 
 async function collectGpuDiagnostics(electronApp = app) {
   const featureStatus = typeof electronApp.getGPUFeatureStatus === 'function'
@@ -60,7 +104,7 @@ function collectAppDiagnostics(electronApp = app) {
 
 function getTracePath(electronApp = app) {
   const userDataPath = electronApp.getPath ? electronApp.getPath('userData') : process.cwd();
-  return path.join(userDataPath, `nightowl-performance-${Date.now()}.json`);
+  return path.join(userDataPath, `nightowl-performance-${Date.now()}.pftrace`);
 }
 
 async function startPerformanceTrace(options = {}) {
@@ -68,6 +112,7 @@ async function startPerformanceTrace(options = {}) {
     return { success: false, error: 'Electron contentTracing is not available' };
   }
 
+  if (traceOperation) return { success: false, error: 'A trace operation is in progress' };
   if (tracingActive) {
     return { success: true, alreadyRunning: true };
   }
@@ -76,12 +121,18 @@ async function startPerformanceTrace(options = {}) {
     ? options.includedCategories
     : DEFAULT_TRACE_CATEGORIES;
 
-  await contentTracing.startRecording({
+  traceOperation = contentTracing.startRecording({
     included_categories: includedCategories,
     excluded_categories: options.excludedCategories || []
   });
-
+  try { await traceOperation; } finally { traceOperation = null; }
   tracingActive = true;
+  lastTrace = null;
+  // Keep capture bounded even if the panel closes or its renderer disappears.
+  traceTimer = setTimeout(() => {
+    stopPerformanceTrace().catch(error => { lastTrace = { success: false, error: error.message }; });
+  }, 30000);
+  traceTimer.unref?.();
   return { success: true, includedCategories };
 }
 
@@ -90,18 +141,26 @@ async function stopPerformanceTrace(electronApp = app) {
     return { success: false, error: 'Electron contentTracing is not available' };
   }
 
+  if (traceOperation) return { success: false, error: 'A trace operation is in progress' };
   if (!tracingActive) {
     return { success: false, error: 'No performance trace is currently running' };
   }
 
   const tracePath = getTracePath(electronApp);
-  const savedPath = await contentTracing.stopRecording(tracePath);
-  tracingActive = false;
-  return { success: true, path: savedPath || tracePath };
+  clearTimeout(traceTimer);
+  traceTimer = null;
+  traceOperation = contentTracing.stopRecording(tracePath);
+  try {
+    const savedPath = await traceOperation;
+    tracingActive = false;
+    lastTrace = { success: true, path: savedPath || tracePath };
+    return lastTrace;
+  } finally { traceOperation = null; }
 }
 
 function register(dependencies = {}) {
   const electronApp = dependencies.app || app;
+  const sampleResources = createResourceSampler(electronApp);
 
   ipcMain.handle('performance:get-gpu-diagnostics', async () => (
     collectGpuDiagnostics(electronApp)
@@ -110,7 +169,8 @@ function register(dependencies = {}) {
   ipcMain.handle('performance:get-resource-diagnostics', async () => (
     {
       ...collectResourceDiagnostics(dependencies.getResourceDiagnostics),
-      app: collectAppDiagnostics(electronApp)
+      app: collectAppDiagnostics(electronApp),
+      resources: sampleResources()
     }
   ));
 
@@ -126,6 +186,7 @@ function register(dependencies = {}) {
 }
 
 module.exports = {
+  createResourceSampler,
   collectAppDiagnostics,
   collectGpuDiagnostics,
   collectResourceDiagnostics,

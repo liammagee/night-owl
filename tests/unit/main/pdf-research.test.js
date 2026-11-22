@@ -24,6 +24,50 @@ describe('PDF research service', () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
   });
 
+  test('note creation preserves existing files and rejects symlink escapes', async () => {
+    const service = createPdfResearchService({ userDataPath });
+    const payload = { filePath: pdfPath, destinationPath: 'note.md', annotation: { id: 'note', pageNumber: 1, text: 'quote', annotation: 'comment' } };
+    await fs.writeFile(path.join(workspaceRoot, 'note.md'), 'existing work');
+    await expect(service.createResearchNote(workspaceRoot, payload)).rejects.toMatchObject({ code: 'EEXIST' });
+    expect(await fs.readFile(path.join(workspaceRoot, 'note.md'), 'utf8')).toBe('existing work');
+    const outside = path.join(tempRoot, 'outside');
+    await fs.mkdir(outside);
+    await fs.symlink(outside, path.join(workspaceRoot, 'linked'));
+    await expect(service.createResearchNote(workspaceRoot, { ...payload, destinationPath: 'linked/new/note.md' })).rejects.toThrow(/outside|workspace/i);
+    expect(await fs.readdir(outside)).toEqual([]);
+  });
+
+  test('an alias update cannot overwrite a concurrent annotation save', async () => {
+    const initial = createPdfResearchService({ userDataPath });
+    await initial.saveAnnotations({ filePath: pdfPath, annotations: [] });
+    const alias = path.join(workspaceRoot, 'Alias.pdf');
+    await fs.copyFile(pdfPath, alias);
+    let release;
+    let arrived;
+    const blocked = new Promise(resolve => { arrived = resolve; });
+    let first = true;
+    const service = createPdfResearchService({ userDataPath, fsPromises: {
+      ...fs,
+      rename: async (...args) => {
+        if (first) {
+          first = false;
+          arrived();
+          await new Promise(resolve => { release = resolve; });
+        }
+        return fs.rename(...args);
+      }
+    } });
+    const loading = service.loadAnnotations(alias);
+    await blocked;
+    const saving = service.saveAnnotations({ filePath: pdfPath, annotations: [{ id: 'new', pageNumber: 1, text: 'new evidence' }] });
+    // Let the competing request reach the blocked record operation.
+    await new Promise(resolve => setTimeout(resolve, 30));
+    release();
+    await Promise.all([loading, saving]);
+    expect((await service.loadAnnotations(pdfPath)).annotations).toEqual([expect.objectContaining({ id: 'new' })]);
+    expect((await service.loadAnnotations(pdfPath)).source.aliases).toEqual(expect.arrayContaining([pdfPath, alias]));
+  });
+
   test('persists page-addressed annotations outside the workspace', async () => {
     const service = createPdfResearchService({ userDataPath });
     const initial = await service.loadAnnotations(pdfPath);

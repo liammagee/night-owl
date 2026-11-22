@@ -1,113 +1,43 @@
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { __testHooks } = require('../../../ipc/fileHandlers');
 
 describe('File Save Safeguards', () => {
-  test('buildBackupFilePath writes into local backup directory', () => {
-    const filePath = '/tmp/project/notes/chapter-1.md';
-    const backupPath = __testHooks.buildBackupFilePath(filePath, 1700000000000);
-
-    expect(backupPath).toContain(`${path.sep}.nightowl-backups${path.sep}`);
-    expect(backupPath).toContain('chapter-1.1700000000000.md.bak');
+  let root, file;
+  beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'nightowl-save-')); file = path.join(root, 'draft.md'); fs.writeFileSync(file, 'original'); });
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+  test('backup path stays in the local recovery directory', () => {
+    expect(__testHooks.buildBackupFilePath(file, 1234)).toBe(path.join(root, '.nightowl-backups/draft.1234.md.bak'));
   });
-
-  test('guardedWriteFile blocks save when file changed externally', async () => {
-    const fileStateMap = new Map();
-    fileStateMap.set('/tmp/test.md', { mtimeMs: 1000, size: 20 });
-
-    const fsApi = {
-      stat: jest.fn(async () => ({ mtimeMs: 2000, size: 25 })),
-      writeFile: jest.fn(),
-      mkdir: jest.fn(),
-      copyFile: jest.fn()
-    };
-
-    const result = await __testHooks.guardedWriteFile(
-      '/tmp/test.md',
-      'new content',
-      {},
-      { fsApi, fileStateMap }
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.code).toBe(__testHooks.SAVE_CONFLICT_CODE);
-    expect(fsApi.writeFile).not.toHaveBeenCalled();
+  test('blocks a changed mtime baseline', async () => {
+    const result = await __testHooks.guardedWriteFile(file, 'new', {}, { fileStateMap: new Map([[file, { mtimeMs: 1 }]]) });
+    expect(result.code).toBe('FILE_MODIFIED_EXTERNALLY');
+    expect(fs.readFileSync(file, 'utf8')).toBe('original');
   });
-
-  test('guardedWriteFile creates backup and updates known file state', async () => {
-    const filePath = '/tmp/test.md';
-    const fileStateMap = new Map();
-    fileStateMap.set(filePath, { mtimeMs: 1000, size: 20 });
-
-    const statCalls = [
-      { mtimeMs: 1000, size: 20 }, // pre-write check
-      { mtimeMs: 1000, size: 20 }, // backup existence check
-      { mtimeMs: 3000, size: 30 }  // post-write state
-    ];
-
-    const fsApi = {
-      stat: jest.fn(async () => statCalls.shift()),
-      mkdir: jest.fn(async () => {}),
-      copyFile: jest.fn(async () => {}),
-      writeFile: jest.fn(async () => {})
-    };
-
-    const result = await __testHooks.guardedWriteFile(
-      filePath,
-      'updated content',
-      {},
-      { fsApi, fileStateMap }
-    );
-
+  test('backs up the original and updates the caller saved state', async () => {
+    const fileStateMap = new Map([[file, fs.statSync(file)]]);
+    const result = await __testHooks.guardedWriteFile(file, 'updated', {}, { fileStateMap });
     expect(result.success).toBe(true);
-    expect(result.backupPath).toContain('.nightowl-backups');
-    expect(fsApi.copyFile).toHaveBeenCalledWith(filePath, expect.stringContaining('.nightowl-backups'));
-    expect(fsApi.writeFile).toHaveBeenCalledWith(expect.stringContaining('.nightowl-backups' + path.sep + '.gitignore'), '*\n', { encoding: 'utf8', flag: 'wx' });
-    expect(fsApi.writeFile).toHaveBeenCalledWith(filePath, 'updated content', 'utf8');
-    expect(fileStateMap.get(filePath).mtimeMs).toBe(3000);
+    expect(fs.readFileSync(result.backupPath, 'utf8')).toBe('original');
+    expect(fs.readFileSync(file, 'utf8')).toBe('updated');
+    expect(fs.readFileSync(path.join(root, '.nightowl-backups/.gitignore'), 'utf8')).toBe('*\n');
+    expect(fileStateMap.get(file).mtimeMs).toBe(fs.statSync(file).mtimeMs);
   });
-
-  test('recovered content cannot overwrite an external edit even after its mtime baseline was refreshed', async () => {
-    const fsApi = {
-      stat: jest.fn(async () => ({ mtimeMs: 2000, size: 30 })),
-      readFile: jest.fn(async () => 'external edits after the crash'),
-      writeFile: jest.fn(), mkdir: jest.fn(), copyFile: jest.fn()
-    };
-    const fileStateMap = new Map([['/tmp/test.md', { mtimeMs: 2000, size: 30 }]]);
-
-    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'recovered draft', {
-      expectedContent: 'content before the crash'
-    }, { fsApi, fileStateMap });
-
-    expect(result).toMatchObject({ success: false, code: 'FILE_MODIFIED_EXTERNALLY', currentMtimeMs: 2000 });
-    expect(fsApi.writeFile).not.toHaveBeenCalled();
-    expect(fsApi.copyFile).not.toHaveBeenCalled();
+  test('a recovered buffer cannot overwrite newer disk content', async () => {
+    const result = await __testHooks.guardedWriteFile(file, 'draft', { expectedContent: 'older original' });
+    expect(result.code).toBe('FILE_MODIFIED_EXTERNALLY');
+    expect(fs.readFileSync(file, 'utf8')).toBe('original');
   });
-
-  test('autosave does not recreate a document deleted since it was opened', async () => {
-    const fsApi = {
-      stat: jest.fn(async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }),
-      writeFile: jest.fn()
-    };
-    const fileStateMap = new Map([['/tmp/test.md', { mtimeMs: 2000, size: 30 }]]);
-
-    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'draft', {}, { fsApi, fileStateMap });
-
-    expect(result).toMatchObject({ success: false, code: 'FILE_MODIFIED_EXTERNALLY', currentMtimeMs: null });
-    expect(fsApi.writeFile).not.toHaveBeenCalled();
+  test('does not recreate a deleted document with a known baseline', async () => {
+    const fileStateMap = new Map([[file, fs.statSync(file)]]); fs.unlinkSync(file);
+    const result = await __testHooks.guardedWriteFile(file, 'draft', {}, { fileStateMap });
+    expect(result.code).toBe('FILE_MODIFIED_EXTERNALLY');
+    expect(fs.existsSync(file)).toBe(false);
   });
-
-  test('explicit force can save recovered content after a conflict was confirmed', async () => {
-    const fsApi = {
-      stat: jest.fn(async () => ({ mtimeMs: 2000, size: 30 })),
-      readFile: jest.fn(),
-      writeFile: jest.fn(), mkdir: jest.fn(), copyFile: jest.fn()
-    };
-    const result = await __testHooks.guardedWriteFile('/tmp/test.md', 'recovered draft', {
-      expectedContent: 'old content', force: true
-    }, { fsApi });
-
+  test('an explicit force saves over a confirmed conflict', async () => {
+    const result = await __testHooks.guardedWriteFile(file, 'draft', { expectedContent: 'old', force: true });
     expect(result.success).toBe(true);
-    expect(fsApi.readFile).not.toHaveBeenCalled();
-    expect(fsApi.writeFile).toHaveBeenCalledWith('/tmp/test.md', 'recovered draft', 'utf8');
+    expect(fs.readFileSync(file, 'utf8')).toBe('draft');
   });
 });
