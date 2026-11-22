@@ -106,4 +106,54 @@ describe('Search IPC Handlers Integration', () => {
       expect(result.results[0].fileName).toBe(expectedFile);
     }
   });
+  test('replace processes each selected occurrence once, preserves CRLF, and backs up originals', async () => {
+    const file = path.join(tempRoot, 'repeat.md');
+    fs.writeFileSync(file, 'cat cat\r\nkeep\r\n');
+    registerSearchHandlers();
+    const found = await handlers['global-search']({}, { query: 'cat' });
+    const request = { searchQuery: 'cat', replaceText: 'catcat', searchResults: found.results };
+    const preview = await handlers['global-replace']({}, { ...request, options: { previewOnly: true } });
+    expect(preview).toMatchObject({ success: true, replacedCount: 2, modifiedFiles: 0 });
+    expect(preview.results[0]).toMatchObject({ before: 'cat cat\r', after: 'catcat catcat\r' });
+    expect(fs.readFileSync(file, 'utf8')).toBe('cat cat\r\nkeep\r\n');
+    const result = await handlers['global-replace']({}, request);
+    expect(result).toMatchObject({ success: true, replacedCount: 2, modifiedFiles: 1 });
+    expect(fs.readFileSync(file, 'utf8')).toBe('catcat catcat\r\nkeep\r\n');
+    expect(fs.readdirSync(path.join(tempRoot, '.nightowl-backups')).some(name => name.endsWith('.bak'))).toBe(true);
+  });
+
+  test('replace refuses stale search results without altering the file', async () => {
+    const file = path.join(tempRoot, 'stale.md');
+    fs.writeFileSync(file, 'cat original');
+    registerSearchHandlers();
+    const found = await handlers['global-search']({}, { query: 'cat' });
+    fs.writeFileSync(file, 'cat externally edited');
+    const result = await handlers['global-replace']({}, { searchQuery: 'cat', replaceText: 'dog', searchResults: found.results });
+    expect(result.success).toBe(false);
+    expect(fs.readFileSync(file, 'utf8')).toBe('cat externally edited');
+  });
+
+  test('replace rejects a symlink outside the workspace', async () => {
+    const workspace = path.join(tempRoot, 'workspace');
+    fs.mkdirSync(workspace);
+    const outside = path.join(tempRoot, 'outside.md');
+    fs.writeFileSync(outside, 'cat');
+    const link = path.join(workspace, 'link.md');
+    fs.symlinkSync(outside, link);
+    registerSearchHandlers({ workingDirectory: workspace }, workspace);
+    const result = await handlers['global-replace']({}, { searchQuery: 'cat', replaceText: 'dog', searchResults: [{ file: link, line: 1, column: 1, match: 'cat', text: 'cat' }] });
+    expect(result.success).toBe(false);
+    expect(fs.readFileSync(outside, 'utf8')).toBe('cat');
+  });
+
+  test('regex queries ending in a star remain content searches and obey the file filter', async () => {
+    fs.writeFileSync(path.join(tempRoot, 'one.md'), 'cats');
+    fs.writeFileSync(path.join(tempRoot, 'two.txt'), 'cats');
+    registerSearchHandlers();
+    const result = await handlers['global-search']({}, { query: 'cats*', options: { useRegex: true, filePattern: '*.md' } });
+    expect(result.success).toBe(true);
+    expect(result.isFilePatternSearch).not.toBe(true);
+    expect(result.results.map(item => item.fileName)).toEqual(['one.md']);
+  });
+
 });

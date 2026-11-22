@@ -208,6 +208,9 @@ test.describe('Editor pane and command stability', () => {
       document.getElementById('main-content').scrollTop = 0;
       document.getElementById('app-container').scrollTop = 0;
       scrollToHeadingInPreview('Destination');
+      // A preview commit can replace the heading before the scheduled frame.
+      const heading = document.getElementById('heading-destination');
+      heading.replaceWith(heading.cloneNode(true));
     });
     await expect.poll(() => page.evaluate(() => Math.max(document.getElementById('preview-pane').scrollTop, document.getElementById('preview-content').scrollTop))).toBeGreaterThan(100);
     await page.waitForTimeout(800);

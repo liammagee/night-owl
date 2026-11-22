@@ -11,6 +11,9 @@ const {
 } = require('./runtimeWorkspace');
 const { createDebugLogger } = require('./logging');
 const workspaceIndexHandlers = require('./workspaceIndexHandlers');
+const { resolvePathWithinRoots, isPathInsideRoot } = require('./pathGuards');
+const { guardedWriteFile } = require('../services/fileWrites');
+const { planReplacements } = require('../services/searchReplace');
 
 /**
  * Register all search IPC handlers
@@ -183,7 +186,9 @@ function register(deps) {
       }
 
       // Get all markdown and text files recursively
-      const files = await getSearchableFiles(workingDir);
+      const filter = filePattern && filePattern !== '*.{md,markdown,txt}' ? globToRegex(filePattern) : null;
+      const files = (await getSearchableFiles(workingDir)).filter(file =>
+        !filter || filter.test(file.name) || filter.test(path.relative(workingDir, file.path)));
       
       for (const file of files) {
         if (results.length >= maxResults) break;
@@ -225,101 +230,53 @@ function register(deps) {
   }
 
   async function performGlobalReplace(searchQuery, replaceText, searchResults, options = {}) {
-    const {
-      caseSensitive = false,
-      wholeWord = false,
-      useRegex = false,
-      previewOnly = false
-    } = options;
+    const { previewOnly = false } = options;
 
     debug(`[SearchHandlers] Performing global replace ${previewOnly ? '(preview)' : '(execute)'}`);
     
-    // Group search results by file
-    const fileGroups = {};
-    searchResults.forEach(result => {
-      if (!fileGroups[result.file]) {
-        fileGroups[result.file] = [];
+    const roots = [getWorkingDirectory(), ...(appSettings.workspaceFolders || [])];
+    const canonicalRoots = (await Promise.all(roots.map(root => fs.realpath(root).catch(() => null)))).filter(Boolean);
+    const fileGroups = new Map();
+    for (const result of searchResults) {
+      const resolved = resolvePathWithinRoots(result.file, roots);
+      if (!resolved.success) throw new Error(resolved.error);
+      const canonical = await fs.realpath(resolved.path);
+      if (!canonicalRoots.some(root => isPathInsideRoot(canonical, root))) {
+        throw new Error('Replacement target must stay inside a workspace folder');
       }
-      fileGroups[result.file].push(result);
-    });
-
-    const results = [];
-    const modifiedFilePaths = [];
-    let totalReplacements = 0;
-
-    for (const [filePath, fileResults] of Object.entries(fileGroups)) {
-      try {
-        const originalContent = await fs.readFile(filePath, 'utf8');
-        const lines = originalContent.split('\n');
-        let modifiedLines = [...lines];
-        let fileReplacements = 0;
-        const fileResults_sorted = fileResults.sort((a, b) => b.line - a.line); // Sort in reverse order
-
-        // Create search pattern
-        let searchPattern;
-        if (useRegex) {
-          try {
-            searchPattern = new RegExp(searchQuery, caseSensitive ? 'g' : 'gi');
-          } catch (error) {
-            throw new Error(`Invalid regex pattern: ${error.message}`);
-          }
-        } else {
-          const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const wordBoundary = wholeWord ? '\\b' : '';
-          const flags = caseSensitive ? 'g' : 'gi';
-          searchPattern = new RegExp(`${wordBoundary}${escapedQuery}${wordBoundary}`, flags);
-        }
-
-        // Process replacements
-        for (const result of fileResults_sorted) {
-          const lineIndex = result.line - 1;
-          if (lineIndex >= 0 && lineIndex < modifiedLines.length) {
-            const originalLine = modifiedLines[lineIndex];
-            const newLine = originalLine.replace(searchPattern, replaceText);
-            
-            if (newLine !== originalLine) {
-              if (previewOnly) {
-                results.push({
-                  file: filePath,
-                  fileName: path.basename(filePath),
-                  line: result.line,
-                  originalLine: originalLine,
-                  replacedLine: newLine
-                });
-              } else {
-                modifiedLines[lineIndex] = newLine;
-              }
-              
-              fileReplacements++;
-              totalReplacements++;
-            }
-          }
-        }
-
-        if (!previewOnly && fileReplacements > 0) {
-          const newContent = modifiedLines.join('\n');
-          await fs.writeFile(filePath, newContent, 'utf8');
-          modifiedFilePaths.push(filePath);
-          debug(`[SearchHandlers] Modified ${filePath} with ${fileReplacements} replacements`);
-        }
-
-      } catch (error) {
-        console.error(`[SearchHandlers] Error processing file ${filePath}:`, error.message);
-        results.push({
-          file: filePath,
-          error: error.message
-        });
-      }
+      if (!fileGroups.has(canonical)) fileGroups.set(canonical, []);
+      fileGroups.get(canonical).push(result);
     }
 
+    const results = [];
+    const errors = [];
+    const modifiedFilePaths = [];
+    let totalReplacements = 0;
+    for (const [filePath, fileResults] of fileGroups) {
+      try {
+        const originalContent = await fs.readFile(filePath, 'utf8');
+        const plan = planReplacements(originalContent, searchQuery, replaceText, fileResults, options);
+        if (!previewOnly && plan.content !== originalContent) {
+          const saved = await guardedWriteFile(filePath, plan.content, { expectedContent: originalContent });
+          if (!saved.success) throw new Error(saved.error);
+          modifiedFilePaths.push(...new Set(fileResults.map(result => path.resolve(result.file))));
+        }
+        totalReplacements += plan.count;
+        results.push(...plan.results.map(result => ({ ...result, file: fileResults[0].file, fileName: path.basename(fileResults[0].file) })));
+      } catch (error) {
+        errors.push({ file: filePath, error: error.message });
+      }
+    }
     return {
-      success: true,
+      success: errors.length === 0,
+      error: errors.length ? errors.map(item => `${item.file}: ${item.error}`).join('\n') : undefined,
+      errors,
       matchCount: totalReplacements,
       modifiedFiles: modifiedFilePaths.length,
-      results: results,
+      results,
       preview: previewOnly,
       replacedCount: totalReplacements,
-      modifiedFilePaths: modifiedFilePaths
+      modifiedFilePaths
     };
   }
 
@@ -342,7 +299,7 @@ function register(deps) {
       }
 
       // Check if this is a file pattern search (e.g., *.bib, *.md)
-      const isPatternSearch = isFilePatternQuery(filePatternQuery);
+      const isPatternSearch = !options.useRegex && isFilePatternQuery(filePatternQuery);
 
       if (isPatternSearch) {
         debug(`Detected file pattern search: "${filePatternQuery}"`);
@@ -455,7 +412,7 @@ function register(deps) {
     try {
       debug(`[SearchHandlers] Global replace "${searchQuery}" with "${replaceText}"`);
       
-      if (!searchQuery || !searchResults || searchResults.length === 0) {
+      if (typeof searchQuery !== 'string' || !searchQuery || typeof replaceText !== 'string' || !Array.isArray(searchResults)) {
         return { success: false, error: 'Invalid search parameters' };
       }
       

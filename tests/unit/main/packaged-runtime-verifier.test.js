@@ -46,3 +46,12 @@ describe('packaged runtime verifier', () => {
     expect(result.missing).toContain('node_modules/sqlite3/package.json');
   });
 });
+
+test('accepts only a matching N-API SQLite prebuild when the compiled binding is absent', () => {
+  const root = '/tmp/NightOwl.app/Contents/Resources';
+  const present = new Set([`${root}/app.asar`, ...REQUIRED_NATIVE_RUNTIME_FILES.filter(p => !p.endsWith('better_sqlite3.node')).map(p => `${root}/app.asar.unpacked/${p}`)]);
+  present.add(`${root}/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/darwin-arm64.node`);
+  const options = { platform: 'darwin', arch: 'arm64', existsSync: p => present.has(p) };
+  expect(verifyPackagedRuntime('/tmp/NightOwl.app', options).ok).toBe(true);
+  expect(verifyPackagedRuntime('/tmp/NightOwl.app', { ...options, arch: 'x64' }).ok).toBe(false);
+});

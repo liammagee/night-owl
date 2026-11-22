@@ -78,3 +78,51 @@ layout, painting, GPU, or compositing events as regressions to investigate.
 
 Do not commit raw trace files. They can be large and may include local paths.
 Attach the comparison output to an issue, PR, or local performance note instead.
+
+## In-editor Resource Profiler
+
+Click **Resources** in the editor status bar, or run **View: Toggle Resource
+Profiler** from the command palette. The dock stays below the editing panes.
+It samples every two seconds while open and the window is visible, retaining
+at most 120 samples (about four minutes). Pause retains history; closing stops
+sampling and disconnects the long-task observer. Reopening warms CPU counters
+again. There is no sampling timer before the first open.
+
+The panel includes:
+
+- Electron processes: interval CPU, working set, peak working set and wakeups.
+- CPU/memory history, approximate renderer JS heap, main event-loop utilization,
+  sampling delay, and observed renderer tasks longer than 50 ms.
+- Main-process memory/heap, owned lifecycle resource counts, handler counters,
+  GPU feature status and the last 30 workflow readiness results.
+- JSON export of the bounded history, without document text or readiness
+  metadata. Trace output paths are included when a trace has been captured.
+- **Record 30s trace**, backed by Chromium content tracing. The main process
+  automatically stops capture after 30 seconds even if the panel closes. The
+  same cap now applies to traces started through the existing diagnostics API.
+  **Stop trace** ends a capture sooner. The saved path appears in the panel.
+
+### Interpretation
+
+CPU is Electron 32's interval average divided by the logical processor count,
+so 100% represents total logical CPU capacity. macOS Activity Monitor/`ps` use
+a different scale (100% per core); do not compare the percentages directly.
+New processes and resumed sampling show an unavailable CPU value until warmed.
+A GPU row measures CPU consumed by the GPU process, not GPU hardware utilization.
+Working-set sums can double-count shared pages; they are not a unique app memory
+footprint. Unsupported metrics are shown as a dash. Renderer heap values come
+from Chromium's approximate performance memory API. Sampling delay includes
+scheduling delays; it is not a direct measurement of input latency. Long-task
+history covers only observation periods and retains the last 120 tasks.
+
+Each profile covers one NightOwl instance and the Electron processes it reports.
+Other workspace instances and arbitrary terminal subprocesses are outside that
+scope. The profiler and trace recorder have their own overhead. Do not use one
+short capture to establish a leak or a performance regression; reproduce the
+same workflow with comparable builds and repeat the capture.
+
+API semantics: [Electron process metrics](https://www.electronjs.org/docs/latest/api/structures/process-metric),
+[CPU intervals](https://www.electronjs.org/docs/latest/api/structures/cpu-usage),
+and [memory units](https://www.electronjs.org/docs/latest/api/structures/memory-info).
+
+The normalization is verified against the [pinned Electron 32.3.3 implementation](https://github.com/electron/electron/blob/v32.3.3/shell/browser/api/electron_api_app.cc#L1197-L1215). Recheck this when upgrading Electron.

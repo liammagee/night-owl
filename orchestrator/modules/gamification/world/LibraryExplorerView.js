@@ -715,13 +715,29 @@ class LibraryExplorerView {
     }
 
     render(worldState = {}, ledger = {}, options = {}) {
+        this.pendingRender = { worldState, ledger, options };
+        const container = this.ensureContainer();
+        if (!container) return;
+        if (!this.visibilityObserver && typeof ResizeObserver !== 'undefined') {
+            this.visibilityObserver = new ResizeObserver(() => {
+                const visible = container.getClientRects().length > 0 && container.clientWidth > 0 && container.clientHeight > 0;
+                if (visible && !this.wasVisible && this.pendingRender) {
+                    this.wasVisible = true;
+                    const pending = this.pendingRender;
+                    this.render(pending.worldState, pending.ledger, { ...pending.options, force: true });
+                } else {
+                    this.wasVisible = visible;
+                }
+            });
+            this.visibilityObserver.observe(container);
+        }
+        // Hidden library UI must not start a workspace index or a graph simulation.
+        if (!container.getClientRects().length || !container.clientWidth || !container.clientHeight) return;
+        this.wasVisible = true;
         const { force = false } = options;
         const now = Date.now();
         if (!force && now - this.lastRender < this.renderThrottle) return;
         this.lastRender = now;
-
-        const container = this.ensureContainer();
-        if (!container) return;
 
         this.renderMaze(worldState);
         this.renderAnchors(worldState?.anchors || {});

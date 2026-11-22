@@ -115,6 +115,61 @@
         };
     }
 
+    const bibliographyCommands = new Map([
+        ['emph', 'em'], ['textit', 'em'], ['textbf', 'strong'], ['texttt', 'code']
+    ]);
+    const accentMarks = {
+        "'": '\u0301', '\x60': '\u0300', '"': '\u0308', '^': '\u0302',
+        '~': '\u0303', '=': '\u0304', '.': '\u0307', c: '\u0327'
+    };
+
+    function escapeBibliographyHtml(value) {
+        return String(value).replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+    }
+
+    // Interpret BibTeX grouping and a small set of text commands as safe HTML.
+    function formatBibliographyText(value) {
+        const text = String(value || '').replace(
+            /\\(['\x60"^~=.]|c)\s*(?:\{([a-z])\}|([a-z])(?![a-z]))/gi,
+            (_, accent, braced, bare) => ((braced || bare) + accentMarks[accent.toLowerCase()]).normalize('NFC')
+        );
+        const groups = [];
+        const output = [];
+        for (const [token, command, escaped] of text.matchAll(/\\([a-zA-Z]+)\s*\{|\\([{}&%$#_])|[{}]|[^\\{}]+|\\.?/g)) {
+            if (command || token === '{') {
+                const tag = bibliographyCommands.get(command);
+                groups.push(tag);
+                if (tag) output.push('<' + tag + '>');
+            } else if (token === '}') {
+                const tag = groups.pop();
+                if (tag) output.push('</' + tag + '>');
+            } else {
+                output.push(escapeBibliographyHtml(escaped || token));
+            }
+        }
+        for (const tag of groups.reverse()) {
+            if (tag) output.push('</' + tag + '>');
+        }
+        return output.join('').replace(/\s+/g, ' ').trim();
+    }
+
+    function formatBibliographyLink(entry) {
+        const reference = entry.doi ? 'https://doi.org/' + entry.doi : entry.url;
+        if (!reference) return '';
+        const escaped = escapeBibliographyHtml(reference);
+        try {
+            const url = new URL(reference);
+            if (url.protocol === 'https:' || url.protocol === 'http:') {
+                return ' <a href="' + escapeBibliographyHtml(url.href) + '">' + escaped + '</a>';
+            }
+        } catch {
+            // Keep malformed references visible as text.
+        }
+        return ' ' + escaped;
+    }
+
     // Citation styles
     const STYLES = {
         apa: {
@@ -126,22 +181,27 @@
                 return `(${authors}, ${year}${suffixStr})`;
             },
             bibliography: (entry) => {
-                const authors = formatAuthorsBib(entry.author, 'apa');
-                const year = entry.year ? `(${entry.year})` : '(n.d.)';
-                const title = entry.title || 'Untitled';
-                const journal = entry.journal ? `<em>${entry.journal}</em>` : '';
-                const volume = entry.volume || '';
-                const issue = entry.issue ? `(${entry.issue})` : '';
-                const pages = entry.pages ? `, ${entry.pages}` : '';
-                const doi = entry.doi ? ` https://doi.org/${entry.doi}` : '';
-                const url = !entry.doi && entry.url ? ` ${entry.url}` : '';
-
+                const authors = formatBibliographyText(formatAuthorsBib(entry.author, 'apa'));
+                const year = formatBibliographyText(entry.year) || 'n.d.';
+                const title = formatBibliographyText(entry.title) || 'Untitled';
+                const link = formatBibliographyLink(entry);
                 if (entry.type === 'book') {
-                    const publisher = entry.publisher || '';
-                    return `${authors} ${year}. <em>${title}</em>. ${publisher}${doi}${url}`;
+                    const publisher = formatBibliographyText(entry.publisher);
+                    return authors + ' (' + year + '). <em>' + title + '</em>.' +
+                        (publisher ? ' ' + publisher : '') + link;
                 }
 
-                return `${authors} ${year}. ${title}. ${journal}${volume ? `, ${volume}` : ''}${issue}${pages}.${doi}${url}`;
+                const journal = formatBibliographyText(entry.journal);
+                const volume = formatBibliographyText(entry.volume);
+                const issue = formatBibliographyText(entry.issue);
+                const pages = formatBibliographyText(entry.pages);
+                const publication = [
+                    journal && '<em>' + journal + '</em>',
+                    volume + (issue ? '(' + issue + ')' : ''),
+                    pages
+                ].filter(Boolean).join(', ');
+                return authors + ' (' + year + '). ' + title + '.' +
+                    (publication ? ' ' + publication + '.' : '') + link;
             }
         },
         chicago: {
@@ -153,21 +213,21 @@
                 return `(${authors} ${year}${suffixStr})`;
             },
             bibliography: (entry) => {
-                const authors = formatAuthorsBib(entry.author, 'chicago');
-                const title = entry.title || 'Untitled';
-                const year = entry.year || 'n.d.';
-                const journal = entry.journal ? `<em>${entry.journal}</em>` : '';
-                const volume = entry.volume || '';
-                const pages = entry.pages ? `: ${entry.pages}` : '';
-                const doi = entry.doi ? ` https://doi.org/${entry.doi}` : '';
+                const authors = formatBibliographyText(formatAuthorsBib(entry.author, 'chicago'));
+                const title = formatBibliographyText(entry.title) || 'Untitled';
+                const year = formatBibliographyText(entry.year) || 'n.d.';
+                const journal = formatBibliographyText(entry.journal) ? `<em>${formatBibliographyText(entry.journal)}</em>` : '';
+                const volume = formatBibliographyText(entry.volume) || '';
+                const pages = formatBibliographyText(entry.pages) ? `: ${formatBibliographyText(entry.pages)}` : '';
+                const link = formatBibliographyLink(entry);
 
                 if (entry.type === 'book') {
-                    const publisher = entry.publisher || '';
-                    const location = entry.location || '';
-                    return `${authors}. <em>${title}</em>. ${location ? `${location}: ` : ''}${publisher}, ${year}.${doi}`;
+                    const publisher = formatBibliographyText(entry.publisher) || '';
+                    const location = formatBibliographyText(entry.location) || '';
+                    return `${authors}. <em>${title}</em>. ${location ? `${location}: ` : ''}${publisher}, ${year}.${link}`;
                 }
 
-                return `${authors}. "${title}." ${journal} ${volume}${pages} (${year}).${doi}`;
+                return `${authors}. "${title}." ${journal} ${volume}${pages} (${year}).${link}`;
             }
         }
     };
@@ -445,7 +505,7 @@
         const { includeBibliography = true, useCache = true } = options;
 
         // Check if we have any citations to process
-        if (!html.includes('[@')) {
+        if (!html.includes('@')) {
             return html;
         }
 

@@ -573,6 +573,8 @@ class GraphView {
      * Sets up link forces, charge forces, centering, and collision detection
      */
     createForceSimulation() {
+        this.releaseSimulationActivity?.();
+        this.simulation?.stop();
         // Create force simulation
         this.simulation = d3.forceSimulation(this.nodes)
             .force('link', d3.forceLink(this.links)
@@ -598,6 +600,7 @@ class GraphView {
             .force('center', d3.forceCenter(this.width / 2, this.height / 2))
             .force('collision', d3.forceCollide()
                 .radius(d => d.radius + 5));
+        this.releaseSimulationActivity = window.nightowlRendererActivity?.trackSimulation(this.simulation);
     }
 
     /**
@@ -1532,6 +1535,8 @@ class GraphView {
      * Stops the simulation and removes SVG elements
      */
     destroy() {
+        this.releaseSimulationActivity?.();
+        this.releaseSimulationActivity = null;
         if (this.simulation) {
             this.simulation.stop();
         }

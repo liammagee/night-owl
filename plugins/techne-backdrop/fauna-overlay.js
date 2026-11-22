@@ -968,7 +968,7 @@ class FaunaOverlay {
     this.animate();
   }
 
-  stop() {
+  stop({ preserveFrame = false } = {}) {
     this.active = false;
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
@@ -976,7 +976,7 @@ class FaunaOverlay {
     }
     window.removeEventListener('resize', this.boundOnResize);
     window.removeEventListener('scroll', this.boundOnScroll);
-    this.ctx.clearRect(0, 0, this.width, this.height);
+    if (!preserveFrame) this.ctx.clearRect(0, 0, this.width, this.height);
   }
 
   toggle() {

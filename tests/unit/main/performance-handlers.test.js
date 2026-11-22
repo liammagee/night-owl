@@ -60,6 +60,7 @@ describe('performanceHandlers', () => {
       success: true,
       lifecycle: { activeRegistries: 1, activeResources: 3 },
       handlers: { terminal: { activeProcesses: 2 } },
+      resources: expect.objectContaining({ processes: [], available: false }),
       app: {
         version: '1.0.0',
         isPackaged: false,
@@ -72,6 +73,31 @@ describe('performanceHandlers', () => {
       }
     });
     expect(getResourceDiagnostics).toHaveBeenCalledTimes(1);
+  });
+
+  test('converts KiB to bytes, warms up CPU, and detects reused PIDs', () => {
+    const metric = { pid: 10, creationTime: 1, type: 'Tab', cpu: { percentCPUUsage: 12, idleWakeupsPerSecond: 4 }, memory: { workingSetSize: 1024, peakWorkingSetSize: 2048 } };
+    const fakeApp = { getAppMetrics: () => [metric] };
+    const sample = performanceHandlers.createResourceSampler(fakeApp);
+    expect(sample().processes[0]).toMatchObject({ cpuPercent: null, workingSetBytes: 1048576 });
+    expect(sample().processes[0].cpuPercent).toBe(12);
+    metric.creationTime = 2;
+    delete metric.memory;
+    expect(sample().processes[0]).toMatchObject({ cpuPercent: null, workingSetBytes: null });
+  });
+
+  test('automatically stops a trace after thirty seconds and rejects overlapping starts', async () => {
+    jest.useFakeTimers();
+    try {
+      let resolveStart;
+      contentTracing.startRecording.mockImplementationOnce(() => new Promise(resolve => { resolveStart = resolve; }));
+      const first = performanceHandlers.startPerformanceTrace();
+      expect(await performanceHandlers.startPerformanceTrace()).toMatchObject({ success: false });
+      resolveStart(); await first;
+      await jest.advanceTimersByTimeAsync(30000);
+      expect(contentTracing.stopRecording).toHaveBeenCalledTimes(1);
+      expect(await performanceHandlers.stopPerformanceTrace()).toMatchObject({ success: false });
+    } finally { jest.useRealTimers(); }
   });
 
   test('records Chromium performance traces to user data', async () => {
