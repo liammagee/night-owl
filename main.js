@@ -962,7 +962,7 @@ function saveSettings() {
         fsSync.writeFileSync(tempFile, settingsJson);
         fsSync.renameSync(tempFile, SETTINGS_FILE);
         
-        // Settings saved successfully
+        return true;
     } catch (err) {
         console.error('[main.js] Failed to save settings:', err);
         
@@ -976,6 +976,7 @@ function saveSettings() {
                 console.warn('[main.js] Could not clean up temp settings file:', cleanupErr);
             }
         }
+        return false;
     }
 }
 
