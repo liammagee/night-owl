@@ -811,6 +811,13 @@ function generateGamificationSettings() {
                 <p style="color: #666; font-size: 13px; margin: 8px 0;">
                     Channel your words into lexicon shards, awaken stacks, and unlock quiet lore instead of loud rewards.
                 </p>
+                <label>
+                    <input type="checkbox" id="room-generation" ${gamificationSettings.roomGeneration === true ? 'checked' : ''}>
+                    <span>Generate Library rooms while writing</span>
+                </label>
+                <p style="color: #666; font-size: 13px; margin: 8px 0;">
+                    Off by default. Existing rooms are preserved. Turning this off stops room generation immediately; restart NightOwl after turning it on.
+                </p>
             </div>
         </div>
         
@@ -2729,6 +2736,12 @@ function collectSettingsFromForm() {
     }
 
     // Gamification settings
+    const roomGeneration = document.getElementById('room-generation')?.checked;
+    if (roomGeneration !== undefined) {
+        if (!updatedSettings.gamification) updatedSettings.gamification = {};
+        updatedSettings.gamification.roomGeneration = roomGeneration;
+    }
+
     const gamificationEnabled = document.getElementById('gamification-enabled')?.checked;
     if (gamificationEnabled !== undefined) {
         if (!updatedSettings.gamification) updatedSettings.gamification = {};

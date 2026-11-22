@@ -10,6 +10,7 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 require('dotenv').config({ quiet: true }); // Load .env file
 const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, shell } = require('electron');
 const path = require('path');
+const { trackWindowActivity, focusVisibleWindow } = require('./services/windowActivityService');
 const { pathToFileURL } = require('url');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -608,6 +609,7 @@ Content to analyze:
     
     // === Gamification Settings ===
     gamification: {
+        roomGeneration: false,
         focusSessionsEnabled: true,
         defaultFocusDuration: 25, // minutes
         breakReminders: true,
@@ -1434,6 +1436,7 @@ function createWindow(options = {}) {
     show: false
   });
   mainWindow = win;
+  trackWindowActivity(win);
 
   const indexPath = path.join(__dirname, 'index.html');
   if (!deferLoad) {
@@ -3358,14 +3361,7 @@ app.whenReady().then(async () => {
     return { success: true };
   });
 
-  ipcMain.handle('focus-main-window', async () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.focus();
-      mainWindow.show();
-      return { success: true };
-    }
-    return { success: false, error: 'Main window not available' };
-  });
+  ipcMain.handle('focus-main-window', async () => focusVisibleWindow(mainWindow));
 
   // Get recent workspaces for the renderer dropdown
   ipcMain.handle('get-recent-workspaces', () => {
