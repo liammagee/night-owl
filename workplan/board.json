@@ -1,29 +1,29 @@
 {
-  "generated": "2026-11-21T22:42:07.204Z",
+  "generated": "2026-11-22T02:42:39.227Z",
   "counts": {
-    "total": 35,
+    "total": 40,
     "byStatus": {
-      "review": 2,
-      "done": 33
+      "review": 3,
+      "done": 37
     },
     "byPriority": {
-      "P1": 17,
+      "P1": 19,
+      "P2": 16,
       "P0": 4,
-      "P2": 13,
       "P3": 1
     },
     "byArea": {
       "presentation": 6,
       "platform": 8,
+      "editor": 5,
       "preview": 3,
-      "editor": 4,
+      "performance": 4,
       "testing": 3,
-      "packaging": 2,
+      "packaging": 3,
       "security": 2,
       "architecture": 3,
       "files": 1,
-      "accessibility": 2,
-      "performance": 1
+      "accessibility": 2
     }
   },
   "items": [
@@ -62,6 +62,25 @@
         "data-integrity",
         "search",
         "review"
+      ]
+    },
+    {
+      "id": "pause-inactive-rendering",
+      "title": "Pause decorative rendering while NightOwl is inactive",
+      "status": "review",
+      "type": "bug",
+      "priority": "P2",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-10-29",
+      "updated": "2026-10-29",
+      "verification": "Electron checks show CSS animations and graph ticks pause on blur/hide, resume on focus, background saves continue, and visible presentations remain live.",
+      "tags": [
+        "performance",
+        "electron",
+        "regression"
       ]
     },
     {
@@ -199,6 +218,26 @@
       ]
     },
     {
+      "id": "demand-driven-rendering",
+      "title": "Make idle editor rendering and file browsing demand-driven",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Matched Electron idle measurements show recurring decorative callbacks stop; focused interaction, resume, hidden views, disposal and presentation delivery are covered by regression checks.",
+      "tags": [
+        "performance",
+        "lifecycle",
+        "rendering",
+        "filesystem"
+      ]
+    },
+    {
       "id": "labelling-review-workbench",
       "title": "Expand structured records into a labelling and review workbench",
       "status": "done",
@@ -263,6 +302,25 @@
       "depends_on": [
         "unify-command-and-shortcut-registry",
         "minimize-electron-privilege-surface"
+      ]
+    },
+    {
+      "id": "opt-in-library-rooms",
+      "title": "Disable Library room generation by default",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-11-12",
+      "updated": "2026-11-12",
+      "verification": "Missing and false roomGeneration settings produce no room growth or architect work; explicit opt-in retains the feature.",
+      "tags": [
+        "performance",
+        "gamification",
+        "reliability"
       ]
     },
     {
@@ -571,6 +629,24 @@
       ]
     },
     {
+      "id": "editor-resource-profiler",
+      "title": "Profile app resources inside the editor",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-11",
+      "updated": "2026-11-11",
+      "verification": "Real Electron profiling shows process metrics and a saved trace; automated checks cover sampling lifecycle, unavailable values, and renderer integration.",
+      "tags": [
+        "performance",
+        "diagnostics"
+      ]
+    },
+    {
       "id": "hermetic-tests-across-worktrees",
       "title": "Make unit and integration tests portable across worktrees",
       "status": "done",
@@ -633,6 +709,20 @@
         "modernize-electron-e2e-harness",
         "reliable-editor-preview-transitions"
       ]
+    },
+    {
+      "id": "rebuild-and-install-local-code-on-restart",
+      "title": "Rebuild and install local code on Restart",
+      "status": "done",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "packaging",
+      "owner": "codex",
+      "source": "manual",
+      "evidence": "opportunity",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Installer tests, static checks, and a packaged Restart that builds, installs, and reopens with an isolated profile."
     },
     {
       "id": "refresh-architecture-and-build-docs",

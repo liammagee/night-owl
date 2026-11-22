@@ -50,6 +50,23 @@ npm run native:repair
 That rebuilds `sqlite3`, `better-sqlite3`, and `node-pty` for Electron, then
 repairs local signatures. Do not commit `node_modules`.
 
+## Rebuild from the installed app (macOS)
+
+**View → Restart** builds from a remembered local NightOwl checkout, checks the
+bundle signature and native runtime, then prompts to save any unsaved documents.
+Cancel keeps the current app. Build failures leave the app open and offer its log.
+The source must be under `~/Dev` with Node, npm, and dependencies installed.
+**View → Choose Restart Source…** changes that source. Uncommitted files on disk
+are included; Restart does not fetch or merge Git changes.
+
+The installer waits for the app to exit, swaps in the new bundle, and reopens the
+same user-data profile. The last successful replacement keeps one hidden rollback
+bundle beside the installed app. Installation or launch-command failures restore
+the previous bundle; this does not detect crashes after macOS accepts the launch.
+Configuration and per-build logs live in
+`~/Library/Application Support/NightOwl/local-rebuild/`.
+A source checkout launched directly still uses a normal process restart.
+
 ## Pull-request gate
 
 Run the repository-owned gate before pushing:
