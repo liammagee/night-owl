@@ -1,13 +1,13 @@
 {
-  "generated": "2026-11-22T02:42:39.227Z",
+  "generated": "2026-11-22T02:42:59.503Z",
   "counts": {
-    "total": 40,
+    "total": 41,
     "byStatus": {
-      "review": 3,
+      "review": 4,
       "done": 37
     },
     "byPriority": {
-      "P1": 19,
+      "P1": 20,
       "P2": 16,
       "P0": 4,
       "P3": 1
@@ -15,7 +15,7 @@
     "byArea": {
       "presentation": 6,
       "platform": 8,
-      "editor": 5,
+      "editor": 6,
       "preview": 3,
       "performance": 4,
       "testing": 3,
@@ -62,6 +62,25 @@
         "data-integrity",
         "search",
         "review"
+      ]
+    },
+    {
+      "id": "settings-save",
+      "title": "Preserve settings edits across categories and report save failures",
+      "status": "review",
+      "type": "bug",
+      "priority": "P1",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Regression tests for category drafts, AI preservation and failure reporting.",
+      "tags": [
+        "settings",
+        "ai",
+        "persistence"
       ]
     },
     {

@@ -16,9 +16,16 @@ function register(deps) {
   const {
     appSettings,
     defaultSettings,
-    saveSettings
+    saveSettings: persistSettings
   } = deps;
   const aiRuntime = deps.tutorBridge || deps.aiService || null;
+
+  function saveSettings() {
+    if (persistSettings() === false) {
+      throw new Error('Could not write settings to disk. Check available space and file permissions.');
+    }
+  }
+
 
   const isPlainObject = (value) =>
     Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -242,6 +249,7 @@ function register(deps) {
   });
   
   ipcMain.handle('set-settings', (event, category, newSettings) => {
+    const previous = JSON.parse(JSON.stringify(appSettings));
     try {
       if (typeof category === 'string') {
         updateSettingsCategory(category, newSettings);
@@ -260,6 +268,8 @@ function register(deps) {
 
       return { success: true };
     } catch (error) {
+      Object.keys(appSettings).forEach(key => delete appSettings[key]);
+      Object.assign(appSettings, previous);
       console.error('[SettingsHandlers] Error in set-settings:', error);
       return { success: false, error: error.message };
     }

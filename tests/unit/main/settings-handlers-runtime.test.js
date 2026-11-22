@@ -81,6 +81,16 @@ describe('settingsHandlers runtime AI updates', () => {
     expect(appSettings.editorTabs.activeTabPath).toBe('/new.md');
     expect(appSettings.editorTabs.openTabs).toEqual([{ filePath: '/new.md' }]);
   });
+  test('failed disk persistence is reported and restores the previous settings', () => {
+    const appSettings = { theme: 'light', ai: { preferredProvider: 'auto' } };
+    const tutorBridge = { configureAIRouting: jest.fn() };
+    settingsHandlers.register({appSettings, defaultSettings: {}, saveSettings: () => false, tutorBridge});
+    const result = getRegisteredHandler('set-settings')({}, {theme:'dark', ai:{preferredProvider:'openai'}});
+    expect(result.success).toBe(false);
+    expect(appSettings).toEqual({theme:'light', ai:{preferredProvider:'auto'}});
+    expect(tutorBridge.configureAIRouting).not.toHaveBeenCalled();
+  });
+
   test('export and import round-trip scalar and array preferences without restoring stale session paths', () => {
     const appSettings = { theme: 'dark', customList: ['one'], workingDirectory: '/live', ai: { temperature: 0.2 } };
     settingsHandlers.register({ appSettings, defaultSettings: {}, saveSettings: jest.fn() });
