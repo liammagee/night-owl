@@ -30,6 +30,9 @@
   let currentIssues = { spelling: [], grammar: [], style: [] };
   let issuesPanelEl = null;
   let aiStyleRunning = false;
+  let suggestionPopup = null;
+  let suggestionCleanup = null;
+  let interactionListeners = [];
 
   const STORAGE_KEY = 'nightowl-custom-dictionary';
   const CAT_DICT_KEY = 'nightowl-categorized-dictionary';
@@ -196,9 +199,9 @@
         if (!wordPositions.has(raw)) wordPositions.set(raw, []);
         wordPositions.get(raw).push({
           startLine: lineNum,
-          startCol: m.index + 1,
+          startCol: m.index + 1 + m[0].search(/[^'\u2019]/),
           endLine: lineNum,
-          endCol: m.index + 1 + m[0].length
+          endCol: m.index + 1 + m[0].search(/[^'\u2019]/) + raw.length
         });
       }
 
@@ -261,7 +264,7 @@
       const issues = [];
       for (const word of result.misspelled) {
         if (isInCustomDictionary(word)) continue;
-        const suggestions = result.results[word] || [];
+        const suggestions = result.results?.[word] || [];
         const positions = wordPositions.get(word) || [];
         for (const pos of positions) {
           issues.push({
@@ -511,6 +514,8 @@ ${excerpt}`;
     const model = window.editor.getModel();
     if (!model) return;
 
+    const version = model.getVersionId();
+
     // Single-pass document parse (shared by spell + grammar)
     const { wordPositions, grammarText, grammarLineStarts } = parseDocument(model);
 
@@ -521,7 +526,8 @@ ${excerpt}`;
     ]);
 
     // Discard if a newer check was started while we awaited IPC
-    if (gen !== checkGeneration) return;
+    if (!enabled || gen !== checkGeneration || window.editor.getModel() !== model ||
+        model.getVersionId() !== version) return;
 
     currentIssues.spelling = spellIssues;
     currentIssues.grammar = grammarIssues;
@@ -552,6 +558,100 @@ ${excerpt}`;
     styleDecoIds = window.editor.deltaDecorations(styleDecoIds, styleDecos);
 
     updateIssuesPanel();
+  }
+
+  // Click an underlined word, or use the keyboard/context-menu action.
+  function closeSuggestions() {
+    if (suggestionCleanup) suggestionCleanup();
+    suggestionCleanup = null;
+    if (suggestionPopup) suggestionPopup.remove();
+    suggestionPopup = null;
+  }
+
+  async function showSuggestions(position) {
+    closeSuggestions();
+    const editor = window.editor;
+    const model = editor?.getModel();
+    if (!enabled || !model || !position || editor.getOption(monaco.editor.EditorOption.readOnly)) return;
+    const issue = currentIssues.spelling.find(item =>
+      item.startLine === position.lineNumber &&
+      item.startCol <= position.column && position.column < item.endCol);
+    if (!issue) return;
+    const range = new monaco.Range(issue.startLine, issue.startCol, issue.endLine, issue.endCol);
+    const version = model.getVersionId();
+    const isCurrent = () => enabled && !editor.getOption(monaco.editor.EditorOption.readOnly) &&
+      editor.getModel() === model &&
+      model.getVersionId() === version && model.getValueInRange(range) === issue.word;
+    if (!isCurrent()) return;
+    const anchor = editor.getScrolledVisiblePosition({ lineNumber: issue.startLine, column: issue.startCol });
+    if (!anchor) return;
+    const bounds = editor.getDomNode().getBoundingClientRect();
+    const popup = document.createElement('div');
+    popup.className = 'proofread-suggestions';
+    popup.setAttribute('role', 'dialog');
+    popup.setAttribute('aria-label', `Spelling suggestions for ${issue.word}`);
+    popup.style.cssText = 'position:fixed;z-index:10002;min-width:180px;max-width:300px;max-height:260px;overflow:auto;padding:8px;border:1px solid var(--border-color,#666);border-radius:6px;background:var(--bg-color,#252526);color:var(--text-color,#ddd);box-shadow:0 4px 16px #0005;';
+    popup.style.left = Math.max(8, Math.min(bounds.left + anchor.left, window.innerWidth - 316)) + 'px';
+    popup.style.top = Math.max(8, Math.min(bounds.top + anchor.top + anchor.height, window.innerHeight - 276)) + 'px';
+    const heading = document.createElement('div');
+    heading.textContent = `Spelling: ${issue.word}`;
+    popup.appendChild(heading);
+    const choices = document.createElement('div');
+    choices.textContent = 'Loading suggestions…';
+    choices.setAttribute('aria-live', 'polite');
+    popup.appendChild(choices);
+    const button = (label, action, parent = popup) => {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.textContent = label;
+      el.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;margin-top:4px;color:inherit;background:var(--bg-secondary,#333);border:1px solid var(--border-color,#666);border-radius:3px;cursor:pointer;';
+      el.addEventListener('click', action);
+      parent.appendChild(el);
+      return el;
+    };
+    button('Add to dictionary', () => {
+      if (isCurrent()) addToDictionary(issue.word);
+      closeSuggestions();
+      editor.focus();
+    });
+    button('Close', () => { closeSuggestions(); editor.focus(); });
+    const dismissOutside = event => { if (!popup.contains(event.target)) closeSuggestions(); };
+    const dismissEscape = event => {
+      if (event.key === 'Escape') { event.preventDefault(); closeSuggestions(); editor.focus(); }
+    };
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('keydown', dismissEscape);
+    suggestionCleanup = () => {
+      document.removeEventListener('pointerdown', dismissOutside);
+      document.removeEventListener('keydown', dismissEscape);
+    };
+    suggestionPopup = popup;
+    document.body.appendChild(popup);
+    popup.querySelector('button').focus();
+    try {
+      let suggestions = issue.suggestions;
+      if (!suggestions.length) {
+        const result = await window.electronAPI.spellcheck.getSuggestions({ word: issue.word });
+        if (!result.success) throw new Error('Suggestions unavailable');
+        suggestions = result.suggestions || [];
+      }
+      if (suggestionPopup !== popup || !isCurrent()) return;
+      choices.textContent = suggestions.length ? '' : 'No suggestions found.';
+      for (const replacement of [...new Set(suggestions)].slice(0, 5)) {
+        button(replacement, () => {
+          if (!isCurrent()) { closeSuggestions(); return; }
+          closeSuggestions();
+          editor.pushUndoStop();
+          editor.executeEdits('proofreader', [{ range, text: replacement }]);
+          editor.pushUndoStop();
+          editor.focus();
+          scheduleCheck();
+        }, choices);
+      }
+      choices.querySelector('button')?.focus();
+    } catch (error) {
+      if (suggestionPopup === popup) choices.textContent = 'Suggestions unavailable. Try again.';
+    }
   }
 
   // ── Issues Panel ──
@@ -1052,6 +1152,8 @@ ${excerpt}`;
    * so squiggly lines disappear as soon as the word is corrected.
    */
   function onContentChange(event) {
+    checkGeneration++;
+    closeSuggestions();
     // Quick local pass: for each changed range, check if words at that
     // position are now different from the flagged word → remove that issue.
     if (currentIssues.spelling.length > 0 && window.editor) {
@@ -1102,6 +1204,22 @@ ${excerpt}`;
 
     if (window.editor) {
       changeListener = window.editor.onDidChangeModelContent(onContentChange);
+      interactionListeners = [
+        window.editor.onMouseDown(event => {
+          if (event.event.leftButton) showSuggestions(event.target.position);
+        }),
+        window.editor.onDidScrollChange(closeSuggestions),
+        window.editor.onDidChangeModel(() => {
+          checkGeneration++;
+          closeSuggestions();
+          currentIssues = { spelling: [], grammar: [], style: [] };
+          spellDecoIds = window.editor.deltaDecorations(spellDecoIds, []);
+          grammarDecoIds = window.editor.deltaDecorations(grammarDecoIds, []);
+          styleDecoIds = window.editor.deltaDecorations(styleDecoIds, []);
+          updateIssuesPanel();
+          scheduleCheck();
+        })
+      ];
       runFullCheck();
     }
 
@@ -1113,6 +1231,10 @@ ${excerpt}`;
   function deactivate() {
     if (!enabled) return;
     enabled = false;
+    checkGeneration++;
+    closeSuggestions();
+    interactionListeners.forEach(listener => listener.dispose());
+    interactionListeners = [];
 
     if (checkTimer) { clearTimeout(checkTimer); checkTimer = null; }
     if (changeListener) { changeListener.dispose(); changeListener = null; }
@@ -1200,6 +1322,18 @@ ${excerpt}`;
         setTimeout(registerEditorActions, 500);
         return;
       }
+
+      window.editor.addAction({
+        id: 'proofreader-spelling-suggestions',
+        label: 'Spelling: Show Suggestions',
+        contextMenuGroupId: 'proofreader',
+        contextMenuOrder: 0,
+        run: async () => {
+          if (!enabled) activate();
+          await runFullCheck();
+          showSuggestions(window.editor.getPosition());
+        }
+      });
 
       window.editor.addAction({
         id: 'proofreader-add-to-dict',
