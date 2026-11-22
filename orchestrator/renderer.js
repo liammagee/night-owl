@@ -4285,6 +4285,7 @@ async function initializeMonacoEditor() {
                 theme: 'markdown-light', // Will be updated based on settings after creation
                 automaticLayout: true,
                 wordWrap: 'on',
+                find: { seedSearchStringFromSelection: 'never' },
                 // Conditionally disable auto-closing brackets based on citation autocomplete setting
                 autoClosingBrackets: 'beforeWhitespace', // Will be updated after settings load
                 autoClosingQuotes: 'never',
