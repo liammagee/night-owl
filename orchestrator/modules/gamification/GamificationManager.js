@@ -25,17 +25,15 @@ class GamificationManager {
         this.rewards = this.dataPersistence.loadRewards();
         
         // Library world progression state
-        if (typeof LibraryWorldEngine !== 'undefined') {
+        if (this.isRoomGenerationEnabled() && typeof LibraryWorldEngine !== 'undefined') {
             this.worldEngine = new LibraryWorldEngine(this);
         } else {
-            console.warn('[GamificationManager] LibraryWorldEngine not available. Library world features disabled.');
             this.worldEngine = null;
         }
         
-        if (typeof LibraryArchitectBridge !== 'undefined') {
+        if (this.worldEngine && typeof LibraryArchitectBridge !== 'undefined') {
             this.architectBridge = new LibraryArchitectBridge(this);
         } else {
-            console.warn('[GamificationManager] LibraryArchitectBridge not available. Architect integrations disabled.');
             this.architectBridge = null;
         }
 
@@ -694,7 +692,14 @@ class GamificationManager {
         return true;
     }
 
+    isRoomGenerationEnabled() {
+        // Existing profiles without this setting must also remain opted out.
+        return window.appSettings?.gamification?.roomGeneration === true
+            && window.appSettings?.gamification?.enabled !== false;
+    }
+
     recordWorldEvent(event) {
+        if (!this.isRoomGenerationEnabled()) return;
         if (!this.worldEngine || !this.worldEngine.recordProgressEvent) return;
         this.worldEngine.recordProgressEvent(event);
         
@@ -744,6 +749,7 @@ class GamificationManager {
     }
 
     async requestLibraryBlueprint(options = {}) {
+        if (!this.isRoomGenerationEnabled()) return null;
         if (!this.architectBridge) {
             console.warn('[GamificationManager] Architect bridge unavailable.');
             return null;
@@ -752,6 +758,7 @@ class GamificationManager {
     }
 
     applyLibraryBlueprint(blueprint) {
+        if (!this.isRoomGenerationEnabled()) return false;
         if (!this.architectBridge) return false;
         const applied = this.architectBridge.applyBlueprint(blueprint);
         if (applied) {
@@ -764,6 +771,11 @@ class GamificationManager {
     }
 
     handleLiveWordDelta(delta, snippet = '') {
+        if (!this.isRoomGenerationEnabled()) {
+            this.liveProgress.accumulatedWords = 0;
+            this.liveProgress.recentSnippet = '';
+            return;
+        }
         if (delta <= 0) return;
 
         this.liveProgress.accumulatedWords += delta;
@@ -807,6 +819,7 @@ class GamificationManager {
     }
 
     spawnLibraryRoomFromSnippet(snippet, awardAmount = 0) {
+        if (!this.isRoomGenerationEnabled()) return;
         if (!this.worldEngine) return;
 
         const now = Date.now();
@@ -878,6 +891,7 @@ class GamificationManager {
     }
 
     async scheduleArchitectAutoBuild() {
+        if (!this.isRoomGenerationEnabled()) return;
         if (!this.worldEngine?.peekArchitectQueue || !this.architectBridge) return;
         if (this.architectAutomation.inFlight) return;
 
