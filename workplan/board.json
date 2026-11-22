@@ -1,21 +1,21 @@
 {
-  "generated": "2026-11-22T02:42:59.503Z",
+  "generated": "2026-11-22T02:44:41.386Z",
   "counts": {
-    "total": 41,
+    "total": 42,
     "byStatus": {
-      "review": 4,
+      "review": 5,
       "done": 37
     },
     "byPriority": {
       "P1": 20,
-      "P2": 16,
+      "P2": 17,
       "P0": 4,
       "P3": 1
     },
     "byArea": {
       "presentation": 6,
       "platform": 8,
-      "editor": 6,
+      "editor": 7,
       "preview": 3,
       "performance": 4,
       "testing": 3,
@@ -100,6 +100,24 @@
         "performance",
         "electron",
         "regression"
+      ]
+    },
+    {
+      "id": "typo-suggestions",
+      "title": "Correct spelling directly from underlined words",
+      "status": "review",
+      "type": "enhancement",
+      "priority": "P2",
+      "area": "editor",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "source-analysis",
+      "created": "2026-11-17",
+      "updated": "2026-11-17",
+      "verification": "Focused renderer tests for replacement, undo boundaries, stale suggestions and lifecycle cleanup.",
+      "tags": [
+        "editor",
+        "spelling"
       ]
     },
     {
