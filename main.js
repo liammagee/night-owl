@@ -609,6 +609,7 @@ Content to analyze:
     
     // === Gamification Settings ===
     gamification: {
+        roomGeneration: false,
         focusSessionsEnabled: true,
         defaultFocusDuration: 25, // minutes
         breakReminders: true,

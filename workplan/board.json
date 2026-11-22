@@ -1,15 +1,15 @@
 {
-  "generated": "2026-11-11T18:13:42.290Z",
+  "generated": "2026-11-12T15:00:37.914Z",
   "counts": {
-    "total": 35,
+    "total": 36,
     "byStatus": {
       "review": 1,
-      "done": 34
+      "done": 35
     },
     "byPriority": {
       "P2": 15,
       "P0": 4,
-      "P1": 15,
+      "P1": 16,
       "P3": 1
     },
     "byArea": {
@@ -17,7 +17,7 @@
       "presentation": 5,
       "preview": 3,
       "platform": 7,
-      "performance": 3,
+      "performance": 4,
       "testing": 3,
       "packaging": 2,
       "security": 2,
@@ -265,6 +265,25 @@
       "depends_on": [
         "unify-command-and-shortcut-registry",
         "minimize-electron-privilege-surface"
+      ]
+    },
+    {
+      "id": "opt-in-library-rooms",
+      "title": "Disable Library room generation by default",
+      "status": "done",
+      "type": "bug",
+      "priority": "P1",
+      "area": "performance",
+      "owner": "codex",
+      "source": "user-report",
+      "evidence": "reproduced",
+      "created": "2026-11-12",
+      "updated": "2026-11-12",
+      "verification": "Missing and false roomGeneration settings produce no room growth or architect work; explicit opt-in retains the feature.",
+      "tags": [
+        "performance",
+        "gamification",
+        "reliability"
       ]
     },
     {
