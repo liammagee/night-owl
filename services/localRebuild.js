@@ -38,10 +38,9 @@ function run(command, args, options = {}) {
 }
 
 function verifyBundle(bundle) {
-  const resources = path.join(bundle, 'Contents', 'Resources');
-  for (const file of ['app.asar', 'app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node', 'app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node', 'app.asar.unpacked/node_modules/node-pty/build/Release/pty.node']) {
-    if (!fs.existsSync(path.join(resources, file))) throw new Error(`Incomplete build: ${file}`);
-  }
+  const { verifyPackagedRuntime } = require('../scripts/verify-packaged-runtime');
+  const result = verifyPackagedRuntime(bundle);
+  if (!result.ok) throw new Error(`Incomplete build: ${result.missing.join(', ')}`);
   execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], { stdio: 'pipe' });
 }
 

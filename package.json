@@ -135,6 +135,7 @@
       "orchestrator/**/*",
       "plugins/**/*",
       "services/**/*",
+      "scripts/verify-packaged-runtime.js",
       "!node_modules/@machinespirits/tutor-core/.claude{,/**/*}",
       "!node_modules/@machinespirits/tutor-core/.github{,/**/*}",
       "!node_modules/@machinespirits/tutor-core/.npmignore",
