@@ -2608,6 +2608,42 @@ async function saveSettingsDialog() {
 function collectSettingsFromForm() {
     const updatedSettings = JSON.parse(JSON.stringify(currentSettings));
     
+    // Only the visible category has controls. Preserve draft values from other tabs.
+    const fields = [
+        ['create-backups', 'autoSave', 'createBackups'],
+        ['structure-width', 'layout', 'structureWidth'],
+        ['editor-width', 'layout', 'editorWidth'],
+        ['right-width', 'layout', 'rightWidth'],
+        ['preview-style-select', 'stylePreferences', 'previewStyle'],
+        ['export-style-select', 'stylePreferences', 'exportStyle'],
+        ['pdf-engine', 'export', 'pandoc', 'pdfEngine'],
+        ['include-toc', 'export', 'pandoc', 'includeTableOfContents'],
+        ['number-sections', 'export', 'pandoc', 'numberSections'],
+        ['math-renderer', 'export', 'html', 'mathRenderer'],
+        ['syntax-highlighting', 'export', 'html', 'syntaxHighlighting'],
+        ['enable-preview-cache', 'performance', 'enablePreviewCache'],
+        ['max-cache-size', 'performance', 'maxCacheSize'],
+        ['enable-debug-mode', 'advanced', 'enableDebugMode'],
+        ['show-performance-metrics', 'advanced', 'showPerformanceMetrics']
+    ];
+    for (const [id, ...path] of fields) {
+        const control = document.getElementById(id);
+        if (!control) continue;
+        let value = control.value;
+        if (control.type === 'checkbox') value = control.checked;
+        if (control.type === 'number') {
+            if (!control.validity.valid || !Number.isFinite(control.valueAsNumber)) continue;
+            value = control.valueAsNumber;
+        }
+        const key = path.pop();
+        let section = updatedSettings;
+        for (const name of path) {
+            section[name] ??= {};
+            section = section[name];
+        }
+        section[key] = value;
+    }
+
     // General settings
     const workingDir = document.getElementById('working-directory')?.value;
     if (workingDir) updatedSettings.workingDirectory = workingDir;

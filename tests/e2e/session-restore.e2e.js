@@ -48,6 +48,31 @@ test.describe('Editor session across process restarts', () => {
     if (root) fs.rmSync(root, { recursive: true, force: true });
   });
 
+  test('settings dialog saves edits across categories and a process restart', async () => {
+    await page.evaluate(() => window.openSettingsDialog('general'));
+    const backups = page.locator('#create-backups');
+    const enabled = !(await backups.isChecked());
+    await backups.setChecked(enabled);
+    await page.locator('.settings-nav-item[data-category="export"]').click();
+    await page.locator('#pdf-engine').selectOption('lualatex');
+    await page.locator('.settings-nav-item[data-category="advanced"]').click();
+    await page.locator('#max-cache-size').fill('73');
+    await page.getByRole('button', { name: 'Save Settings', exact: true }).click();
+    await expect(page.locator('#settings-dialog')).toBeHidden();
+    await app.close();
+    app = null;
+    const stored = JSON.parse(fs.readFileSync(path.join(profile, 'settings.json'), 'utf8'));
+    expect(stored.autoSave.createBackups).toBe(enabled);
+    expect(stored.export.pandoc.pdfEngine).toBe('lualatex');
+    expect(stored.performance.maxCacheSize).toBe(73);
+    await launch();
+    await page.evaluate(() => window.openSettingsDialog('advanced'));
+    await expect(page.locator('#max-cache-size')).toHaveValue('73');
+    await page.locator('.settings-nav-item[data-category="general"]').click();
+    await expect(page.locator('#create-backups')).toBeChecked({ checked: enabled });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  });
+
   test('a normal quit and same-workspace relaunch retain the last edited tab despite stale preferences', async () => {
     await expect.poll(() => page.evaluate(() => window.tabManager.activeTabPath)).toBe(firstFile);
     await page.evaluate(async (target) => {
